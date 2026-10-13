@@ -1,0 +1,566 @@
+<template>
+    <BaseTab tab-name="auxiliary">
+        <div class="content_wrapper">
+            <div class="tab_title">{{ $t("tabAuxiliary") }}</div>
+            <WikiButton docUrl="modes" />
+
+            <div class="flex flex-col gap-4">
+                <UiBox highlight>
+                    <p v-html="$t('auxiliaryHelp')"></p>
+                </UiBox>
+                <SettingRow :label="$t('auxiliaryToggleUnused')">
+                    <USwitch v-model="hideUnused" />
+                </SettingRow>
+
+                <div class="flex flex-col gap-2">
+                    <div
+                        v-for="{ mode, state, stateUi, buttonSolid } in visibleModesWithState"
+                        :key="mode.id"
+                        class="flex flex-col md:flex-row md:min-h-24 bg-muted rounded-md group"
+                    >
+                        <div
+                            class="flex flex-row md:flex-col bg-elevated min-h-full p-3 rounded-md md:rounded-r-none items-center relative gap-2"
+                            :class="stateUi.solid"
+                        >
+                            <HelpIcon class="absolute top-2.5 right-2.5" :text="$t(mode.helpKey)" />
+
+                            <!-- Negative margin for mobile where the minWidthStyle is computed a little too wide -->
+                            <div
+                                class="text-xs font-bold md:w-full pr-4 md:text-center -mr-10 md:mr-0"
+                                :style="infoMinWidthStyle"
+                            >
+                                {{ mode.displayName }}
+                            </div>
+                            <div class="text-xs font-bold" v-if="state === 'disabled'">
+                                {{ $t("auxiliaryDisabled") }}
+                            </div>
+
+                            <div class="flex flex-row md:flex-col gap-2 md:gap-1 w-full mt-auto">
+                                <UButton
+                                    icon="i-lucide-link"
+                                    size="xs"
+                                    class="md:w-full w-fit"
+                                    v-if="mode.id !== 0"
+                                    @click="addLink(mode)"
+                                    :color="stateUi.color"
+                                    :variant="buttonSolid ? 'solid' : 'soft'"
+                                    :ui="{
+                                        base: buttonSolid ? '' : 'bg-accented',
+                                    }"
+                                >
+                                    {{ $t("auxiliaryAddLink") }}
+                                </UButton>
+                                <UButton
+                                    icon="i-lucide-plus"
+                                    size="xs"
+                                    class="md:w-full w-fit"
+                                    @click="addRange(mode)"
+                                    :color="stateUi.color"
+                                    :variant="buttonSolid ? 'solid' : 'soft'"
+                                    :ui="{
+                                        base: buttonSolid ? '' : 'bg-accented',
+                                    }"
+                                >
+                                    {{ $t("auxiliaryAddRange") }}
+                                </UButton>
+                            </div>
+                        </div>
+                        <div class="w-full">
+                            <template v-if="mode.entries.length">
+                                <template v-for="(entry, entryIndex) in mode.entries" :key="entry.uid">
+                                    <div
+                                        v-if="entry.kind === 'range'"
+                                        class="flex flex-col md:flex-row w-full relative"
+                                    >
+                                        <div class="flex flex-row md:flex-col gap-1 p-3 pb-3 md:pb-2 items-center">
+                                            <USelect
+                                                v-model="entry.auxChannelIndex"
+                                                :items="channelOptions"
+                                                class="min-w-22"
+                                            />
+                                            <USelect
+                                                v-model="entry.modeLogic"
+                                                :items="logicOptions"
+                                                v-if="mode.entries.length > 1"
+                                                class="min-w-22"
+                                            />
+                                            <p class="text-xs">{{ $t("auxiliaryMin") }}: {{ entry.sliderRange[0] }}</p>
+                                            <p class="text-xs">{{ $t("auxiliaryMax") }}: {{ entry.sliderRange[1] }}</p>
+                                        </div>
+                                        <div
+                                            class="w-full h-full flex flex-col items-center justify-center p-3 md:pr-12 md:pb-0"
+                                        >
+                                            <DraggableMultiSlider
+                                                v-model="entry.sliderRange"
+                                                :min="CHANNEL_MIN"
+                                                :max="CHANNEL_MAX"
+                                                :step="CHANNEL_STEP"
+                                                :min-range-gap="MIN_RANGE_GAP"
+                                            />
+                                            <ChannelRangePips
+                                                variant="aux"
+                                                :pips="sliderPipValues"
+                                                :marker-percent="markerPercentFor(entry.auxChannelIndex)"
+                                            />
+                                        </div>
+                                        <UButton
+                                            icon="i-lucide-x"
+                                            size="xs"
+                                            color="neutral"
+                                            variant="soft"
+                                            :ui="{
+                                                base: 'bg-accented absolute top-3 right-3 rounded-full',
+                                            }"
+                                            @click="removeEntry(mode, entry.uid)"
+                                        />
+                                    </div>
+                                    <div v-else class="flex w-full relative">
+                                        <div class="flex flex-col gap-2 p-3 items-start">
+                                            <USelect
+                                                v-model="entry.linkedTo"
+                                                :items="linkItemsForMode(mode)"
+                                                class="min-w-52"
+                                            />
+                                            <USelect
+                                                v-model="entry.modeLogic"
+                                                :items="logicOptions"
+                                                v-if="mode.entries.length > 1"
+                                                class="min-w-22"
+                                            />
+                                        </div>
+                                        <UButton
+                                            icon="i-lucide-x"
+                                            size="xs"
+                                            color="neutral"
+                                            variant="soft"
+                                            :ui="{
+                                                base: 'bg-accented absolute top-3 right-3 rounded-full',
+                                            }"
+                                            @click="removeEntry(mode, entry.uid)"
+                                        />
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content_toolbar toolbar_fixed_bottom">
+            <UButton :label="$t('auxiliaryButtonSave')" :disabled="!dirty" :loading="isSaving" @click="saveModes" />
+        </div>
+    </BaseTab>
+</template>
+
+<script>
+import { defineComponent, reactive, ref, computed, onMounted, watch, nextTick } from "vue";
+import { useWindowSize } from "@vueuse/core";
+import { useFlightControllerStore } from "@/stores/fc";
+import BaseTab from "./BaseTab.vue";
+import WikiButton from "../elements/WikiButton.vue";
+import GUI from "../../js/gui";
+import { useInterval } from "../../composables/useInterval";
+import { useDirtyState } from "../../composables/useDirtyState";
+import { useSaving } from "../../composables/useSaving";
+import { useReboot } from "../../composables/useReboot";
+import { runTabLoad } from "../../composables/useTabLoad";
+import MSP from "../../js/msp";
+import MSPCodes from "../../js/msp/MSPCodes";
+import { mspHelper } from "../../js/msp/MSPHelper";
+import { bit_check, bit_set } from "../../js/bit";
+import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
+import adjustBoxNameIfPeripheralWithModeID from "../../js/peripherals";
+import { i18n } from "../../js/localization";
+import { getTextWidth } from "../../js/utils/common";
+import { CHANNEL_MIN, CHANNEL_MAX, channelPercent } from "../../js/utils/rcChannel";
+import {
+    CHANNEL_STEP,
+    MIN_RANGE_GAP,
+    DEFAULT_RANGE,
+    normalizeRangeValues,
+    entriesFromModeRanges,
+    buildModeRangePayload,
+    serializeModes,
+} from "../../js/utils/modeRanges";
+import inflection from "inflection";
+import UiBox from "../elements/UiBox.vue";
+import HelpIcon from "../elements/HelpIcon.vue";
+import SettingRow from "../elements/SettingRow.vue";
+import DraggableMultiSlider from "../elements/DraggableMultiSlider.vue";
+import ChannelRangePips from "../elements/ChannelRangePips.vue";
+
+function getModeStateColors(state) {
+    switch (state) {
+        case "on":
+            return {
+                color: "primary",
+                solid: "bg-primary/80",
+            };
+        case "off":
+            return {
+                color: "neutral",
+                solid: "bg-accented",
+            };
+        case "disabled":
+            return {
+                color: "error",
+                solid: "bg-error/20",
+            };
+        default:
+            return {
+                color: "neutral",
+                solid: "bg-accented",
+            };
+    }
+}
+
+export default defineComponent({
+    name: "AuxiliaryTab",
+    components: {
+        BaseTab,
+        WikiButton,
+        UiBox,
+        HelpIcon,
+        SettingRow,
+        DraggableMultiSlider,
+        ChannelRangePips,
+    },
+    setup() {
+        // Initialize Pinia stores
+        const fcStore = useFlightControllerStore();
+
+        // Reactive State
+        const modes = reactive([]);
+        const hideUnused = ref(false);
+        const auxChannelCount = ref(0);
+        const requiredModeRangeCount = ref(0);
+        const infoMinWidth = ref(0);
+        const rcMarkers = reactive({});
+        let prevChannelsValues = null;
+        let entryUid = 0;
+
+        const logicOptions = computed(() => [
+            { value: 0, label: i18n.getMessage("auxiliaryModeLogicOR") },
+            { value: 1, label: i18n.getMessage("auxiliaryModeLogicAND") },
+        ]);
+
+        const { width: windowWidth } = useWindowSize();
+
+        const sliderPipValues = computed(() => {
+            if (windowWidth.value < 575) {
+                return [1000, 1200, 1400, 1600, 1800, 2000];
+            }
+            return [900, 1000, 1200, 1400, 1500, 1600, 1800, 2000, 2100];
+        });
+
+        const channelOptions = computed(() => {
+            const options = [{ value: -1, label: i18n.getMessage("auxiliaryAutoChannelSelect") }];
+            for (let channelIndex = 0; channelIndex < auxChannelCount.value; channelIndex++) {
+                options.push({ value: channelIndex, label: `AUX ${channelIndex + 1}` });
+            }
+            return options;
+        });
+
+        const linkOptions = computed(() => {
+            const none = { value: 0, label: i18n.getMessage("auxiliaryLinkNone") };
+            const rest = [];
+            for (let index = 1; index < fcStore.auxConfig.length; index++) {
+                rest.push({ value: fcStore.auxConfigIds[index], label: fcStore.auxConfig[index] });
+            }
+            rest.sort((a, b) => a.label.localeCompare(b.label));
+            return [none, ...rest];
+        });
+
+        const linkItemsForMode = (mode) =>
+            linkOptions.value.map((opt) => ({
+                ...opt,
+                disabled: opt.value === mode.id,
+            }));
+
+        const anyUsedMode = computed(() => modes.some((mode) => mode.entries.length));
+
+        const visibleModes = computed(() => {
+            if (hideUnused.value && anyUsedMode.value) {
+                return modes.filter((mode) => mode.entries.length);
+            }
+            return modes;
+        });
+
+        const infoMinWidthStyle = computed(() => {
+            return infoMinWidth.value ? { minWidth: `${infoMinWidth.value}px` } : {};
+        });
+
+        const updateInfoWidth = () => {
+            const longestName = modes.reduce((max, mode) => Math.max(max, mode.displayName.length), 0);
+            infoMinWidth.value = Math.round(longestName * getTextWidth("A"));
+        };
+
+        const markerPercentFor = (auxChannelIndex) => {
+            const percent = rcMarkers[auxChannelIndex];
+            return percent === undefined ? null : percent;
+        };
+
+        const { dirty, markClean, takeSnapshot } = useDirtyState(() => serializeModes(modes));
+
+        const addRange = (mode, auxChannelIndex = -1, modeLogic = 0, range = DEFAULT_RANGE) => {
+            const sliderRange = normalizeRangeValues([range.start, range.end]);
+            mode.entries.push({
+                uid: ++entryUid,
+                kind: "range",
+                auxChannelIndex,
+                modeLogic,
+                sliderRange,
+            });
+        };
+
+        const addLink = (mode, modeLogic = 0, linkedTo = 0) => {
+            mode.entries.push({
+                uid: ++entryUid,
+                kind: "link",
+                modeLogic,
+                linkedTo,
+            });
+        };
+
+        const removeEntry = (mode, uid) => {
+            const index = mode.entries.findIndex((entry) => entry.uid === uid);
+            if (index >= 0) {
+                mode.entries.splice(index, 1);
+            }
+        };
+
+        const isArmSwitchDisabled = () => {
+            const { armingDisableCount = 0, armingDisableFlags = 0 } = fcStore.config || {};
+            if (armingDisableCount <= 0) {
+                return false;
+            }
+            const armSwitchMask = bit_set(0, armingDisableCount - 1);
+            return (armingDisableFlags & armSwitchMask) > 0;
+        };
+
+        const modeState = (mode) => {
+            if (!mode.entries.length) {
+                return "";
+            }
+            if (bit_check(fcStore.config.mode, mode.index)) {
+                return "on";
+            }
+            if (mode.index === 0) {
+                return isArmSwitchDisabled() ? "disabled" : "off";
+            }
+            return "off";
+        };
+
+        const visibleModesWithState = computed(() =>
+            visibleModes.value.map((mode) => {
+                const state = modeState(mode);
+                return {
+                    mode,
+                    state,
+                    stateUi: getModeStateColors(state),
+                    buttonSolid: state === "on" || state === "disabled",
+                };
+            }),
+        );
+
+        const buildModesFromFC = () => {
+            modes.length = 0;
+            entryUid = 0;
+
+            const modeMap = new Map();
+            for (let index = 0; index < fcStore.auxConfig.length; index++) {
+                const modeId = fcStore.auxConfigIds[index];
+                const rawName = fcStore.auxConfig[index];
+                const adjustedName = adjustBoxNameIfPeripheralWithModeID(modeId, rawName);
+                const helpKey = `auxiliaryHelpMode_${inflection.camelize(rawName.replaceAll(/\s+/g, ""))}`;
+                modeMap.set(modeId, {
+                    id: modeId,
+                    index,
+                    name: rawName,
+                    displayName: adjustedName,
+                    helpKey,
+                    entries: [],
+                });
+            }
+
+            for (const { modeId, entry } of entriesFromModeRanges(fcStore.modeRanges, fcStore.modeRangesExtra)) {
+                const target = modeMap.get(modeId);
+                if (!target) {
+                    continue;
+                }
+                target.entries.push({ uid: ++entryUid, ...entry });
+            }
+
+            fcStore.auxConfigIds.forEach((modeId) => {
+                const mode = modeMap.get(modeId);
+                if (mode) {
+                    modes.push(mode);
+                }
+            });
+
+            updateInfoWidth();
+            markClean();
+        };
+
+        const autoSelectChannel = (rcChannels, activeChannels, rssiChannel) => {
+            const autoRanges = [];
+            modes.forEach((mode) => {
+                mode.entries.forEach((entry) => {
+                    if (entry.kind === "range" && entry.auxChannelIndex === -1) {
+                        autoRanges.push(entry);
+                    }
+                });
+            });
+
+            if (!autoRanges.length) {
+                prevChannelsValues = null;
+                return;
+            }
+
+            const fillPrev = () => {
+                prevChannelsValues = rcChannels.slice(0);
+            };
+
+            if (!prevChannelsValues || !rcChannels.length) {
+                return fillPrev();
+            }
+
+            const diffs = rcChannels
+                .map((value, idx) => Math.abs(prevChannelsValues[idx] - value))
+                .slice(0, activeChannels);
+            const largest = diffs.reduce((x, y) => Math.max(x, y), 0);
+            if (largest < 100) {
+                return fillPrev();
+            }
+
+            const indexOfMaxValue = diffs.indexOf(largest);
+            const rssiIndex = rssiChannel ? rssiChannel - 1 : -1;
+            if (indexOfMaxValue >= 4 && indexOfMaxValue !== rssiIndex) {
+                const auxIndex = indexOfMaxValue - 4;
+                autoRanges.forEach((entry) => {
+                    entry.auxChannelIndex = auxIndex;
+                });
+            }
+
+            fillPrev();
+        };
+
+        const updateMarkers = () => {
+            const rc = fcStore.rc || {};
+            const channels = rc.channels || [];
+            const activeChannels = rc.active_channels || 0;
+            const nextAuxChannelCount = Math.max(0, activeChannels - 4);
+
+            auxChannelCount.value = nextAuxChannelCount;
+
+            for (let idx = 0; idx < nextAuxChannelCount; idx++) {
+                const nextPercent = channelPercent(channels[idx + 4]);
+                if (rcMarkers[idx] !== nextPercent) {
+                    rcMarkers[idx] = nextPercent;
+                }
+            }
+
+            const existingMarkerCount = Object.keys(rcMarkers).length;
+            for (let idx = nextAuxChannelCount; idx < existingMarkerCount; idx++) {
+                delete rcMarkers[idx];
+            }
+
+            autoSelectChannel(channels, activeChannels, fcStore.rssiConfig?.channel || 0);
+        };
+
+        const { isSaving, runSave } = useSaving();
+        const { saveToEeprom } = useReboot();
+
+        const saveModes = () =>
+            runSave(
+                async () => {
+                    const { modeRanges, modeRangesExtra } = buildModeRangePayload(
+                        modes,
+                        requiredModeRangeCount.value || 0,
+                    );
+
+                    const savedSnapshot = takeSnapshot();
+
+                    fcStore.modeRanges = modeRanges;
+                    fcStore.modeRangesExtra = modeRangesExtra;
+
+                    await mspHelper.sendModeRanges();
+                    await saveToEeprom();
+
+                    // Only after a successful persist: refresh the dirty baseline.
+                    markClean(savedSnapshot);
+                },
+                { onError: (error) => console.error("Failed to save auxiliary modes", error) },
+            );
+
+        const loadData = async () => {
+            try {
+                await runTabLoad(
+                    async () => {
+                        await MSP.promise(MSPCodes.MSP_BOXNAMES);
+                        await MSP.promise(MSPCodes.MSP_MODE_RANGES);
+                        await MSP.promise(MSPCodes.MSP_MODE_RANGES_EXTRA);
+                        await MSP.promise(MSPCodes.MSP_BOXIDS);
+                        await MSP.promise(MSPCodes.MSP_RSSI_CONFIG);
+                        await MSP.promise(MSPCodes.MSP_RC);
+                        await new Promise((resolve) => mspHelper.loadSerialConfig(resolve));
+
+                        requiredModeRangeCount.value = fcStore.modeRanges.length;
+                        auxChannelCount.value = Math.max(0, (fcStore.rc?.active_channels || 0) - 4);
+                        buildModesFromFC();
+                        updateMarkers();
+                    },
+                    (error) => console.error("Failed to load auxiliary data", error),
+                );
+            } finally {
+                await nextTick();
+                GUI.content_ready();
+            }
+        };
+
+        const { addInterval } = useInterval();
+
+        onMounted(() => {
+            const stored = getConfig("hideUnusedModes") || {};
+            hideUnused.value = !!stored.hideUnusedModes;
+
+            loadData();
+            addInterval("aux_data_pull", () => MSP.send_message(MSPCodes.MSP_RC, false, false, updateMarkers), 50);
+            addInterval("status_pull", () => MSP.send_message(MSPCodes.MSP_STATUS), 250, true);
+        });
+
+        watch(hideUnused, (value) => setConfig({ hideUnusedModes: value }));
+
+        return {
+            modes,
+            hideUnused,
+            visibleModesWithState,
+            logicOptions,
+            channelOptions,
+            linkItemsForMode,
+            rcMarkers,
+            infoMinWidthStyle,
+            sliderPipValues,
+            CHANNEL_MIN,
+            CHANNEL_MAX,
+            CHANNEL_STEP,
+            MIN_RANGE_GAP,
+            getModeStateColors,
+            addRange,
+            addLink,
+            removeEntry,
+            markerPercentFor,
+            saveModes,
+            isSaving,
+            dirty,
+        };
+    },
+});
+</script>
+
+<style lang="less">
+.tab-auxiliary {
+    min-height: 100%;
+}
+</style>
