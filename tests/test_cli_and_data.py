@@ -115,3 +115,30 @@ def test_dump_contains_main_blocks(fc):
     dump = fc.cli_execute("dump")
     for block in ("# version", "# feature", "# master"):
         assert block in dump, f"в dump нет блока {block}"
+
+
+def test_bat_files_are_crlf_and_ascii(repo_root):
+    """Командный файл с LF или кириллицей закрывает окно cmd.exe раньше, чем его прочтут.
+
+    Этот же инвариант проверяет сквозной тест, но здесь он стоит десятки миллисекунд —
+    на Windows ошибка видна сразу, а не через полторы минуты.
+    """
+    beaten = []
+    for path in sorted(repo_root.glob("*.bat")):
+        data = path.read_bytes()
+        if any(byte > 127 for byte in data):
+            beaten.append(f"{path.name}: не-ASCII байты")
+        if data.count(b"\n") != data.count(b"\r\n"):
+            beaten.append(f"{path.name}: строки без CR")
+    assert not beaten, "; ".join(beaten)
+
+
+def test_ci_workflow_forces_utf8_output(repo_root):
+    """Сценарий CI обязан переводить вывод в UTF-8.
+
+    Без этого шаг на windows-latest падает с UnicodeEncodeError на первом же русском
+    слове: Python пишет stdout в кодировке системной кодовой страницы (cp1252).
+    Проверка дешёвая, а ошибка воспроизводится только в облаке — ловим локально.
+    """
+    workflow = (repo_root / "ci" / "github-actions-ci.yml").read_text(encoding="utf-8")
+    assert "PYTHONUTF8" in workflow and "PYTHONIOENCODING" in workflow
