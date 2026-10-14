@@ -142,3 +142,30 @@ def test_ci_workflow_forces_utf8_output(repo_root):
     """
     workflow = (repo_root / "ci" / "github-actions-ci.yml").read_text(encoding="utf-8")
     assert "PYTHONUTF8" in workflow and "PYTHONIOENCODING" in workflow
+
+
+def test_ci_workflow_calls_only_existing_checks(repo_root):
+    """Рабочий процесс вызывает только те проверки, которые есть в `ci/checks.py`.
+
+    Опечатка в имени проверки иначе всплыла бы только в облаке: шаг упал бы с
+    «invalid choice» через минуту после начала прогона.
+    """
+    import re
+    import sys
+
+    sys.path.insert(0, str(repo_root / "ci"))
+    try:
+        import checks
+    finally:
+        sys.path.pop(0)
+
+    workflow = (repo_root / "ci" / "github-actions-ci.yml").read_text(encoding="utf-8")
+    called = {
+        name
+        for call in re.findall(r"python ci/checks\.py ([a-z ]+)", workflow)
+        for name in call.split()
+    }
+    assert called, "в сценарии нет ни одного вызова ci/checks.py"
+    unknown = called - set(checks.CHECKS) - {"all"}
+    assert not unknown, f"сценарий зовёт несуществующие проверки: {sorted(unknown)}"
+    assert set(checks.ORDER) == set(checks.CHECKS), "ORDER и CHECKS разошлись"

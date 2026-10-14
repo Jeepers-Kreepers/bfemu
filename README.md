@@ -38,7 +38,7 @@ $ python3 -m bfemu --tcp 0.0.0.0:5761 --http 8088
 | запустить и подключить Configurator | этот README, раздел «Быстрый старт» |
 | подключение и диагностика в Windows | [`WINDOWS.md`](WINDOWS.md) |
 | что изменилось и когда | [`CHANGELOG.md`](CHANGELOG.md) |
-| запустить проверки, включить CI | [`ci/README.md`](ci/README.md) |
+| запустить проверки, настроить CI | [`ci/README.md`](ci/README.md) |
 | лицензия и скопированные исходники Betaflight | [`LICENSE`](LICENSE), [`NOTICE.md`](NOTICE.md) |
 
 ## Быстрый старт
@@ -71,7 +71,14 @@ pip install ".[serial]"       # pyserial — только если нужен к
 ### Проверки
 
 ```bash
-pytest tests -q               # 39 быстрых проверок, ~10 секунд (кодек, обработчики, CLI, монитор)
+python3 ci/checks.py all      # всё, что гоняет CI: линтер, тесты, сборка пакета (~4 минуты)
+python3 ci/checks.py unit     # или по отдельности: lint · unit · bat · smoke · package
+```
+
+То же самое вручную:
+
+```bash
+pytest tests -q               # 42 быстрые проверки, ~10 секунд (кодек, обработчики, CLI, монитор)
 python3 tests/smoke_test.py   # 617 сквозных проверок протокола, CLI и вкладок, ~100 секунд
 ruff check .                  # линтер: ожидается «All checks passed!»
 ```
@@ -123,7 +130,7 @@ bfemu/
 │  ├─ test_cli_and_data.py  # команды CLI, таблица настроек, «флеш»
 │  ├─ test_web_monitor.py   # экранирование, межсайтовые запросы, /api/state
 │  └─ smoke_test.py         # сквозной тест протокола, CLI и ребута (617 проверок)
-├─ ci/                 # сценарий GitHub Actions (см. ci/README.md)
+├─ ci/                 # checks.py — все проверки одной командой; эталон GitHub Actions
 ├─ pyproject.toml      # упаковка, точка входа `bfemu`, настройки ruff и pytest
 └─ docs/               # эталонные исходники Betaflight/Configurator для сверки
 ```
