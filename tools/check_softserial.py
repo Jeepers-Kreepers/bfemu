@@ -28,7 +28,7 @@ def reply(sock, code, payload=b"", v2=False):
     while time.time() < deadline:
         try:
             buf += sock.recv(65536)
-        except socket.timeout:
+        except TimeoutError:
             break
         for i in range(len(buf) - 5):
             if buf[i] == 0x24 and buf[i + 1] == 0x4D and buf[i + 2] == 0x3E:

@@ -31,13 +31,56 @@ $ python3 -m bfemu --tcp 0.0.0.0:5761 --http 8088
 Идентичность по умолчанию: **Betaflight 4.5.4, MSP API 1.46, MCU F405, плата S405**, variant `BTFL`.
 Меняется флагами `--fc-version` и `--api-version`.
 
+## Куда смотреть
+
+| Если нужно | Файл |
+|---|---|
+| запустить и подключить Configurator | этот README, раздел «Быстрый старт» |
+| подключение и диагностика в Windows | [`WINDOWS.md`](WINDOWS.md) |
+| что изменилось и когда | [`CHANGELOG.md`](CHANGELOG.md) |
+| запустить проверки, настроить CI | [`ci/README.md`](ci/README.md) |
+| лицензия и скопированные исходники Betaflight | [`LICENSE`](LICENSE), [`NOTICE.md`](NOTICE.md) |
+
 ## Быстрый старт
 
 ```bash
 cd bfemu
 python3 -m bfemu --tcp 0.0.0.0:5761 --http 8088     # TCP для Configurator + веб-монитор состояния
-python3 tests/smoke_test.py                          # 610 проверок протокола, CLI и вкладок
 python3 tools/demo_session.py                        # пример «клиента-Configurator» в терминале
+```
+
+Веб-монитор по умолчанию слушает только **127.0.0.1** (на странице `/tx` двигаются стики — в общей
+сети это значит «любой сосед управляет вашим FC»). Нужен доступ с планшета или другой машины:
+
+```bash
+python3 -m bfemu --tcp 0.0.0.0:5761 --http 8088 --http-host 0.0.0.0
+```
+
+### Установка как пакета (необязательно)
+
+```bash
+pip install .                 # появится команда bfemu
+bfemu --tcp 0.0.0.0:5761 --http 8088
+pip install -e ".[dev]"       # режим разработки: ruff, pytest, coverage
+pip install ".[serial]"       # pyserial — только если нужен ключ --com
+```
+
+У установленного пакета «флеш» (`eeprom.json`) создаётся в текущем каталоге, при запуске
+из исходников — в корне проекта, как и раньше.
+
+### Проверки
+
+```bash
+python3 ci/checks.py all      # всё, что гоняет CI: линтер, тесты, сборка пакета (~4 минуты)
+python3 ci/checks.py unit     # или по отдельности: lint · unit · bat · smoke · package
+```
+
+То же самое вручную:
+
+```bash
+pytest tests -q               # 42 быстрые проверки, ~10 секунд (кодек, обработчики, CLI, монитор)
+python3 tests/smoke_test.py   # 617 сквозных проверок протокола, CLI и вкладок, ~100 секунд
+ruff check .                  # линтер: ожидается «All checks passed!»
 ```
 
 ## Как подключить Betaflight Configurator
@@ -78,9 +121,18 @@ bfemu/
 ├─ tools/
 │  ├─ gen_data.py      # генератор bf_data.json прямо из исходников Betaflight
 │  ├─ tx.py            # виртуальная аппаратура из консоли (каналы через /api/rc)
-│  └─ demo_session.py  # демонстрационный клиент (эмуляция действий Configurator)
-└─ tests/
-   └─ smoke_test.py    # сквозной тест протокола, CLI и ребута
+│  ├─ demo_session.py  # демонстрационный клиент (эмуляция действий Configurator)
+│  └─ check_*.py       # 17 проверок по вкладкам Configurator (ручной прогон)
+├─ tests/
+│  ├─ conftest.py           # фикстуры pytest: виртуальный FC в памяти
+│  ├─ test_msp_codec.py     # кадры v1/v2, CRC, ресинхронизация
+│  ├─ test_handlers.py      # карта обработчиков и форматы ответов
+│  ├─ test_cli_and_data.py  # команды CLI, таблица настроек, «флеш»
+│  ├─ test_web_monitor.py   # экранирование, межсайтовые запросы, /api/state
+│  └─ smoke_test.py         # сквозной тест протокола, CLI и ребута (617 проверок)
+├─ ci/                 # checks.py — все проверки одной командой; эталон GitHub Actions
+├─ pyproject.toml      # упаковка, точка входа `bfemu`, настройки ruff и pytest
+└─ docs/               # эталонные исходники Betaflight/Configurator для сверки
 ```
 
 ## Откуда берутся настройки
@@ -670,7 +722,7 @@ Configurator, а тексты ошибок — дословно прошивоч
   не «UNKNOWN COMMAND».
 
 Как проверить: `python3 tests/smoke_test.py` (раздел 17г — 190 проверок про эти команды,
-раздел 13в — 23 проверки «виртуального полёта», всего 610) и `python3 tools/check_modes_tab.py`
+раздел 13в — 23 проверки «виртуального полёта», всего 617) и `python3 tools/check_modes_tab.py`
 (секция 19 — команды CLI из вкладки «Режимы», всего 73 проверки).
 
 ## Ресурсы платы, таймеры и DMA (`resource`, `timer`, `dma`)
@@ -1776,7 +1828,7 @@ enter 'blackbox refill' to fill the flash with test flights again
 
 ## Тесты
 
-`tests/smoke_test.py` проверяет 610 утверждений: рукопожатие, длины и разбор полей ответов,
+`tests/smoke_test.py` проверяет 617 утверждений: рукопожатие, длины и разбор полей ответов,
 живые данные, биты фич и порты SOFTSERIAL, CLI через MSP с пейджингом (`dump` ~18 КБ),
 «сырой» CLI в обоих режимах, запись конфигурации из интерфейса (`MSP_SET_*`),
 ребут по `save` и по `MSP_SET_REBOOT`, переподключение и сохранение настроек во «флеш».

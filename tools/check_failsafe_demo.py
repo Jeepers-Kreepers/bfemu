@@ -76,7 +76,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 pass
             frame = _frame(buf)
             if frame is not None:

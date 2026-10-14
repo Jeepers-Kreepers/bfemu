@@ -56,7 +56,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             frame = _frame(buf)
             if frame is not None:
@@ -98,12 +98,12 @@ def start(port: int, eeprom: Path):
     for _ in range(60):
         try:
             client = Fc(port)
-        except OSError:
+        except OSError as exc:
             if proc.poll() is not None:      # процесс уже умер: чаще всего порт занят другой копией
                 raise RuntimeError(
                     f"эмулятор не поднялся: порт {port} занят. Остановите другую копию "
                     f"(Ctrl+C в её окне) и запустите проверку снова"
-                )
+                ) from exc
             time.sleep(0.25)
             continue
         return proc, client

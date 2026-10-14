@@ -18,6 +18,13 @@
 Внешних ресурсов нет намеренно: страницы должны работать в закрытой сети и без CDN.
 """
 
+from html import escape as _esc_raw
+
+
+def _esc(value) -> str:
+    """Экранирование строк FC (имена режимов, имя дрона) перед вставкой в разметку."""
+    return _esc_raw(str(value), quote=True)
+
 NAV_STYLE = """
  .nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 24px;background:#0d1117;
   border-bottom:1px solid #30363d;position:sticky;top:0;z-index:5}
@@ -261,7 +268,7 @@ def _slot_row(slot: dict) -> str:
              else '<span class="pill off">выключен</span>')
     listed = "" if slot["listed"] else ' <span class="dim">(нет в списке платы)</span>'
     link = f'{slot["linked"]} ({slot["linked_perm"]})' if slot["linked"] else "—"
-    return (f'<tr><td>{slot["index"]}</td><td><b>{slot["box"]}</b>{listed}</td><td>{channel}</td>'
+    return (f'<tr><td>{slot["index"]}</td><td><b>{_esc(slot["box"])}</b>{listed}</td><td>{channel}</td>'
             f'<td>{span}</td><td>{logic}</td><td>{link}</td><td>{state}</td></tr>')
 
 
@@ -271,7 +278,7 @@ def aux_page(fc, nav: str, style: str, build: str, http_port: int, tcp_port: str
     rows = "".join(_slot_row(slot) for slot in state["slots"]) or \
         '<tr><td colspan=7 class=dim>слотов нет — свежий борт после defaults</td></tr>'
     reference = "".join(
-        f'<span>{name} <b>{fc.box_permanent_id(name)}</b></span>' for name in fc.active_boxes
+        f'<span>{_esc(name)} <b>{fc.box_permanent_id(name)}</b></span>' for name in fc.active_boxes
     )
     active = ", ".join(state["active"]) if state["active"] else "нет"
     cli = "\n".join(fc.aux_lines())

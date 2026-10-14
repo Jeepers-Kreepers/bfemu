@@ -18,6 +18,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # только для подсказок типов: bb_scenarios импортирует blackbox, не наоборот
+    from .bb_scenarios import Flight
 
 # ------------------------------------------------------------------ параметры потока
 LOOPTIME_US = 1000          # цикл PID: 1 кГц («H looptime:1000»)
@@ -480,7 +484,7 @@ class BlackboxFlash:
         os.replace(tmp, path)
 
     @classmethod
-    def load(cls, path: Path) -> "BlackboxFlash":
+    def load(cls, path: Path) -> BlackboxFlash:
         path = Path(path)
         return cls(path.read_bytes() if path.exists() else b"")
 

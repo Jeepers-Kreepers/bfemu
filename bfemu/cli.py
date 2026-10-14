@@ -153,7 +153,7 @@ class CliEngine:
         self._w("Devices detected: SPI:2, I2C:1")
         self._w("Gyros detected: gyro 1 locked dma")
         self._w(sensors)
-        self._w(f"OSD: MAX7456 (30 x 13)")
+        self._w("OSD: MAX7456 (30 x 13)")
         now = time.strftime("%Y-%m-%dT%H:%M:%S.000+00:00", time.gmtime())
         self._w(f"System Uptime: {up} seconds, Current Time: {now}")
         self._w("CPU:12%, cycle time: 125, GYRO rate: 8000, RX rate: 33, System rate: 9")
@@ -317,9 +317,8 @@ class CliEngine:
             if only_diff and not (slot["aux"] or slot["band"] or slot["channel"]
                                   or slot["power"] or slot["start_step"] or slot["end_step"]):
                 continue
-            self._w("vtx %d %d %d %d %d %d %d" % (
-                i, slot["aux"], slot["band"], slot["channel"], slot["power"],
-                900 + 25 * slot["start_step"], 900 + 25 * slot["end_step"]))
+            self._w(f'vtx {i} {slot["aux"]} {slot["band"]} {slot["channel"]} {slot["power"]} '
+                    f'{900 + 25 * slot["start_step"]} {900 + 25 * slot["end_step"]}')
         self._w()
 
     def cmd_dump(self, args=""):
@@ -493,7 +492,7 @@ class CliEngine:
         if len(values) > 1 and 0 <= values[1] < MAX_AUX_CHANNEL_COUNT:
             slot["aux"] = values[1]
             valid += 1
-        for field, value in zip(("start", "end"), values[2:4]):
+        for field, value in zip(("start", "end"), values[2:4], strict=False):
             step = (value - CHANNEL_RANGE_MIN) // MODE_RANGE_STEP
             if 0 <= step <= (CHANNEL_RANGE_MAX - CHANNEL_RANGE_MIN) // MODE_RANGE_STEP:
                 slot[field] = CHANNEL_RANGE_MIN + MODE_RANGE_STEP * step
@@ -1097,9 +1096,8 @@ class CliEngine:
         words = args.split()
         if not words:
             for i, slot in enumerate(f.vtx_activation):
-                self._w("vtx %d %d %d %d %d %d %d" % (
-                    i, slot["aux"], slot["band"], slot["channel"], slot["power"],
-                    900 + 25 * slot["start_step"], 900 + 25 * slot["end_step"]))
+                self._w(f'vtx {i} {slot["aux"]} {slot["band"]} {slot["channel"]} {slot["power"]} '
+                        f'{900 + 25 * slot["start_step"]} {900 + 25 * slot["end_step"]}')
             return
         index = self._atoi(words[0])
         if not 0 <= index < len(f.vtx_activation):
@@ -1139,9 +1137,8 @@ class CliEngine:
                                        "power": 0, "start_step": 0, "end_step": 0}
             self._error("vtx", "INVALID ARGUMENT COUNT")
             return
-        self._w("vtx %d %d %d %d %d %d %d" % (
-            index, slot["aux"], slot["band"], slot["channel"], slot["power"],
-            900 + 25 * slot["start_step"], 900 + 25 * slot["end_step"]))
+        self._w(f'vtx {index} {slot["aux"]} {slot["band"]} {slot["channel"]} {slot["power"]} '
+                f'{900 + 25 * slot["start_step"]} {900 + 25 * slot["end_step"]}')
 
     def cmd_vtxtable(self, args=""):
         """`vtxtable` — таблица частот VTX (cliVtxTable в cli.c).
@@ -1517,7 +1514,7 @@ class CliEngine:
             if 0 <= aux < MAX_AUX_CHANNEL_COUNT:
                 slot["aux"] = aux
                 valid += 1
-        for field, token in zip(("start", "end"), values[2:4]):
+        for field, token in zip(("start", "end"), values[2:4], strict=False):
             step = int((self._atoi(token) - 900) / MODE_RANGE_STEP)
             if min_step <= step <= max_step:
                 slot[field] = step
@@ -1916,7 +1913,7 @@ class CliEngine:
             return
         try:
             entry = {field: float(token) for field, token in
-                     zip(("throttle", "roll", "pitch", "yaw"), values)}
+                     zip(("throttle", "roll", "pitch", "yaw"), values, strict=False)}
         except ValueError:
             self._error("mmix", "INVALID ARGUMENT COUNT")
             return
@@ -2082,7 +2079,7 @@ class CliEngine:
         переключаются через тот же select_profile, что и у MSP), `disable` снимает ползунки и
         выключает упрощённые фильтры гироскопа/D-term — как disableSimplifiedTuning().
         """
-        from .fc import CONTROL_RATE_PROFILE_COUNT, PID_PROFILE_COUNT, SIMPLIFIED_TUNING_DEFAULT, SIMPLIFIED_TUNING_OFF
+        from .fc import PID_PROFILE_COUNT, SIMPLIFIED_TUNING_DEFAULT, SIMPLIFIED_TUNING_OFF
         f = self.fc
         text = args.strip().lower()
         if text == "apply":

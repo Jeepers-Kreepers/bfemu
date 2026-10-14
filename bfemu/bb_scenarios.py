@@ -29,6 +29,7 @@ from pathlib import Path
 from .blackbox import (ACC_1G, LOOPTIME_US, MAXTHROTTLE, MINTHROTTLE, MOTOR_IDLE,
                        MOTOR_POLES, BlackboxFlash, encode_flight, flight_mode_event,
                        scan_logs)
+import itertools
 
 RATE_HZ = 1_000_000 // LOOPTIME_US          # 1000 кадров в секунду (цикл PID 1 кГц)
 MAX_RATE_DEG_S = 660.0                      # предел задатчика крена/тангажа
@@ -45,7 +46,7 @@ def _stick(t: float, points) -> float:
     """Положение стика (мкс) по ломаной «время → значение»."""
     if t <= points[0][0]:
         return float(points[0][1])
-    for (t0, v0), (t1, v1) in zip(points, points[1:]):
+    for (t0, v0), (t1, v1) in itertools.pairwise(points):
         if t <= t1:
             return v0 + (v1 - v0) * (t - t0) / (t1 - t0)
     return float(points[-1][1])
@@ -215,7 +216,6 @@ class Sim:
                 motors.append(max(MINTHROTTLE, min(MAXTHROTTLE, value)))
             for motor, factor in enumerate(cmd.get("motor_scale", [1.0] * 4)):
                 if factor != 1.0:
-                    span = MAXTHROTTLE - MINTHROTTLE
                     motors[motor] = max(MINTHROTTLE, min(MAXTHROTTLE,
                                                         MINTHROTTLE + (motors[motor] - MINTHROTTLE) * factor))
             for motor, offset in enumerate(cmd.get("motor_offset", [0.0] * 4)):
@@ -319,7 +319,6 @@ def _script_square():
         leg = int(t // 4.0) % 4                     # сторона квадрата
         pitch_stick = 1556.0 if leg in (0, 2) else 1444.0
         roll_stick = 1556.0 if leg in (1, 3) else 1444.0
-        blend = _smooth(t, 3.4, 4.2)
         return {
             "armed": 1.0 <= t < 21.2,
             "throttle": throttle,

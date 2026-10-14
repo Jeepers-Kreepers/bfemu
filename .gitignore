@@ -1,0 +1,28 @@
+# Байт-код Python
+__pycache__/
+*.py[cod]
+
+# Состояние эмулятора, которое создаётся при запуске рядом с eeprom.json
+eeprom.json
+blackbox_flash.bin
+blackbox_flash.index.json
+!bfemu/data/blackbox_flash.bin
+!bfemu/data/blackbox_flash.index.json
+
+# Логи (`--log logs\bfemu.log` из .bat-файлов; каталог создаётся сам)
+logs/
+*.log
+
+# Окружения и сборка
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Отчёты инструментов
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/

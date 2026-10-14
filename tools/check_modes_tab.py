@@ -82,7 +82,7 @@ class Client:
         while time.time() < deadline:
             try:
                 chunk = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             if not chunk:
                 break
@@ -197,7 +197,7 @@ def main() -> int:
         check(names[0] == "ARM" and ids[0] == 0, f"первый режим {names[0]!r}, permanent id {ids[0]}")
         check(ids == [fc.box_permanent_id(n) for n in names] and names == fc.active_boxes,
               "порядок режимов и их permanentId совпадают с initActiveBoxIds(): "
-              + ", ".join(f"{n}={i}" for n, i in list(zip(names, ids))[:4]) + ", …")
+              + ", ".join(f"{n}={i}" for n, i in list(zip(names, ids, strict=False))[:4]) + ", …")
         check(all(m in names for m in ("BEEPER", "TELEMETRY", "OSD DISABLE", "VTX PIT MODE", "PREARM"))
               and not any(m in names for m in ("MAG", "LEDLOW", "AIR MODE", "PID AUDIO")),
               "список собран по фичам и датчикам: BEEPER/TELEMETRY/OSD DISABLE есть, "
@@ -296,7 +296,7 @@ def main() -> int:
         check(lines[3] == "aux 3 0 0 900 900 0 0", f"пустой слот: {lines[3]!r} — как на свежем борде")
         check("aux 2 2 0 900 900 0 1" in lines, "связь HORIZON → ANGLE видна в CLI как linkedTo = 1")
         diff_lines = aux_lines(cli.cli("diff"))
-        check(len(diff_lines) == 3 and all(not l.startswith(("aux 3 ", "aux 4 ")) for l in diff_lines),
+        check(len(diff_lines) == 3 and all(not line.startswith(("aux 3 ", "aux 4 ")) for line in diff_lines),
               f"'diff' печатает только настроенные слоты ({len(diff_lines)}), как cliDumpPrintLinef")
 
         print("\n9. Правка из CLI видна на вкладке и наоборот — состояние одно")
@@ -422,7 +422,7 @@ def main() -> int:
         time.sleep(0.4)
         try:
             raw.recv(8192)
-        except socket.timeout:
+        except TimeoutError:
             pass
         raw.close()
         time.sleep(0.3)

@@ -15,7 +15,6 @@
 """
 from __future__ import annotations
 
-import json
 import socket
 import subprocess
 import sys
@@ -58,7 +57,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             frame = _frame(buf)
             if frame is not None:
@@ -225,7 +224,7 @@ def show(tab: dict, title: str):
         print(f"   Устройство  : тип {device['type']}, готово {device['ready']}, "
               f"банд {device['band']}/канал {device['channel']}, мощность №{device['power_index']}, "
               f"{device['frequency']} МГц, флаги 0x{device['status']:x}")
-        print(f"     уровни (dBm → мВт): " + ", ".join(f"{l} → {p}" for l, p in device["power_levels"]))
+        print("     уровни (dBm → мВт): " + ", ".join(f"{dbm} → {mw}" for dbm, mw in device["power_levels"]))
         print(f"     SmartAudio  : версия {sa.get('version')} (3 = 2.1), mode {sa.get('mode')}, "
               f"orfreq {sa.get('orfreq')}")
 
@@ -347,8 +346,6 @@ def main() -> int:
 
     # --------- сценарий B: смена таблицы на «свою» (как загрузка JSON из файла)
     print("\n-- Правка таблицы: меняем банд 2 и уровень 2, ставим pit-режим --")
-    custom = [{"name": "MYBAND", "letter": "X", "is_factory": False, "frequencies": [5900] * 8},
-              {"name": "TEAM", "letter": "T", "is_factory": False, "frequencies": [5910] * 8}]
     fc2.call(89, bytes([0, 0, 2, 1, 0, 0, 0, 2, 2, 0, 0, 2, 8, 2, 0]))   # 2 банда, 8 каналов, 2 уровня, без очистки
     fc2.call(228, bytes([2]) + (500).to_bytes(2, "little") + bytes([3]) + b"500")
     fc2.call(227, bytes([2, 4]) + b"TEAM" + b"T" + bytes([0, 8]) + b"".join((5690 + 10 * i).to_bytes(2, "little") for i in range(8)))

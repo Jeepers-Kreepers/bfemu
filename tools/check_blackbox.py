@@ -107,7 +107,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             parsed = _frame(buf)
             if parsed is not None:
@@ -367,16 +367,16 @@ def main() -> int:
     # Наполнение идёт в фоне (несколько секунд), поэтому после 'refill' ждём:
     # ровно так же ждёт и вкладка — опрашивает сводку, пока накопитель не наполнится.
     cli = subprocess.run([sys.executable, "-c",
-                          "import sys, time; sys.path.insert(0, %r);\n"
+                          f"import sys, time; sys.path.insert(0, {str(ROOT)!r});\n"
                           "from bfemu.fc import VirtualFC\n"
-                          "fc = VirtualFC(eeprom_path=%r, log=lambda m: None)\n"
+                          f"fc = VirtualFC(eeprom_path={str(eeprom)!r}, log=lambda m: None)\n"
                           "print(fc._cli.execute_line('blackbox refill'))\n"
                           "out = ''\n"
                           "for _ in range(60):\n"
                           "    time.sleep(1.0)\n"
                           "    out = fc._cli.execute_line('blackbox')\n"
                           "    if out.count('log ') >= 6: break\n"
-                          "print(out)" % (str(ROOT), str(eeprom))],
+                          "print(out)"],
                          capture_output=True, text=True, cwd=ROOT)
     text = cli.stdout
     check("Blackbox (dataflash)" in text and "used" in text,

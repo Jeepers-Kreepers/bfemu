@@ -82,7 +82,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 pass
             frame = _frame(buf)
             if frame is not None:
@@ -497,7 +497,7 @@ def main():
     state = _json.loads(urllib.request.urlopen(f"http://127.0.0.1:{http_port}/api/rc", timeout=4).read())
     check(state["control"]["virtual"] and state["aux_types"]["aux3"] == "switch3"
           and state["aux_types"]["aux7"] == "knob",
-          f"управление по умолчанию у страницы /tx; AUX 3/4 — трёхпозиционные, AUX 7/10 — крутилки")
+          "управление по умолчанию у страницы /tx; AUX 3/4 — трёхпозиционные, AUX 7/10 — крутилки")
 
     status, body = tx_post({"control": "physical", "source": "check_receiver_tab"})
     check(status == 200 and body["control"]["physical"] and not body["connected"]
