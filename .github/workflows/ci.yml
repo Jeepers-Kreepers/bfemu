@@ -1,3 +1,6 @@
+# Эталон рабочего процесса: рабочая копия лежит в .github/workflows/ci.yml.
+# Файлы одинаковы — при расхождении скопируйте этот поверх рабочего (см. ci/README.md).
+
 name: CI
 
 on:
@@ -10,21 +13,26 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Вывод всех проверок — русский. На windows-latest Python пишет stdout в кодировке
+# системной кодовой страницы (cp1252), и первое же русское слово роняет шаг с
+# UnicodeEncodeError. Эти переменные переводят ввод-вывод на UTF-8.
 env:
   PYTHONUTF8: "1"
-  PYTHONIOENCODING: "utf-8"  
+  PYTHONIOENCODING: "utf-8"
 
+# Сами проверки живут в ci/checks.py — этот файл только раздаёт им машины и Python.
+# Так логику CI можно менять обычным коммитом: правка файлов в .github/workflows/
+# требует токена с правом `workflows`, а правка ci/checks.py — нет.
 jobs:
   lint:
     name: Линтер (ruff)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check .
+      - run: python ci/checks.py lint
 
   unit:
     name: Быстрые тесты (${{ matrix.python }})
@@ -34,82 +42,40 @@ jobs:
       matrix:
         python: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install pytest
-      - name: pytest
-        run: pytest tests -q
+      - run: python ci/checks.py unit
 
   smoke:
     name: Сквозной прогон (протокол, CLI, вкладки)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: tests/smoke_test.py
-        run: python tests/smoke_test.py
-        timeout-minutes: 10
+      - run: python ci/checks.py smoke
+        timeout-minutes: 15
 
   windows:
     name: Windows (командные файлы и быстрые тесты)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Командные файлы приехали с CRLF и без кириллицы
-        shell: python
-        run: |
-          import pathlib, sys
-          bad = []
-          for path in sorted(pathlib.Path(".").glob("*.bat")):
-              data = path.read_bytes()
-              if any(b > 127 for b in data):
-                  bad.append(f"{path.name}: не-ASCII")
-              if data.count(b"\n") != data.count(b"\r\n"):
-                  bad.append(f"{path.name}: строки без CR (cmd.exe закроет окно)")
-          print("\n".join(bad) or "все .bat в порядке")
-          sys.exit(1 if bad else 0)
-      - run: pip install pytest
-      - run: pytest tests -q
+      - run: python ci/checks.py bat unit
 
   package:
     name: Сборка и установка пакета
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install build
-      - run: python -m build
-      - name: Колесо ставится и команда bfemu работает
-        run: |
-          python -m venv /tmp/check
-          /tmp/check/bin/pip install dist/*.whl
-          /tmp/check/bin/bfemu --help > /dev/null
-          cd /tmp
-          # Фоновый процесс обязательно с отводом вывода и явным kill, иначе шаг CI висит.
-          /tmp/check/bin/bfemu --tcp 127.0.0.1:15761 --quiet > /tmp/bfemu.log 2>&1 &
-          EMU_PID=$!
-          trap 'kill $EMU_PID 2>/dev/null || true' EXIT
-          sleep 5
-          python - <<'PY'
-          import socket
-          body = bytes([0, 2])
-          crc = 0
-          for b in body:
-              crc ^= b
-          sock = socket.create_connection(("127.0.0.1", 15761), 5)
-          sock.sendall(b"$M<" + body + bytes([crc]))
-          sock.settimeout(5)
-          answer = sock.recv(64)
-          assert answer[5:9] == b"BTFL", answer
-          print("установленный bfemu отвечает:", answer[5:9].decode())
-          PY
-          kill $EMU_PID 2>/dev/null || true
+      - run: python ci/checks.py package
+        timeout-minutes: 10
