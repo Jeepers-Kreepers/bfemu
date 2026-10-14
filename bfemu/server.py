@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+from html import escape
 from pathlib import Path
 
 from .fc import BUILD_OPTIONS, MSC_SECONDS, VirtualFC
@@ -403,9 +404,13 @@ class StdioServer:
 class HttpMonitor:
     """Небольшая веб-страница состояния — удобно смотреть, что делает Configurator."""
 
-    def __init__(self, fc: VirtualFC, port: int, strict_port: bool = False):
+    def __init__(self, fc: VirtualFC, port: int, strict_port: bool = False, host: str = "127.0.0.1"):
         self.fc = fc
         self.port = port
+        # По умолчанию монитор виден только с этой машины: на странице /tx можно двигать стики
+        # и переключать режимы, а в общей сети это значит «любой сосед управляет вашим FC».
+        # Нужен доступ с планшета или другой машины — запускайте с --http-host 0.0.0.0.
+        self.host = host
         # strict_port — для проверок: если порт занят, лучше сразу остановиться, чем
         # «тихо» переехать и потом опрашивать чужой монитор по исходному адресу.
         self.strict_port = strict_port
@@ -430,9 +435,37 @@ class HttpMonitor:
             def log_message(self, *args):
                 pass
 
+            def _foreign(self) -> bool:
+                """Запрос инициирован чужим сайтом?
+
+                Кнопки монитора — обычные ссылки и POST'ы, поэтому страница на другом домене
+                может дёрнуть их у всех, кто открыл монитор (`<img src="http://.../failsafe/on">`).
+                Браузеры присылают Sec-Fetch-Site; `cross-site`/`same-site` означает «не наша
+                страница». Консольные клиенты (curl, urllib, tools/tx.py) заголовок не шлют —
+                для них ничего не меняется.
+                """
+                site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+                if site in ("cross-site", "same-site"):
+                    return True
+                origin = self.headers.get("Origin")
+                if origin and origin.split("//")[-1] != (self.headers.get("Host") or ""):
+                    return True
+                return False
+
+            def _deny_foreign(self) -> bool:
+                if not self._foreign():
+                    return False
+                self._send("запрос с чужой страницы отклонён".encode(),
+                           "text/plain; charset=utf-8", 403)
+                return True
+
             def do_GET(self):
                 import json as _json
                 path = self.path.split("?")[0].rstrip("/") or "/"
+                # Меняющие состояние адреса (кнопки страниц) защищаем от межсайтовых вызовов.
+                if (path.startswith(("/failsafe/", "/sim_flight/")) or path == "/msc/exit") \
+                        and self._deny_foreign():
+                    return
                 if path == "/api/rc":
                     body = _json.dumps(fc.rc_state(), ensure_ascii=False).encode()
                     self._send(body, "application/json; charset=utf-8")
@@ -583,6 +616,8 @@ class HttpMonitor:
             def do_POST(self):
                 """Виртуальная аппаратура: POST /api/rc — каналы из страницы /tx или скрипта."""
                 import json as _json
+                if self._deny_foreign():
+                    return
                 path = self.path.split("?")[0].rstrip("/") or "/"
                 if path != "/api/rc":
                     self._send(b'{"error":"only POST /api/rc is supported"}',
@@ -704,10 +739,10 @@ class HttpMonitor:
             def _msc_page(self):
                 f = fc
                 rows = "".join(
-                    f"<tr><td><a href=\"/msc/{item['name']}\">{item['name']}</a></td>"
+                    f"<tr><td><a href=\"/msc/{esc(item['name'])}\">{esc(item['name'])}</a></td>"
                     f"<td>{item['title']}</td><td>{item['size']:,} Б</td>"
                     f"<td>{item['start'].replace('T', ' ') if item['start'] else '—'}</td>"
-                    f"<td><a class=dl href=\"/msc/{item['name']}\">скачать</a></td></tr>".replace(",", " ")
+                    f"<td><a class=dl href=\"/msc/{esc(item['name'])}\">скачать</a></td></tr>".replace(",", " ")
                     for item in self._msc_files()
                 ) or "<tr><td colspan=5>накопитель пуст</td></tr>"
                 return f"""<!doctype html><html lang=ru><meta charset=utf-8>
@@ -752,7 +787,8 @@ __NAV__
                 self.send_response(200)
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                safe_name = "".join(ch for ch in name if ch.isalnum() or ch in "._-")[:64]
+                self.send_header("Content-Disposition", f'attachment; filename="{safe_name}"')
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
@@ -760,13 +796,13 @@ __NAV__
             def _page(self):
                 f = fc
                 rows = "".join(
-                    f"<tr><td>0x{c:04x}</td><td>{n}</td><td>{rq}</td><td>{rs}</td>"
+                    f"<tr><td>0x{c:04x}</td><td>{esc(n)}</td><td>{rq}</td><td>{rs}</td>"
                     f"<td>{_clock(t)}</td></tr>"
                     for t, c, n, rq, rs in reversed(f.recent_msp[-15:])
                 )
                 cli_rows = "".join(
-                    f"<tr><td>{_clock(t)}</td><td><code>{cmd}</code></td>"
-                    f"<td><pre>{out.strip()[:400]}</pre></td></tr>"
+                    f"<tr><td>{_clock(t)}</td><td><code>{esc(cmd)}</code></td>"
+                    f"<td><pre>{esc(out.strip()[:400])}</pre></td></tr>"
                     for t, cmd, out in reversed(f.recent_cli[-10:])
                 )
                 counters = "".join(
@@ -988,7 +1024,7 @@ __NAV_STYLE__
 __NAV__
 <header>
  <h1>Виртуальный полётный контроллер <span class=ok>работает</span></h1>
- <div class=sub>{f.banner()} · uptime {time.time()-f.boot_time:.0f}s · настроек в базе: {len(f.settings_list)}</div>
+ <div class=sub>{esc(f.banner())} · uptime {time.time()-f.boot_time:.0f}s · настроек в базе: {len(f.settings_list)}</div>
  <div class=sub>Подключение из Betaflight Configurator: ручное подключение, порт <code>tcp://127.0.0.1:{_tcp_port()}</code></div>
  <div class=sub>Виртуальная аппаратура (двигать стики): <a href="/tx" style="color:#58a6ff">http://127.0.0.1:{self.server.server_address[1]}/tx</a></div>
  <div class=sub>сборка <code>{_BUILD}</code> · страница аппаратуры v<code>{_TX_PAGE_VERSION}</code></div>
@@ -1055,14 +1091,14 @@ setInterval(tick, 2000);
         wanted = self.port
         if self.strict_port:
             try:
-                self._httpd = ThreadingHTTPServer(("0.0.0.0", wanted), Handler)
+                self._httpd = ThreadingHTTPServer((self.host, wanted), Handler)
             except OSError as exc:
                 raise RuntimeError(f"порт веб-монитора {wanted} занят ({exc}) — проверка остановлена") from exc
             self._prepared = True
             return
         for candidate in range(wanted, wanted + HTTP_PORT_SCAN):
             try:
-                self._httpd = ThreadingHTTPServer(("0.0.0.0", candidate), Handler)
+                self._httpd = ThreadingHTTPServer((self.host, candidate), Handler)
                 break
             except OSError:
                 continue
@@ -1314,6 +1350,9 @@ def build_arg_parser():
     p.add_argument("--data", default=None, help="путь к bf_data.json (сгенерирован tools/gen_data.py)")
     p.add_argument("--quiet", action="store_true", help="не логировать MSP-запросы")
     p.add_argument("--boot-delay", type=float, default=1.5, help="сколько секунд «прошивка загружается» после ребута")
+    p.add_argument("--http-host", default="127.0.0.1",
+                   help="адрес веб-монитора (по умолчанию 127.0.0.1 — только эта машина; "
+                        "0.0.0.0 — видно всей сети)")
     p.add_argument("--http", default=None,
                    help="порт веб-страниц: монитор состояния и виртуальная аппаратура /tx, напр. 8088")
     p.add_argument("--com", default=None,
@@ -1342,6 +1381,17 @@ def main(argv=None):
         if args.log:
             emit(f"    Лог сохранён: {args.log}")
         return 1
+
+
+def esc(value) -> str:
+    """Экранирование для HTML-страниц монитора.
+
+    В страницы попадают строки, которыми управляет пользователь: имя дрона, вывод CLI,
+    имена файлов «флеша». Без экранирования команда вида
+    ``set craft_name = <img src=x onerror=...>`` превращается в исполняемую разметку
+    у всех, кто открыл монитор.
+    """
+    return escape(str(value), quote=True)
 
 
 def _default_eeprom_path() -> Path:
@@ -1419,7 +1469,7 @@ def _run(args):
         servers.append(StdioServer(fc, verbose=verbose))
     if args.http:
         _PORT_FOR_PAGE["tcp"] = (args.tcp.rpartition(":")[2] or "5761")
-        http = HttpMonitor(fc, int(args.http))
+        http = HttpMonitor(fc, int(args.http), host=args.http_host)
         http.prepare()          # порт занимаем до старта потоков — без гонки на первом запросе
         servers.append(http)
         if http.port:
