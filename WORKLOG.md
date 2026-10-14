@@ -22,7 +22,7 @@ python3 tests/smoke_test.py    # эталонная проверка: должн
 | 3 | Починить `tools/demo_session.py` (16 каналов CRSF, префиксы длины) | P0 | ✅ | `44975b6` |
 | 4 | Убрать 3 дубликата ключей в карте обработчиков + защита от повторов | P1 | ✅ | следующий |
 | 5 | Лечение замечаний линтера класса F (ошибки, а не стиль) | P2 | ✅ | следующий |
-| 6 | `pyproject.toml` + точка входа `bfemu`, `LICENSE`, `NOTICE` | P1 | ⬜ | |
+| 6 | `pyproject.toml` + точка входа `bfemu`, `LICENSE`, `NOTICE` | P1 | ✅ | следующий |
 | 7 | Безопасность: `--http-host` (по умолчанию 127.0.0.1), экранирование HTML, защита от CSRF | P2 | ⬜ | |
 | 8 | Быстрые модульные тесты (pytest) + общая обвязка для `tools/check_*` | P1 | ⬜ | |
 | 9 | CI: GitHub Actions (ruff + модульные тесты + smoke) | P1 | ⬜ | |
@@ -67,3 +67,17 @@ python3 tests/smoke_test.py    # эталонная проверка: должн
 python3 -m venv /tmp/venv && /tmp/venv/bin/pip install ruff pytest coverage
 /tmp/venv/bin/ruff check --isolated --select F bfemu tools tests
 ```
+
+### 2026-10-14 11:5x — упаковка и лицензия
+* `pyproject.toml`: сборка setuptools, `requires-python >=3.10`, данные пакета (`bfemu/data/*`),
+  точка входа `bfemu`, опциональные зависимости (`[serial]` = pyserial для `--com`, `[dev]` = ruff/pytest/coverage),
+  конфигурация ruff (кириллица больше не считается «неоднозначными символами») и pytest.
+* `LICENSE` — GNU GPL v3 (текст получен из api.github.com), `NOTICE.md` — объяснение, почему именно
+  GPL, и таблица скопированных эталонных исходников Betaflight/Configurator с их лицензиями.
+  **Решение обратимо**: если нужна MIT/Apache-2.0, сначала убрать `docs/*` (скопированный GPL-код).
+* Проверено: `python -m build --wheel` → колесо ставится в чистый venv, команда `bfemu` поднимает FC,
+  `MSP_FC_VARIANT` = BTFL.
+* Побочно найден и исправлен дефект установки: «флеш» по умолчанию писался
+  в `site-packages/eeprom.json` (каталог общий и часто только для чтения).
+  Теперь: запуск из исходников → корень проекта (как ждут `.bat`), установленный пакет → текущий каталог,
+  иначе — временный каталог.

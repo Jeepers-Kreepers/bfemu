@@ -19,6 +19,7 @@ import argparse
 import os
 import socket
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -1344,18 +1345,34 @@ def main(argv=None):
 
 
 def _default_eeprom_path() -> Path:
-    """Файл «флеша» по умолчанию: рядом с проектом (там же, где run_windows.bat)."""
-    candidate = Path(__file__).resolve().parent.parent / "eeprom.json"
-    try:
-        candidate.parent.mkdir(parents=True, exist_ok=True)
-        probe = candidate.with_suffix(".probe")
-        probe.write_text("", encoding="utf-8")
-        probe.unlink()
-        return candidate
-    except OSError:
-        fallback = Path(os.environ.get("TEMP", "/tmp")) / "bfemu-eeprom.json"
-        emit(f"[FC] папка проекта недоступна для записи — «флеш» будет в {fallback}")
-        return fallback
+    """Файл «флеша» по умолчанию.
+
+    Запуск из исходников (рядом лежат ``pyproject.toml`` / ``run_windows.bat``) — кладём в корень
+    проекта: так привыкли командные файлы, и «флеш» переживает перезапуск на том же месте.
+    Установленный пакет (``pip install bfemu``) пишет в текущий каталог: в ``site-packages``
+    лезть нельзя — он бывает только для чтения и общий для всех проектов пользователя.
+    """
+    project_root = Path(__file__).resolve().parent.parent
+    from_checkout = (project_root / "pyproject.toml").exists() or (project_root / "run_windows.bat").exists()
+
+    candidates = []
+    if from_checkout:
+        candidates.append(project_root / "eeprom.json")
+    candidates.append(Path.cwd() / "eeprom.json")
+    candidates.append(Path(os.environ.get("TEMP") or tempfile.gettempdir()) / "bfemu-eeprom.json")
+
+    for candidate in candidates:
+        try:
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            probe = candidate.with_suffix(".probe")
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+            return candidate
+        except OSError:
+            continue
+    fallback = Path(tempfile.gettempdir()) / "bfemu-eeprom.json"
+    emit(f"[FC] каталоги проекта и запуска недоступны для записи — «флеш» будет в {fallback}")
+    return fallback
 
 
 def _run(args):
