@@ -17,9 +17,9 @@ python3 tests/smoke_test.py    # эталонная проверка: должн
 
 | # | Задача (из REVIEW.md) | Приоритет | Статус | Коммит |
 |---|---|---|---|---|
-| 1 | `.gitattributes` + CRLF в `.bat` (smoke-тест падал из коробки) | P0 | ⬜ | |
-| 2 | `.gitignore` + вычистить из индекса `.pyc`, `logs/`, дубль `blackbox_flash.bin` | P0 | ⬜ | |
-| 3 | Починить `tools/demo_session.py` (16 каналов CRSF, префиксы длины) | P0 | ⬜ | |
+| 1 | `.gitattributes` + CRLF в `.bat` (smoke-тест падал из коробки) | P0 | ✅ | `e0c1f` |
+| 2 | `.gitignore` + вычистить из индекса `.pyc`, `logs/`, дубль `blackbox_flash.bin` | P0 | ✅ | `e0c1f` |
+| 3 | Починить `tools/demo_session.py` (16 каналов CRSF, префиксы длины) | P0 | ✅ | этот |
 | 4 | Убрать 3 дубликата ключей в карте обработчиков + защита от повторов | P1 | ⬜ | |
 | 5 | Лечение замечаний линтера (F821/F841/F401/F541/F811, `contextlib.suppress`) | P2 | ⬜ | |
 | 6 | `pyproject.toml` + точка входа `bfemu`, `LICENSE`, `NOTICE` | P1 | ⬜ | |
@@ -38,3 +38,13 @@ python3 tests/smoke_test.py    # эталонная проверка: должн
 `ruff --select E,F` = 127 замечаний, покрытие 73 %, в индексе 11 `.pyc`, лог с путём
 `C:\Users\Aleksandr`, дубль бинарника 1,7 МБ, нет `.gitignore`/`.gitattributes`/`LICENSE`/CI.
 План зафиксирован в таблице выше.
+
+### 2026-10-14 11:1x — P0 закрыт
+* `.gitattributes`: `.bat/.cmd/.ps1` → CRLF, остальное → LF, `*.bin` → binary.
+  Проверено клонированием в `/tmp/clonetest`: файлы приезжают с CRLF, проверка smoke-теста зелёная.
+* `.gitignore`: `__pycache__`, `eeprom.json`, `blackbox_flash.*` в корне, `logs/`, отчёты инструментов.
+  Из индекса удалено 14 файлов (11 `.pyc`, лог с путём `C:\Users\...`, дубль бинарника 1,7 МБ).
+* `tools/demo_session.py`: `MSP_RC` распаковывается по фактической длине (CRSF = 16 каналов),
+  `MSP_BOARD_INFO` разбирается правильно — строки с префиксом длины (`read_ltext`/`parse_board_info`),
+  добавлены `--host/--port` и понятная ошибка вместо трассировки, если эмулятор не запущен.
+  Проверено: скрипт отрабатывает целиком, `exit=0`.

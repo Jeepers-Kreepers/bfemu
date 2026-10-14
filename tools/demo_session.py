@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import socket
 import struct
 import sys
@@ -17,9 +18,50 @@ import time
 HOST, PORT = "127.0.0.1", 5761
 
 
+def read_ltext(payload: bytes, offset: int) -> tuple[str, int]:
+    """Строка с префиксом длины — как `getText()` в Configurator.
+
+    В `MSP_BOARD_INFO` и `MSP2_GET_TEXT` прошивка пишет `sbufWriteU8(strlen(s))`, а затем
+    сами символы: читать до нулевого байта нельзя, иначе первым символом станет длина.
+    """
+    if offset >= len(payload):
+        return "", offset
+    length = payload[offset]
+    text = payload[offset + 1 : offset + 1 + length].decode("latin-1", "replace")
+    return text, offset + 1 + length
+
+
+def parse_board_info(payload: bytes) -> dict:
+    """Разбор `MSP_BOARD_INFO` ровно в том порядке, в котором его пишет `msp.c` 4.5.4."""
+    info = {
+        "identifier": payload[0:4].decode("latin-1", "replace").strip("\x00"),
+        "version": struct.unpack_from("<H", payload, 4)[0],
+        "type": payload[6],
+        "capabilities": payload[7],
+    }
+    offset = 8
+    info["target"], offset = read_ltext(payload, offset)
+    info["board"], offset = read_ltext(payload, offset)
+    info["manufacturer"], offset = read_ltext(payload, offset)
+    signature = payload[offset : offset + 32]
+    offset += 32
+    info["signature"] = "нет (сборка без USE_SIGNATURE)" if not any(signature) else signature.hex()
+    if offset < len(payload):
+        info["mcu_type_id"] = payload[offset]
+    if offset + 3 < len(payload):
+        info["gyro_sample_rate_hz"] = struct.unpack_from("<H", payload, offset + 2)[0]
+    return info
+
+
 class Link:
-    def __init__(self):
-        self.s = socket.create_connection((HOST, PORT), timeout=3)
+    def __init__(self, host: str = HOST, port: int = PORT):
+        try:
+            self.s = socket.create_connection((host, port), timeout=3)
+        except OSError as exc:
+            raise SystemExit(
+                f"[X] не удалось подключиться к {host}:{port} ({exc}).\n"
+                f"    Сначала запустите эмулятор: python3 -m bfemu --tcp 0.0.0.0:{port} --http 8088"
+            ) from exc
         self.buf = bytearray()
 
     def send_msp(self, code: int, payload: bytes = b"", v2: bool = False) -> bytes:
@@ -120,15 +162,22 @@ class Link:
 
 
 def main():
-    link = Link()
+    parser = argparse.ArgumentParser(description="Демо-клиент: ведёт себя как Betaflight Configurator.")
+    parser.add_argument("--host", default=HOST, help=f"адрес виртуального FC (по умолчанию {HOST})")
+    parser.add_argument("--port", type=int, default=PORT, help=f"порт MSP (по умолчанию {PORT})")
+    args = parser.parse_args()
+
+    link = Link(args.host, args.port)
     print("== Подключение (рукопожатие как в configurator) ==")
     api = link.send_msp(1)
     print(f"  MSP API: {api[1]}.{api[2]}")
     print(f"  FC variant: {link.send_msp(2).decode()}")
     v = link.send_msp(3)
     print(f"  Прошивка: {v[0]}.{v[1]}.{v[2]}")
-    board = link.send_msp(4)
-    print(f"  Плата: {board[:4].decode()}, цель: {board[8:].split(bytes([0]))[0].decode()}")
+    board = parse_board_info(link.send_msp(4))
+    print(f"  Плата: {board['identifier']} ({board['manufacturer']}), цель: {board['target']}, "
+          f"имя платы: {board['board']}")
+    print(f"  Подпись: {board['signature']}, частота гироскопа: {board.get('gyro_sample_rate_hz', '?')} Гц")
     print(f"  UID: {''.join(f'{x:08x}' for x in struct.unpack('<III', link.send_msp(160)))}")
 
     print("\n== Телеметрия ==")
@@ -140,8 +189,11 @@ def main():
     gps = link.send_msp(106)
     lat, lon = struct.unpack_from("<ii", gps, 2)
     print(f"  GPS: fix={gps[0]} спутников={gps[1]} координаты={lat / 1e7:.5f}, {lon / 1e7:.5f}")
-    rc = struct.unpack("<8H", link.send_msp(105))
-    print(f"  RC-каналы: {rc}")
+    # Число каналов зависит от приёмника: у CRSF их 16, у PPM — 8. Распаковываем столько,
+    # сколько прислал FC, иначе struct.error на любом приёмнике, кроме восьмиканального.
+    rc_payload = link.send_msp(105)
+    rc = struct.unpack(f"<{len(rc_payload) // 2}H", rc_payload[: len(rc_payload) // 2 * 2])
+    print(f"  RC-каналы ({len(rc)} шт.): {rc}")
 
     print("\n== CLI поверх MSP (то, чем пользуются вкладки настроек) ==")
     print("  $ get gyro_lpf1_static_hz")
