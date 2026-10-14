@@ -1,0 +1,23 @@
+# Переводы строк задаются здесь, а не настройками клиента (core.autocrlf),
+# иначе .bat-файлы приезжают на Windows с LF: cmd.exe разбирает такой файл неверно
+# и окно закрывается. tests/smoke_test.py проверяет это (ASCII + CRLF).
+* text=auto eol=lf
+
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+*.sh   text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.c    text eol=lf
+*.h    text eol=lf
+*.js   text eol=lf
+*.vue  text eol=lf
+
+*.bin  binary
+*.png  binary
+*.jpg  binary
+*.bbl  binary
