@@ -215,7 +215,6 @@ class Sim:
                 motors.append(max(MINTHROTTLE, min(MAXTHROTTLE, value)))
             for motor, factor in enumerate(cmd.get("motor_scale", [1.0] * 4)):
                 if factor != 1.0:
-                    span = MAXTHROTTLE - MINTHROTTLE
                     motors[motor] = max(MINTHROTTLE, min(MAXTHROTTLE,
                                                         MINTHROTTLE + (motors[motor] - MINTHROTTLE) * factor))
             for motor, offset in enumerate(cmd.get("motor_offset", [0.0] * 4)):
@@ -319,7 +318,6 @@ def _script_square():
         leg = int(t // 4.0) % 4                     # сторона квадрата
         pitch_stick = 1556.0 if leg in (0, 2) else 1444.0
         roll_stick = 1556.0 if leg in (1, 3) else 1444.0
-        blend = _smooth(t, 3.4, 4.2)
         return {
             "armed": 1.0 <= t < 21.2,
             "throttle": throttle,

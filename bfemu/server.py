@@ -23,7 +23,6 @@ import threading
 import time
 from pathlib import Path
 
-from . import msp as mspmod
 from .fc import BUILD_OPTIONS, MSC_SECONDS, VirtualFC
 from .tx_page import TX_PAGE as _TX_PAGE
 from . import __build__ as _BUILD, __tx_page__ as _TX_PAGE_VERSION
@@ -965,7 +964,7 @@ __NAV__
                         "Борт в режиме запоминающего устройства</h2>"
                         "<div class=sub>MSP не отвечает — так же ведёт себя настоящий полётный "
                         "контроллер, ушедший в режим ЗУ. Файлы «флеша»: "
-                        f"<a href=\"/msc\" style=\"color:#58a6ff\">/msc</a> · "
+                        "<a href=\"/msc\" style=\"color:#58a6ff\">/msc</a> · "
                         "выйти: <a href=\"/msc/exit\" style=\"color:#58a6ff\">/msc/exit</a> "
                         "или перезапустить эмулятор.</div></div>"
                     )

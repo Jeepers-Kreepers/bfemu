@@ -110,7 +110,7 @@ class Link:
                 return
             proto = b[1]
             if proto == ord("M"):
-                ln, code = b[3], b[4]
+                ln = b[3]
                 total = 5 + ln + 1
                 if len(b) < total:
                     return
@@ -121,7 +121,6 @@ class Link:
             if proto == ord("X"):
                 if len(b) < 9:
                     return
-                code = b[4] | (b[5] << 8)
                 ln = b[6] | (b[7] << 8)
                 total = 8 + ln + 1
                 if len(b) < total:

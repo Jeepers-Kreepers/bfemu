@@ -153,7 +153,7 @@ class CliEngine:
         self._w("Devices detected: SPI:2, I2C:1")
         self._w("Gyros detected: gyro 1 locked dma")
         self._w(sensors)
-        self._w(f"OSD: MAX7456 (30 x 13)")
+        self._w("OSD: MAX7456 (30 x 13)")
         now = time.strftime("%Y-%m-%dT%H:%M:%S.000+00:00", time.gmtime())
         self._w(f"System Uptime: {up} seconds, Current Time: {now}")
         self._w("CPU:12%, cycle time: 125, GYRO rate: 8000, RX rate: 33, System rate: 9")
@@ -2082,7 +2082,7 @@ class CliEngine:
         переключаются через тот же select_profile, что и у MSP), `disable` снимает ползунки и
         выключает упрощённые фильтры гироскопа/D-term — как disableSimplifiedTuning().
         """
-        from .fc import CONTROL_RATE_PROFILE_COUNT, PID_PROFILE_COUNT, SIMPLIFIED_TUNING_DEFAULT, SIMPLIFIED_TUNING_OFF
+        from .fc import PID_PROFILE_COUNT, SIMPLIFIED_TUNING_DEFAULT, SIMPLIFIED_TUNING_OFF
         f = self.fc
         text = args.strip().lower()
         if text == "apply":

@@ -23,10 +23,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from bfemu import msp as mspmod
 from bfemu.fc import VirtualFC
 from bfemu.msp import MspParser, encode_v1, encode_v2
-from bfemu.server import Session
 from bfemu.fc import (ADJUSTMENT_FUNCTION_COUNT, ADJUSTMENT_RANGE_COUNT, OSD_ITEM_COUNT,
                       OSD_PROFILE_COUNT, OSD_STAT_COUNT, OSD_TIMER_COUNT, OSD_VISIBLE,
                       OSD_WARNING_COUNT)
@@ -190,7 +188,7 @@ def main():
     check(board[pos : pos + 32] == bytes(32), "подпись: 32 нулевых байта (как без USE_SIGNATURE)")
     caps = board[7]
     check(caps & 1, f"возможности платы: VCP (бит 0, caps=0x{caps:02x})")
-    check(caps & 2, f"возможности платы: HAS_SOFTSERIAL (бит 1) — нужен вкладке «Порты»")
+    check(caps & 2, "возможности платы: HAS_SOFTSERIAL (бит 1) — нужен вкладке «Порты»")
     check(len(board) == pos + 32 + 1 + 1 + 2 + 4,
           f"MSP_BOARD_INFO целиком разобран: {len(board)} байт, хвост 8 байт (MCU/состояние/частота/проблемы)")
 
@@ -365,6 +363,8 @@ def main():
 
     info = cli.request(0x3011, b"gyro_lpf1_static_hz\x00\x00\x00", version=2)
     total = u16(info, 0)
+    check(total == len(info) - 2,
+          f"MSP2_CLI_SETTING_INFO: поле длины совпадает с телом ответа ({total} = {len(info) - 2})")
     body = info[2:].decode("latin-1")
     check("min=0" in body and "max=1000" in body, f"MSP2_CLI_SETTING_INFO: {body.replace(chr(10), ' ')}")
 
@@ -449,7 +449,6 @@ def main():
 
     print("9. EEPROM: конфигурация переживает полный перезапуск процесса")
     import subprocess
-    import tempfile
 
     eeprom = Path(tempfile.mkdtemp()) / "eeprom.json"
     env = dict(os.environ)
@@ -1062,7 +1061,7 @@ def main():
         if code == 0:
             break
         codes.append(code)
-    check(16420 in codes, f"build options содержат USE_SERVOS (16420) — по нему Configurator показывает вкладку")
+    check(16420 in codes, "build options содержат USE_SERVOS (16420) — по нему Configurator показывает вкладку")
     check(16412 in codes,
           "build options содержат USE_GPS (16412) — иначе вкладки «GPS» в Configurator нет вовсе")
     check(codes == [4097, 8231, 16408, 16412, 16413, 16416, 16420, 16421, 16423, 16429],
@@ -2249,10 +2248,6 @@ global.setInterval = () => 1;
         AXIS_NAMES = ("X", "Y", "Z", "R", "U", "V")
         # порядок шагов инструмента: крен, тангаж, рыск, газ (газ — «прокачкой» вверх-вниз)
         PLAN = ((0, +1.0), (1, +1.0), (5, +1.0), (3, -1.0))
-
-        def __init__(self):
-            self.step, self.last = 0, 0.0
-            self.step_since = time.time() + 1.0               # стики стоят, пока идёт «замер покоя»
 
         def __init__(self):
             self.step, self.last = 0, 0.0

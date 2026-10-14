@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import socket
 import subprocess
@@ -204,7 +203,6 @@ def main() -> int:
 
     visible = [(index, value) for index, value in enumerate(data["items"]) if value]
     print("\n-- что стоит на экране (профиль 1) --")
-    names = ["RSSI", "НАПРЯЖЕНИЕ", "ПРИЦЕЛ", "ГОРИЗОНТ"]
     from bfemu.fc import OSD_ITEMS
     for index, value in visible:
         x, y = value & 0x1F, (value >> 5) & 0x1F

@@ -1292,7 +1292,6 @@ def classify_aux_sample(samples, rest=None, level_gap: float = AUX_LEVEL_GAP) ->
         levels.sort()
     near = sum(1 for value in values
                if any(abs(value - level) <= level_gap for level in levels)) / len(values)
-    spread = max(values) - min(values)
     if len(levels) >= 4 or near < 0.7:
         return "knob", {"min": round(min(values), 3), "max": round(max(values), 3)}
     if len(levels) <= 2:
@@ -1433,7 +1432,6 @@ def detect_aux(radio, device, mapping: dict, watch: float = 7.0, idle: float = 8
             print(f"      нашёл: {label} → AUX{item['channel']}, "
                   f"{AUX_TYPE_LABELS[kind]}, {detail}{channel_hint}")
     if found:
-        channels = [item["channel"] for item in found]
         if not quiet:
             print(f"\n   найдено {len(found)}: " + format_aux(found))
             if any(item["type"] == "switch2" for item in found):

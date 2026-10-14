@@ -12,14 +12,10 @@ from __future__ import annotations
 
 import json
 import math
-import os
-import random
-import threading
 import time
 from pathlib import Path
 
 from . import bb_scenarios
-from . import msp as mspmod
 from .cli import CliEngine
 from .msp import Reader, Writer
 
@@ -2799,7 +2795,6 @@ class VirtualFC:
                 MSP_SET_RX_CONFIG: self._h_set_rx_config,
                 MSP_SET_RSSI_CONFIG: self._h_set_rssi_config,
                 MSP_SET_FAILSAFE_CONFIG: self._h_set_failsafe_config,
-                MSP_SET_RC_TUNING: self._h_set_echo,
                 MSP_SET_PID: self._h_set_pid,
                 MSP_PIDNAMES: self._h_pidnames,
                 MSP_PID_ADVANCED: self._h_pid_advanced,
@@ -2855,8 +2850,8 @@ class VirtualFC:
                 MSP2_GET_OSD_WARNINGS: self._h_osd_warnings,
                 MSP2_MCU_INFO: self._h_mcu_info,
                 MSP2_GYRO_SENSOR_ACTIVE: self._h_gyro_sensor_active,
-                MSP2_SEND_DSHOT_COMMAND: self._h_send_dshot_command,
-                MSP2_SET_MOTOR_OUTPUT_REORDERING: self._h_set_motor_output_reordering,
+                # MSP2_SEND_DSHOT_COMMAND и MSP2_SET_MOTOR_OUTPUT_REORDERING объявлены выше,
+                # в блоке моторов, — повторять их здесь нельзя (вторая запись молча затирает первую).
                 MSP2_BATTERY_PROFILE: self._h_battery_profile,
                 MSP2_SET_BATTERY_PROFILE: self._h_set_battery_profile,
                 MSP2_CLI_SETTING: self._h_cli_setting,
@@ -3550,7 +3545,7 @@ class VirtualFC:
             self.sim_flight_phase = "landing"
             self.sim_flight_since = now
             self.sim_flight_note = ("Батарея разряжена (расход дошёл до ёмкости) — посадка, "
-                                    f"затем новая батарея")
+                                    "затем новая батарея")
             self._log("[SIM] батарея разряжена: посадка")
         elif phase == "landing" and t >= self.SIM_LAND_S:
             self.sim_flight_phase = "swap"
