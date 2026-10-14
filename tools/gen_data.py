@@ -115,7 +115,7 @@ def resolve_int(expr: str, defines: dict, depth=0):
     if re.fullmatch(r"[0-9a-fA-FxX\s\+\-\*/<>\|&\(\)~]+", substituted):
         py_expr = substituted.replace("&&", " and ").replace("||", " or ")
         try:
-            return int(eval(py_expr, {"__builtins__": {}}, {}))  # noqa: S307 - локальные константы
+            return int(eval(py_expr, {"__builtins__": {}}, {}))
         except Exception:
             return None
     return None
@@ -388,8 +388,6 @@ def parse_box_names(repo: Path):
 
 
 def parse_box_ids(repo: Path):
-    for path in repo.rglob("boxid_e*"):
-        pass
     for path in repo.rglob("*.h"):
         text = path.read_text(errors="ignore")
         m = re.search(r"typedef enum\s*\{(.*?)\}\s*boxId_e", text, re.S)

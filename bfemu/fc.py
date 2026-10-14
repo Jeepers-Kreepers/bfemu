@@ -18,6 +18,7 @@ from pathlib import Path
 from . import bb_scenarios
 from .cli import CliEngine
 from .msp import Reader, Writer
+import itertools
 
 DATA_PATH = Path(__file__).resolve().parent / "data" / "bf_data.json"
 
@@ -1253,16 +1254,7 @@ class VirtualFC:
     # (UARTDEV_CONFIG_MAX = 11). Элемент: (устройство, индекс для CLI, поток или None);
     # None — DMA_OPT_UNUSED, такой слот прошивка печатает как «dma <устройство> <индекс> NONE».
     # SDIO в таблице прошивки тоже есть, но у него maxIndex = 0 — строк он не даёт.
-    RESOURCE_DMA_OPT = (
-        ("SPI_SDO", 1, (2, 3, 3)),
-        ("SPI_SDI", 1, (2, 0, 3)),
-        ("SPI_TX", 1, (2, 3, 3)),
-        ("SPI_RX", 1, (2, 0, 3)),
-        ("ADC", 1, (2, 4, 0)),
-        ("ADC", 2, None),
-        ("ADC", 3, None),
-    ) + tuple(("UART_TX", i, {1: (2, 7, 4), 2: (1, 6, 4)}.get(i)) for i in range(1, 12)) \
-      + tuple(("UART_RX", i, {1: (2, 5, 4), 2: (1, 5, 4)}.get(i)) for i in range(1, 12))
+    RESOURCE_DMA_OPT = (("SPI_SDO", 1, (2, 3, 3)), ("SPI_SDI", 1, (2, 0, 3)), ("SPI_TX", 1, (2, 3, 3)), ("SPI_RX", 1, (2, 0, 3)), ("ADC", 1, (2, 4, 0)), ("ADC", 2, None), ("ADC", 3, None), *tuple(("UART_TX", i, {1: (2, 7, 4), 2: (1, 6, 4)}.get(i)) for i in range(1, 12)), *tuple(("UART_RX", i, {1: (2, 5, 4), 2: (1, 5, 4)}.get(i)) for i in range(1, 12)))
     # Сколько индексов у устройства в dmaoptEntryTable (для `dma <устройство> <индекс>`).
     RESOURCE_DMA_DEVICES = {
         "SPI_SDO": 1, "SPI_SDI": 1, "SPI_TX": 1, "SPI_RX": 1,
@@ -1745,7 +1737,7 @@ class VirtualFC:
                 f"{self.build_date} / {self.build_time} ({self.git_revision}) MSP API: {api}")
 
     def features_items(self):
-        for name, bit in sorted(self.feature_bits_by_name.items(), key=lambda kv: kv[1]):
+        for name, _bit in sorted(self.feature_bits_by_name.items(), key=lambda kv: kv[1]):
             yield name, name in self.features
 
     @property
@@ -1757,7 +1749,7 @@ class VirtualFC:
 
     def feature_lines(self, only_diff=False):
         out = []
-        for name, bit in sorted(self.feature_bits_by_name.items(), key=lambda kv: kv[1]):
+        for name, _bit in sorted(self.feature_bits_by_name.items(), key=lambda kv: kv[1]):
             enabled = name in self.features
             default_enabled = name in FEATURE_DEFAULTS
             if only_diff and enabled == default_enabled:
@@ -2140,7 +2132,7 @@ class VirtualFC:
         """
         defaults = self._default_resources()
         lines = []
-        for name, pins in self.RESOURCE_OWNERS:
+        for name, _pins in self.RESOURCE_OWNERS:
             for i, pin in enumerate(self.resources[name]):
                 if only_diff and pin == defaults[name][i]:
                     continue
@@ -4545,7 +4537,7 @@ class VirtualFC:
                                         "stage 1: guard time and stage 1 channel values (rxfail)",
                                         "ROLLBACK POINT: stage 2 starts",
                                         f"stage 2: {self.FS_PROCEDURE_NAMES[cfg['procedure']]}",
-                                        "link back, leaving failsafe -> IDLE")):
+                                        "link back, leaving failsafe -> IDLE"), strict=False):
             entry["en"] = en
         rollback = None
         if self.fs_demo:
@@ -5074,7 +5066,7 @@ class VirtualFC:
                 names.append(name)
         # Один переход (страница отдала управление инструменту) — это норма. «Пишут двое» — это
         # когда источники ЧЕРЕДУЮТСЯ: A, B, A, B… Тогда каналы и «прыгают».
-        changes = sum(1 for (_, a), (_, b) in zip(fresh, fresh[1:]) if a != b)
+        changes = sum(1 for (_, a), (_, b) in itertools.pairwise(fresh) if a != b)
         return {
             "source": fresh[-1][1] if fresh else "",
             "updated_ago": round(now - self.rc_channels_updated, 2) if self.rc_channels_updated else None,
@@ -5648,7 +5640,7 @@ class VirtualFC:
             self.settings["simplified_gyro_filter"] = 1 if d[0] else 0
             self.settings["simplified_gyro_filter_multiplier"] = d[1]
         self._calculate_simplified_gyro_filters()
-        w.raw(self._simplified_gyro_bytes() if len(d) >= 18 else self._simplified_gyro_bytes())
+        w.raw(self._simplified_gyro_bytes())
         for name, value in saved.items():
             self.settings[name] = value
 
@@ -5945,9 +5937,9 @@ class VirtualFC:
         names = ("gps_provider", "gps_sbas_mode", "gps_auto_config", "gps_auto_baud",
                  "gps_set_home_point_once", "gps_ublox_use_galileo")
         values = list(r.data[r.pos : r.pos + len(names)])
-        for name, value in zip(names, values):
+        for name, value in zip(names, values, strict=False):
             self._store_setting(name, value)
-        self._log("[MSP] GPS_CONFIG сохранён: " + ", ".join(f"{n}={v}" for n, v in zip(names, values)))
+        self._log("[MSP] GPS_CONFIG сохранён: " + ", ".join(f"{n}={v}" for n, v in zip(names, values, strict=False)))
         return b""
 
     def _h_set_sensor_config(self, w, r):

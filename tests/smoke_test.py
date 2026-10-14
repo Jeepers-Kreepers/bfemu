@@ -68,7 +68,7 @@ class Client:
         while time.time() < deadline:
             try:
                 data = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not data:
                 break
@@ -76,8 +76,6 @@ class Client:
             for req in self.parser:
                 if req.code == code:
                     return req.payload
-            for req in []:
-                pass
         raise TimeoutError(f"нет ответа на MSP {code}")
 
     def expect_close(self, seconds=5.0) -> bool:
@@ -88,7 +86,7 @@ class Client:
                 data = self.sock.recv(4096)
                 if not data:
                     return True
-        except socket.timeout:
+        except TimeoutError:
             return False
         except OSError:
             return True
@@ -97,7 +95,7 @@ class Client:
         self.sock.settimeout(seconds)
         try:
             return self.sock.recv(65536)
-        except socket.timeout:
+        except TimeoutError:
             return b""
 
 
@@ -143,7 +141,7 @@ def cli_over_msp(cli: Client, command: str, window=480) -> str:
         flags = resp[2]
         out += resp[3:]
         offset += len(resp) - 3
-        if offset >= total or flags & 1 and offset >= total:
+        if offset >= total or (flags & 1 and offset >= total):
             break
         if len(resp) - 3 == 0:
             break
@@ -1016,7 +1014,7 @@ def main():
           f"уровень 1: {u16(status2, 16)} dBm = {u16(status2, 18)} мВт")
 
     out = cli_over_msp(c6, "vtxtable")
-    check("vtxtable bands 2" in out and "vtxtable band 1 RACEBAND R FACTORY 5658" in out.replace("  ", " ") or
+    check(("vtxtable bands 2" in out and "vtxtable band 1 RACEBAND R FACTORY 5658" in out.replace("  ", " ")) or
           "vtxtable band 1 RACEBAND R FACTORY  5658" in out,
           "CLI 'vtxtable' показывает таблицу")
     check("vtxtable powerlabels 25 800" in out, "CLI: подписи уровней")
@@ -1539,11 +1537,11 @@ def main():
         for _ in range(40):
             try:
                 client = Client(port=stale_port, timeout=1.0)
-            except OSError:
+            except OSError as exc:
                 if proc.poll() is not None:
                     raise RuntimeError(
                         f"эмулятор раздела 19 не поднялся: порт {stale_port} занят другой копией. "
-                        f"Остановите её и запустите тест снова")
+                        f"Остановите её и запустите тест снова") from exc
                 time.sleep(0.25)
                 continue
             if proc.poll() is not None:
@@ -1619,11 +1617,11 @@ def main():
         for _ in range(40):
             try:
                 client = Client(port=live_port, timeout=1.0)
-            except OSError:
+            except OSError as exc:
                 if proc.poll() is not None:
                     raise RuntimeError(
                         f"эмулятор раздела 20 не поднялся: порт {live_port} занят другой копией. "
-                        f"Остановите её (Ctrl+C в её окне) и запустите тест снова")
+                        f"Остановите её (Ctrl+C в её окне) и запустите тест снова") from exc
                 time.sleep(0.25)
                 continue
             if proc.poll() is not None:
@@ -1834,13 +1832,13 @@ global.fetch = async () => ({ok: true, json: async () => state});
     time.sleep(0.3)
     try:
         live_cli_sock.recv(4096)
-    except socket.timeout:
+    except TimeoutError:
         pass
     live_cli_sock.sendall(b"get serialrx_provider\r")
     time.sleep(0.4)
     try:
         live_cli_sock.recv(8192)
-    except socket.timeout:
+    except TimeoutError:
         pass
     live_cli_sock.close()
     time.sleep(0.3)
@@ -1917,11 +1915,11 @@ global.setInterval = () => 1;
         try:
             c454 = Client(port=cli454_port, timeout=1.0)
             break
-        except OSError:
+        except OSError as exc:
             if proc454.poll() is not None:
                 raise RuntimeError(
                     f"эмулятор раздела 17г не поднялся: порт {cli454_port} занят другой копией. "
-                    f"Остановите её и запустите тест снова")
+                    f"Остановите её и запустите тест снова") from exc
             time.sleep(0.25)
     else:
         raise RuntimeError("эмулятор раздела 17г не поднялся")
@@ -2612,31 +2610,44 @@ global.setInterval = () => 1;
         out = {"flags": view[pos]}
         pos += 1
         if out["flags"] and len(view) > 1:
-            out["video_system"] = view[pos]; pos += 1
-            out["units"] = view[pos]; pos += 1
-            out["rssi"] = view[pos]; pos += 1
-            out["cap"] = u16(view, pos); pos += 2
+            out["video_system"] = view[pos]
+            pos += 1
+            out["units"] = view[pos]
+            pos += 1
+            out["rssi"] = view[pos]
+            pos += 1
+            out["cap"] = u16(view, pos)
+            pos += 2
             pos += 1                                   # устаревшее поле таймера
-            count = view[pos]; pos += 1
-            out["alt"] = u16(view, pos); pos += 2
+            count = view[pos]
+            pos += 1
+            out["alt"] = u16(view, pos)
+            pos += 2
             out["items"] = [u16(view, pos + 2 * i) for i in range(count)]
             pos += 2 * count
-            stats_count = view[pos]; pos += 1
+            stats_count = view[pos]
+            pos += 1
             out["stats"] = [view[pos + i] == 1 for i in range(stats_count)]
             pos += stats_count
-            timers_count = view[pos]; pos += 1
+            timers_count = view[pos]
+            pos += 1
             out["timers"] = [u16(view, pos + 2 * i) for i in range(timers_count)]
             pos += 2 * timers_count
             pos += 2                                   # младшее слово предупреждений
-            warnings_count = view[pos]; pos += 1
-            out["warnings_flags"] = u32(view, pos); pos += 4
+            warnings_count = view[pos]
+            pos += 1
+            out["warnings_flags"] = u32(view, pos)
+            pos += 4
             out["warnings"] = [bool(out["warnings_flags"] & (1 << i)) for i in range(warnings_count)]
             out["profiles"] = view[pos]
             out["profile_selected"] = view[pos + 1] - 1
             pos += 2
-            out["overlay"] = view[pos]; pos += 1
-            out["camera_frame"] = (view[pos], view[pos + 1]); pos += 2
-            out["link_quality"] = u16(view, pos); pos += 2
+            out["overlay"] = view[pos]
+            pos += 1
+            out["camera_frame"] = (view[pos], view[pos + 1])
+            pos += 2
+            out["link_quality"] = u16(view, pos)
+            pos += 2
         out["read"], out["total"] = pos, len(view)
         return out
 

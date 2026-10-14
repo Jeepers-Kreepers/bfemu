@@ -29,6 +29,7 @@ from pathlib import Path
 from .blackbox import (ACC_1G, LOOPTIME_US, MAXTHROTTLE, MINTHROTTLE, MOTOR_IDLE,
                        MOTOR_POLES, BlackboxFlash, encode_flight, flight_mode_event,
                        scan_logs)
+import itertools
 
 RATE_HZ = 1_000_000 // LOOPTIME_US          # 1000 кадров в секунду (цикл PID 1 кГц)
 MAX_RATE_DEG_S = 660.0                      # предел задатчика крена/тангажа
@@ -45,7 +46,7 @@ def _stick(t: float, points) -> float:
     """Положение стика (мкс) по ломаной «время → значение»."""
     if t <= points[0][0]:
         return float(points[0][1])
-    for (t0, v0), (t1, v1) in zip(points, points[1:]):
+    for (t0, v0), (t1, v1) in itertools.pairwise(points):
         if t <= t1:
             return v0 + (v1 - v0) * (t - t0) / (t1 - t0)
     return float(points[-1][1])

@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 BEGIN = 0x24  # '$'
 PROTO_V1 = ord("M")
@@ -107,7 +107,7 @@ class MspParser:
                 return
             yield req
 
-    def _next(self) -> Optional[Request]:
+    def _next(self) -> Request | None:
         while True:
             req = self._parse_one()
             if req is Request or isinstance(req, Request):

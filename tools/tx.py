@@ -98,12 +98,12 @@ def api(port: int, payload=None):
     except urllib.error.HTTPError as exc:
         text = exc.read().decode("utf-8", "replace")
         if exc.code == 409:              # данные отклонены: управление у виртуальной аппаратуры
-            raise ControlRefused(text)
-        raise SystemExit(f"эмулятор ответил ошибкой: {text}")
+            raise ControlRefused(text) from exc
+        raise SystemExit(f"эмулятор ответил ошибкой: {text}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise SystemExit(
             f"не вижу эмулятор на http://127.0.0.1:{port} — запустите run_windows.bat ({exc})"
-        )
+        ) from exc
 
 
 def show(state: dict, note: str = ""):
@@ -113,7 +113,7 @@ def show(state: dict, note: str = ""):
     if bind:
         mark = {"bound": "связана", "binding": "ИДЁТ БИНД", "none": "НЕ связана"}.get(bind.get("state"), "?")
         print(f"   биндинг: {mark} — {bind.get('text', '')}")
-    for index, (name, label) in enumerate(zip(NAMES, LABELS)):
+    for index, (name, label) in enumerate(zip(NAMES, LABELS, strict=False)):
         value = state["channels"][index]
         mark = ""
         if index < 4:
@@ -137,8 +137,8 @@ def parse_assignments(tokens: list) -> dict:
             raise SystemExit(f"неизвестный канал {name!r}. Известные: {', '.join(NAMES)}")
         try:
             mapping[name] = int(value)
-        except ValueError:
-            raise SystemExit(f"значение {value!r} — не число")
+        except ValueError as exc:
+            raise SystemExit(f"значение {value!r} — не число") from exc
     return {"channels": mapping}
 
 
@@ -430,16 +430,16 @@ def wire(port: int, serial_name: str, baud: int, protocol: str = "auto", rate: f
     """
     try:
         import serial
-    except ImportError:
+    except ImportError as exc:
         raise SystemExit(
             "нужен пакет pyserial, чтобы читать приёмник из COM-порта:\n"
             "    python -m pip install pyserial"
-        )
+        ) from exc
     print(f"открываю {serial_name} @ {baud} бод, протокол {protocol} ...")
     try:
         link = serial.Serial(serial_name, baud, timeout=0.1)
     except Exception as exc:
-        raise SystemExit(f"не удалось открыть {serial_name}: {exc}")
+        raise SystemExit(f"не удалось открыть {serial_name}: {exc}") from exc
 
     lock_take()                              # два писателя одновременно = «прыгающие» каналы
     source = f"приёмник {serial_name} [{my_source().split('[', 1)[-1]}"
@@ -504,7 +504,7 @@ def wire(port: int, serial_name: str, baud: int, protocol: str = "auto", rate: f
                 last_log = now
                 state = api(port)
                 sticks = " ".join(f"{label}={value}" for label, value in
-                                  zip(LABELS[:4], state["channels"][:4]))
+                                  zip(LABELS[:4], state["channels"][:4], strict=False))
                 print(f"   кадров {frames}, {sticks}  (биндинг: {state['bind']['text']})")
             if rate:
                 time.sleep(step)
@@ -554,7 +554,7 @@ def build_payload(mapping: dict, axes: list, buttons: list, hats: list = (),
         used.add(axis)
     free = [a for a in range(len(axes)) if a not in used]
     slots = [n for n in range(1, AUX_MAX + 1) if n not in taken_channels]
-    for slot, axis in zip(slots, free):
+    for slot, axis in zip(slots, free, strict=False):
         payload[f"aux{slot}"] = int(round(1000 + (axes[axis] + 1) * 500))
     base = max(taken_channels | {int(k[3:]) for k in payload if k.startswith("aux")} or {0}) + 1
     for i, pressed in enumerate(buttons):
@@ -795,7 +795,7 @@ def pid_of_source(name: str):
     return int(digits) if digits else None
 
 
-def other_tool_pids(state: dict, own: int = None) -> list:
+def other_tool_pids(state: dict, own: int | None = None) -> list:
     """Номера ДРУГИХ запусков инструмента, которые сейчас пишут каналы (кроме нашего)."""
     own = os.getpid() if own is None else own
     pids = []
@@ -826,7 +826,7 @@ def close_other_tools(port: int) -> list:
     return result
 
 
-def multi_source_note(sources, own: int = None) -> str:
+def multi_source_note(sources, own: int | None = None) -> str:
     """Текст тревоги «каналы пишут несколько источников» (или пустая строка, если всё хорошо)."""
     names = [str(n) for n in (sources or []) if str(n).strip()]
     if len(names) < 2:
@@ -1002,7 +1002,7 @@ def best_axis(baseline: list, sample: list, used) -> tuple:
     должно быть 2000 мкс).
     """
     best, delta = None, 0.0
-    for index, (rest, moved) in enumerate(zip(baseline, sample)):
+    for index, (rest, moved) in enumerate(zip(baseline, sample, strict=False)):
         if index in used:
             continue
         if abs(moved - rest) > delta:
@@ -1236,8 +1236,8 @@ def _wait_for_throttle(radio, device, used, need_range: float = 0.8,
     print("      …жду движения газа (вверх-вниз)", flush=True)
     while time.time() - started < timeout:
         axes_values, _buttons, _hats = radio.read(device)
-        lows = list(axes_values) if lows is None else [min(a, b) for a, b in zip(lows, axes_values)]
-        highs = list(axes_values) if highs is None else [max(a, b) for a, b in zip(highs, axes_values)]
+        lows = list(axes_values) if lows is None else [min(a, b) for a, b in zip(lows, axes_values, strict=False)]
+        highs = list(axes_values) if highs is None else [max(a, b) for a, b in zip(highs, axes_values, strict=False)]
         free = [i for i in range(len(axes_values)) if i not in used]
         if free:
             axis = max(free, key=lambda i: highs[i] - lows[i])
@@ -1256,7 +1256,7 @@ def _sample_mean(radio, device, seconds: float) -> list:
     started, sums, count = time.time(), None, 0
     while time.time() - started < seconds:
         axes_values, _buttons, _hats = radio.read(device)
-        sums = axes_values if sums is None else [a + b for a, b in zip(sums, axes_values)]
+        sums = axes_values if sums is None else [a + b for a, b in zip(sums, axes_values, strict=False)]
         count += 1
         time.sleep(0.05)
     return [value / max(count, 1) for value in (sums or [])]
@@ -1265,7 +1265,7 @@ def _sample_mean(radio, device, seconds: float) -> list:
 def stable_levels(samples, gap: float = AUX_LEVEL_GAP, min_run: int = 4) -> list:
     """Устойчивые положения оси из потока измерений: у тумблера их 2–3, у крутилки — много."""
     levels, run = [], []
-    for value in list(samples) + [None]:
+    for value in [*list(samples), None]:
         if value is not None and (not run or abs(value - run[-1]) <= gap):
             run.append(value)
             continue
@@ -1526,7 +1526,7 @@ def open_backend():
             "   • проверьте, что пульт в режиме USB Joystick (EdgeTX/OpenTX: MODEL SETUP → USB Joystick);\n"
             "   • если пульта нет вообще, каналы можно вести страницей http://127.0.0.1:8088/tx\n"
             "     или консолью: python tools\\tx.py roll=1700 yaw=1600 aux1=2000"
-        )
+        ) from exc
 
 
 def _describe_devices(radio, found: list):
@@ -1862,8 +1862,8 @@ def main() -> int:
     if command == "ports":
         try:
             from serial.tools import list_ports
-        except ImportError:
-            raise SystemExit("нужен пакет pyserial: python -m pip install pyserial")
+        except ImportError as exc:
+            raise SystemExit("нужен пакет pyserial: python -m pip install pyserial") from exc
         found = list(list_ports.comports())
         if not found:
             print("последовательных портов не найдено")

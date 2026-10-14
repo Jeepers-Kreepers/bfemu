@@ -92,7 +92,7 @@ class Link:
                 return data
             try:
                 chunk = self.s.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             self.buf += chunk
         raise TimeoutError("нет ответа")
@@ -152,7 +152,7 @@ class Link:
         while time.time() < deadline:
             try:
                 chunk = self.s.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             data += chunk
             if data.startswith(bytes([0x02])) and data.endswith(bytes([0x03])):

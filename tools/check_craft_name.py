@@ -69,7 +69,7 @@ class Client:
         while time.time() < deadline:
             try:
                 data = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not data:
                 break
@@ -87,7 +87,7 @@ class Client:
         for _ in range(3):
             try:
                 data = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not data:
                 break

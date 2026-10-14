@@ -253,7 +253,7 @@ class TcpServer:
         while not self._stop.is_set():
             try:
                 conn, addr = srv.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break
@@ -291,7 +291,7 @@ class TcpServer:
             while not self._stop.is_set():
                 try:
                     data = conn.recv(4096)
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except OSError:
                     break
@@ -720,7 +720,7 @@ class HttpMonitor:
                         return
                     before = list(fc.rc_channels)
                     fc.set_rc_channels(payload)
-                    applied += max(1, sum(1 for a, b in zip(before, fc.rc_channels) if a != b))
+                    applied += max(1, sum(1 for a, b in zip(before, fc.rc_channels, strict=False) if a != b))
                 if payload or data.get("reset"):
                     fc.note_rc_source(fc.rc_source)      # каналы точно менялись: отметим писателя
                 if not applied:
@@ -1220,7 +1220,7 @@ def _failsafe_api(fc) -> dict:
         "arming_flags": flags,
         "arming_notes": notes,
         "sats": int(solution["sats"]),
-        "channel_names": list(_RC_NAMES) + ["AUX %d" % (i + 1) for i in range(12)],
+        "channel_names": [*_RC_NAMES, *(f"AUX {i + 1}" for i in range(12))],
         "param_rows": param_rows,
         "rescue_param_rows": [[name, rescue_values[name], hint]
                               for name, hint in _FS_RESCUE_HINTS],

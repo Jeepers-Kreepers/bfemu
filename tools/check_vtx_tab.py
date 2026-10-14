@@ -57,7 +57,7 @@ class Fc:
         while time.time() < deadline:
             try:
                 buf += self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             frame = _frame(buf)
             if frame is not None:
@@ -224,7 +224,7 @@ def show(tab: dict, title: str):
         print(f"   Устройство  : тип {device['type']}, готово {device['ready']}, "
               f"банд {device['band']}/канал {device['channel']}, мощность №{device['power_index']}, "
               f"{device['frequency']} МГц, флаги 0x{device['status']:x}")
-        print("     уровни (dBm → мВт): " + ", ".join(f"{l} → {p}" for l, p in device["power_levels"]))
+        print("     уровни (dBm → мВт): " + ", ".join(f"{dbm} → {mw}" for dbm, mw in device["power_levels"]))
         print(f"     SmartAudio  : версия {sa.get('version')} (3 = 2.1), mode {sa.get('mode')}, "
               f"orfreq {sa.get('orfreq')}")
 

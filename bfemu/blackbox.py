@@ -484,7 +484,7 @@ class BlackboxFlash:
         os.replace(tmp, path)
 
     @classmethod
-    def load(cls, path: Path) -> "BlackboxFlash":
+    def load(cls, path: Path) -> BlackboxFlash:
         path = Path(path)
         return cls(path.read_bytes() if path.exists() else b"")
 

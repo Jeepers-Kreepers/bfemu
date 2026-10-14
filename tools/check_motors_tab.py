@@ -79,7 +79,7 @@ class Client:
         while time.time() < deadline:
             try:
                 data = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not data:
                 break
