@@ -113,29 +113,9 @@ class VirtualFC(
         self.beepers_disabled: set[str] = set()   # beeper_off_flags: поля нет в reset-шаблоне
         # (pg/beeper.c 4.5.4) → по умолчанию 0, то есть выключенных сигналов нет
         self.beeper_names = [b for b in BEEPER_NAMES]
-        # Идентификаторы — как в serialPortIdentifier_e прошивки:
-        # UART1..UART5 = 0..4, USB VCP = 20, SOFTSERIAL1/2 = 30/31. Именно их ждёт
-        # Configurator (composables/ports/usePortsState.js) при отрисовке вкладки «Порты».
-        # Порядок строк — тоже как в прошивке: массив serialPortIdentifiers[]
-        # (io/serial.c 4.5.4) начинается с USB VCP, и этот же порядок уходит в
-        # MSP_SERIAL_CONFIG / MSP2_COMMON_SERIAL_CONFIG и в CLI-дамп `serial`
-        # («serial 20 1 115200 ...» перед «serial 0 ...»). Configurator строки не
-        # сортирует — рисует как пришли, поэтому USB VCP в таблице идёт первым.
-        # Скорости — заводские, как pgResetFn_serialConfig() в io/serial.c 4.5.4:
-        # MSP 115200, датчики/GPS 57600, телеметрия AUTO, «чёрный ящик» 115200
-        # (baudRate_e: AUTO=0, 9600=1, ..., 57600=4, 115200=5).
-        def _port(identifier, functions):
-            return {"identifier": identifier, "functions": functions, "msp_baudrate": 5,
-                    "gps_baudrate": 4, "telemetry_baudrate": 0, "blackbox_baudrate": 5}
-
-        self.serial_ports = [
-            _port(20, ["MSP"]),              # USB VCP
-            _port(0, ["GPS"]),               # UART1 — GPS-модуль
-            _port(1, ["RX_SERIAL"]),         # UART2 — приёмник
-            _port(2, ["ESC_SENSOR"]),        # UART3 — ESC-телеметрия
-            _port(3, ["TBS_SMARTAUDIO"]),    # UART4 — VTX
-            _port(4, []),                    # UART5 — свободен
-        ]
+        # Порты — заводская таблица pgResetFn_serialConfig(); она же возвращается
+        # командой `defaults` (см. _default_serial_ports()).
+        self.serial_ports = self._default_serial_ports()
         self.boxes = self.data.get("boxes") or []
         if not self.boxes:
             self.boxes = [
@@ -201,7 +181,7 @@ class VirtualFC(
         self.RX_RATE_HZ = 33
         self.rx_bind_deadline = 0.0
         self.rx_bind_seconds = VirtualFC.RX_BIND_SECONDS
-        self.mixer_name = "QUADX"
+        self.mixer_name = self.MIXER_DEFAULT
         self.mixer_names = ["TRI", "QUADP", "QUADX", "BI", "GIMBAL", "Y6", "HEX6", "FLYING_WING", "Y4",
                             "HEX6X", "OCTOX8", "OCTOFLATP", "OCTOFLATX", "AIRPLANE", "HELI_120_CCPM",
                             "HELI_90_DEG", "VTAIL4", "HEX6H", "PPM_TO_SERVO", "DUALCOPTER", "SINGLECOPTER",

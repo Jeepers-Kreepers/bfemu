@@ -1416,6 +1416,20 @@ def main():
     status, body = tx_post({"foo": 1})
     check(status == 400 and "не распознаны" in body["error"], f"неизвестный канал: HTTP {status} и понятная ошибка")
 
+    # Отказ обязан приходить ДО изменений: иначе 400 оставлял бы часть запроса применённой
+    source_before = _json.loads(tx_get())["source"]
+    status, body = tx_post({"source": "смоук-400", "roll": 1600, "нет_такого_канала": 1500})
+    check(status == 400 and "не распознаны" in body["error"] and body["state"]["channels"][0] != 1600,
+          f"неизвестный канал в одном запросе с валидным полем: HTTP {status}, валидное поле не применено")
+    check(_json.loads(tx_get())["source"] == source_before,
+          f"после отказа источник остался прежним ({source_before})")
+    status, body = tx_post({"roll": "не-число"})
+    check(status == 400 and "числами" in body["error"],
+          f"нечисловое значение канала: HTTP {status} и понятная ошибка (раньше соединение рвалось)")
+    status, _ = tx_post({"roll": 1650})
+    check(status == 200 and msp_channels()[0] == 1650,
+          "после отказов сервер принимает запросы дальше и каналы пишутся")
+
     status, body = tx_post({"reset": True})
     check(status == 200 and body["channels"] == [1500, 1500, 1500, 1000] + [1000] * 12,
           "сброс: стики в центр, тумблеры выключены")

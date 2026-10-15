@@ -453,6 +453,33 @@ class ReceiverMixin:
             "stage1": [{"mode": c["mode"], "value": c["value"]} for c in self._rxfail_channels()],
         }
 
+    @staticmethod
+    def _default_serial_ports() -> list:
+        """Заводская таблица портов — pgResetFn_serialConfig() из io/serial.c 4.5.4.
+
+        Нужна не только на старте: `defaults` (resetConfig() в config.c) сбрасывает
+        serialConfig_t вместе с остальными PG-таблицами, то есть функции на портах
+        возвращаются к заводским.
+
+        Идентификаторы — как в serialPortIdentifier_e: UART1..UART5 = 0..4, USB VCP = 20,
+        SOFTSERIAL1/2 = 30/31. Порядок строк — serialPortIdentifiers[]: USB VCP первым
+        (Configurator рисует таблицу в том порядке, в каком пришли строки).
+        Скорости — заводские: MSP 115200, датчики/GPS 57600, телеметрия AUTO, «чёрный
+        ящик» 115200 (baudRate_e: AUTO=0, 9600=1, ..., 57600=4, 115200=5).
+        """
+        def port(identifier, functions):
+            return {"identifier": identifier, "functions": list(functions), "msp_baudrate": 5,
+                    "gps_baudrate": 4, "telemetry_baudrate": 0, "blackbox_baudrate": 5}
+
+        return [
+            port(20, ["MSP"]),              # USB VCP
+            port(0, ["GPS"]),               # UART1 — GPS-модуль
+            port(1, ["RX_SERIAL"]),         # UART2 — приёмник
+            port(2, ["ESC_SENSOR"]),        # UART3 — ESC-телеметрия
+            port(3, ["TBS_SMARTAUDIO"]),    # UART4 — VTX
+            port(4, []),                    # UART5 — свободен
+        ]
+
     def sync_soft_serial_ports(self):
         """Фича SOFTSERIAL включает порты SOFTSERIAL1/2 — как на настоящем FC.
 

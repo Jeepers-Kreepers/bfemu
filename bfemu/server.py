@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import socket
 import sys
@@ -36,13 +37,6 @@ STX = 0x02
 ETX = 0x03
 
 _LOG_STREAM = None
-
-# Имена портов по serialPortIdentifier_e (как в Configurator: composables/ports/portNames.js)
-_PORT_NAMES = {
-    0: "UART1", 1: "UART2", 2: "UART3", 3: "UART4", 4: "UART5", 5: "UART6",
-    6: "UART7", 7: "UART8", 8: "UART9", 9: "UART10",
-    20: "VCP", 30: "SOFTSERIAL1", 31: "SOFTSERIAL2",
-}
 
 
 def set_log_file(path):
@@ -401,6 +395,55 @@ class StdioServer:
 
 
 # ------------------------------------------------------------------------ HTTP
+def _rc_channel_value_ok(value) -> bool:
+    """Годится ли значение канала: число (или строка с числом) в микросекундах.
+
+    Отдельно отсекаем bool (это не «канал в 1 мкс») и бесконечность: JSON принимает
+    `Infinity`, а `int(float("inf"))` в set_rc_channel падает уже после того, как
+    предыдущие каналы записаны.
+    """
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, str):
+        try:
+            int(value.strip())
+        except ValueError:
+            return False
+        return True
+    return False
+
+
+def _rc_payload_problem(fc, payload) -> str | None:
+    """Что не так с каналами в запросе /api/rc: текст ошибки для 400 или None.
+
+    Проверка идёт ДО применения запроса: раньше 400 уходил клиенту уже после того,
+    как часть полей была записана, и состояние оставалось изменённым (находка
+    повторного ревью). Здесь же отсекаются нечисловые значения — из-за них
+    обработчик падал в set_rc_channel и соединение обрывалось без ответа.
+    """
+    if isinstance(payload, dict):
+        unknown = [k for k in payload if fc._rc_channel_index(k) is None]
+        if unknown:
+            return ("каналы не распознаны: " + ", ".join(map(str, unknown)) +
+                    " (нужны roll/pitch/yaw/throttle/aux1…aux12 или номера 0…15)")
+        bad = [f"{k}={v!r}" for k, v in payload.items() if not _rc_channel_value_ok(v)]
+        if bad:
+            return ("значения каналов должны быть числами (микросекунды 1000…2000): " +
+                    ", ".join(bad))
+        return None
+    if isinstance(payload, (list, tuple)):
+        bad = [f"{i}={v!r}" for i, v in enumerate(list(payload)[:16])
+               if v is not None and not _rc_channel_value_ok(v)]
+        if bad:
+            return "значения каналов должны быть числами (микросекунды 1000…2000): " + ", ".join(bad)
+        return None
+    return "каналы должны быть объектом {имя: значение} или списком из 16 значений"
+
+
 class HttpMonitor:
     """Небольшая веб-страница состояния — удобно смотреть, что делает Configurator."""
 
@@ -664,6 +707,16 @@ class HttpMonitor:
                         "application/json; charset=utf-8", 409)
                     return
 
+                # Проверки каналов — ДО любых изменений: иначе отказ (400) уходил клиенту
+                # после того, как часть запроса уже применена (находка повторного ревью),
+                # а нечисловое значение роняло обработчик прямо посреди записи каналов.
+                problem = _rc_payload_problem(fc, payload)
+                if problem:
+                    self._send(_json.dumps(
+                        {"error": problem, "state": fc.rc_state()}, ensure_ascii=False).encode(),
+                        "application/json; charset=utf-8", 400)
+                    return
+
                 applied = 0
                 if data.get("reset"):
                     fc.reset_rc_channels()
@@ -706,20 +759,17 @@ class HttpMonitor:
                         fc.unbind()
                     applied += 1
                 if payload:
-                    # сначала проверяем имена/типы, чтобы «повторное» значение не выглядело ошибкой
-                    unknown = [k for k in payload if fc._rc_channel_index(k) is None] \
-                        if isinstance(payload, dict) else []
-                    if not unknown and not isinstance(payload, (dict, list, tuple)):
-                        unknown = ["?"]
-                    if unknown:
-                        self._send(_json.dumps(
-                            {"error": "каналы не распознаны: " + ", ".join(map(str, unknown)) +
-                                      " (нужны roll/pitch/yaw/throttle/aux1…aux12 или номера 0…15)",
-                             "state": fc.rc_state()}, ensure_ascii=False).encode(),
-                            "application/json; charset=utf-8", 400)
-                        return
+                    # Имена и типы уже проверены выше — здесь только запись.
                     before = list(fc.rc_channels)
-                    fc.set_rc_channels(payload)
+                    try:
+                        fc.set_rc_channels(payload)
+                    except Exception as exc:  # отвечаем JSON'ом, а не рвём соединение
+                        emit(f"[HTTP] /api/rc: каналы не применены — {type(exc).__name__}: {exc}")
+                        self._send(_json.dumps(
+                            {"error": f"каналы применить не удалось: {type(exc).__name__}: {exc}",
+                             "state": fc.rc_state()}, ensure_ascii=False).encode(),
+                            "application/json; charset=utf-8", 500)
+                        return
                     applied += max(1, sum(1 for a, b in zip(before, fc.rc_channels, strict=False) if a != b))
                 if payload or data.get("reset"):
                     fc.note_rc_source(fc.rc_source)      # каналы точно менялись: отметим писателя

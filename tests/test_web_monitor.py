@@ -82,6 +82,46 @@ def test_same_origin_and_console_requests_work(monitor):
     assert roll == 1600
 
 
+def test_rejected_rc_request_changes_nothing(fc, monitor):
+    """Отказ (400) обязан приходить до изменений: раньше поля запроса уже применялись.
+
+    Повторное ревью: `/api/rc` возвращал 400 на неизвестный канал, но `source` из того же
+    запроса успевал записаться. Здесь проверяем и ответ, и состояние после него.
+    """
+    before = json.loads(get(monitor + "/api/rc")[1])
+    status, body = post(monitor + "/api/rc",
+                        {"source": "тест-400", "roll": 1600, "нет_такого_канала": 1500})
+    after = json.loads(get(monitor + "/api/rc")[1])
+    assert status == 400 and "не распознаны" in json.loads(body)["error"]
+    assert after["source"] == before["source"], "источник не должен записаться при отказе"
+    assert after["channels"] == before["channels"], "каналы не должны измениться при отказе"
+
+
+def test_non_numeric_channel_value_is_rejected(fc, monitor):
+    """Нечисловое значение раньше роняло обработчик: соединение рвалось без ответа."""
+    before = json.loads(get(monitor + "/api/rc")[1])["channels"]
+    status, body = post(monitor + "/api/rc", {"roll": "не-число"})
+    assert status == 400 and "числами" in json.loads(body)["error"]
+    assert json.loads(get(monitor + "/api/rc")[1])["channels"] == before
+    assert post(monitor + "/api/rc", {"roll": 1600})[0] == 200, "сервер продолжает работать"
+
+
+def test_infinite_channel_value_is_rejected(monitor):
+    """JSON принимает Infinity: int(inf) в set_rc_channel падал уже после записи каналов."""
+    status, body = post(monitor + "/api/rc", {"roll": float("inf")})
+    assert status == 400 and "числами" in json.loads(body)["error"]
+
+
+def test_internal_error_is_answered_with_json(fc, monitor, monkeypatch):
+    """Если запись каналов всё же сорвалась, клиент получает ответ, а не обрыв связи."""
+    def boom(_payload):
+        raise RuntimeError("поломка ради проверки")
+
+    monkeypatch.setattr(fc, "set_rc_channels", boom)
+    status, body = post(monitor + "/api/rc", {"roll": 1600})
+    assert status == 500 and "поломка ради проверки" in json.loads(body)["error"]
+
+
 def test_api_state_has_expected_sections(monitor):
     status, body = get(monitor + "/api/state")
     state = json.loads(body)
