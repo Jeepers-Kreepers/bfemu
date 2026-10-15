@@ -296,3 +296,13 @@ python3 -m venv /tmp/venv && /tmp/venv/bin/pip install ruff pytest coverage
 Отдельно проверено «по проводу»: обычное подключение не ждёт ничего (0,001 с), после `save` —
 ждёт окно целиком (0,62 с при `--boot-delay 0.6`), подвисший `pending_reboot` отпускает
 соединение через `boot_delay + 5 с`, а страницы CLI двух соединений не пересекаются.
+
+### 2026-10-15 — PR #3 слит в `main`
+
+Пользователь подтвердил слияние: `gh pr merge 3 --merge` → `main` = `431380a`
+(«Merge pull request #3 from Jeepers-Kreepers/arena/630fac09-bfemu»), задачи CI на ветке
+перед слиянием — 7 из 7 зелёные. В `main` ушли обе части повторного ревью: часть 3 (`6e14acf`,
+`ebe4cb9`) и часть 4 (`919bafa`, `c30dc3b`) — вместе с `ci/github-actions-ci.yml`,
+`pyproject.toml`, тестами и документацией. Осталось открытым (сознательно, см. `REVIEW.md` § 0):
+дробление `VirtualFC` на модули, монолит `main()` в smoke-тесте, 17 скриптов `tools/check_*.py`
+с дублирующей обвязкой и верхняя граница длины MSP-кадра.
