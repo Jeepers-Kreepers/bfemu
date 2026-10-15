@@ -176,10 +176,36 @@ class StateMixin:
     def reset_to_defaults(self):
         """'defaults': заводские настройки прошивки (из bf_data + fc_overrides).
 
+        Сбрасывается ВСЯ конфигурация, а не только таблица настроек: в прошивке
+        cliDefaults() зовёт resetConfig() (config.c), который возвращает к reset-шаблонам
+        все PG-таблицы — фичи, пищалку, датчики, порты, микшер, VTX-условия и т.д.
+        Поэтому здесь же сбрасываются поля, которые вкладки пишут не через `set`:
+        фичи, выключенные сигналы бипера, выбор датчиков, таблица портов, микшер,
+        слоты `vtx` и «эхо» записей вкладок (иначе вкладка после сброса видела бы
+        прежние значения — ровно то, на что указало повторное ревью).
+
         Таблица VTX тоже возвращается к заводской (у эмулятора она заполнена — как у квада,
         которому производитель залил таблицу своего передатчика).
         """
         self.settings = dict(self._defaults)
+        # pgResetFn_featureConfig(): набор фич возвращается к заводскому, а вслед за ним
+        # пересобирается список портов (SOFTSERIAL1/2 существуют только при включённой фиче).
+        self.features = set(FEATURE_DEFAULTS)
+        self.beepers_disabled = set()          # beeper_off_flags = 0 (pg/beeper.c 4.5.4)
+        self.sensor_config = {                 # выбор датчиков во вкладке «Датчики»: AUTO/NONE
+            "acc_hardware": SENSOR_AUTO,
+            "baro_hardware": SENSOR_AUTO,
+            "mag_hardware": SENSOR_NONE,
+            "sonar_hardware": RANGEFINDER_NONE,
+        }
+        # serialConfig_t: функции на портах возвращаются к заводским (pgResetFn_serialConfig).
+        self.serial_ports = self._default_serial_ports()
+        self.mixer_name = self.MIXER_DEFAULT   # mixerConfig.mixerMode = QUADX
+        # vtxChannelActivationConditions: все 10 слотов `vtx` снова нулевые.
+        self.vtx_activation = self._default_vtx_activation()
+        # Конфигурация, записанная вкладками «эхом» (блоки, которые эмулятор не моделирует):
+        # после сброса она больше не отражает состояние FC и должна уйти.
+        self.config_payloads = {}
         self.vtx_table = self._stock_vtx_table()
         self.vtx_pit_mode = False
         self._select_default_vtx_channel()
@@ -227,6 +253,8 @@ class StateMixin:
         for name in ("craft_name", "pilot_name"):
             if isinstance(self.settings.get(name), str):
                 self._mirror_name_setting(name, self.settings[name])
+        # Фичи сброшены — значит список портов мог поменяться (SOFTSERIAL1/2).
+        self.sync_soft_serial_ports()
 
     def set_setting(self, name: str, raw: str):
         entry = self.settings_by_name[name]
@@ -425,7 +453,14 @@ class StateMixin:
         return state
 
     def load_eeprom(self):
-        """Читает конфигурацию из файла при старте — как прошивка из флеша."""
+        """Читает конфигурацию из файла при старте — как прошивка из флеша.
+
+        «Флеш» может быть каким угодно: чужим, обрезанным, собранным другой версией
+        эмулятора. Поэтому старт здесь ломать нельзя ни при каких данных: файл — валидный
+        JSON, но не тот объект (список, строка), уже ронял запуск (находка повторного
+        ревью). Разделы применяются поштучно и с проверкой типов; непонятный раздел
+        пропускается с записью в лог, остаётся заводское значение.
+        """
         if not self.eeprom_path or not self.eeprom_path.exists():
             return False
         try:
@@ -433,94 +468,199 @@ class StateMixin:
         except (OSError, ValueError) as exc:
             self._log(f"[FC] «флеш» {self.eeprom_path} повреждён ({exc}) — стартую с заводскими настройками")
             return False
-        for name, value in (state.get("settings") or {}).items():
+        if not isinstance(state, dict):
+            self._log(f"[FC] «флеш» {self.eeprom_path}: на верхнем уровне {type(state).__name__}, "
+                      "а нужен объект — стартую с заводскими настройками")
+            return False
+        try:
+            self._apply_eeprom(state)
+        except Exception as exc:  # «флеш» не должен мешать запуску
+            self._log(f"[FC] «флеш» {self.eeprom_path} не разобран "
+                      f"({type(exc).__name__}: {exc}) — состояние сброшено к заводскому")
+            self.reset_to_defaults()
+            return False
+        self.eeprom_loaded = True
+        self._log(f"[FC] конфигурация загружена из «флеша»: {self.eeprom_path}")
+        return True
+
+    def _apply_eeprom(self, state: dict) -> None:
+        """Переносит состояние из «флеша» в FC (сам файл уже прочитан и проверен)."""
+        settings = state.get("settings")
+        if settings is None:
+            settings = {}
+        elif not isinstance(settings, dict):
+            self._log(f"[FC] «флеш»: раздел settings — {type(settings).__name__}, "
+                      "а нужен объект: настройки остаются заводскими")
+            settings = {}
+        for name, value in settings.items():
             entry = self.settings_by_name.get(name)
             if entry is None:
                 continue
             if entry["mode"] == "MODE_STRING" and isinstance(value, str):
                 self.settings[name] = value            # строки (имена) — как есть
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, (int, float)) and not isinstance(value, bool):
                 self.settings[name] = int(value)
         for name in self._EEPROM_SECTIONS:
             if name not in state or state[name] is None:
                 continue
-            if name == "serial_ports":
-                # Записи из старого «флеша» могли не иметь скоростей — добираем значения
-                # как в serialConfig_t по умолчанию, чтобы ответ вкладке «Порты» не падал.
-                self.serial_ports = [
-                    {
-                        "identifier": int(port.get("identifier", 0)),
-                        "functions": list(port.get("functions") or []),
-                        "msp_baudrate": int(port.get("msp_baudrate", 0)),
-                        "gps_baudrate": int(port.get("gps_baudrate", 4)),
-                        "telemetry_baudrate": int(port.get("telemetry_baudrate", 0)),
-                        "blackbox_baudrate": int(port.get("blackbox_baudrate", 5)),
-                    }
-                    for port in state[name]
-                ]
+            try:
+                self._apply_eeprom_section(name, state[name])
+            except Exception as exc:  # битый раздел не должен мешать старту
+                self._log(f"[FC] «флеш»: раздел «{name}» не разобран "
+                          f"({type(exc).__name__}: {exc}) — беру заводское значение")
+        self._apply_eeprom_tail()
+
+    def _apply_eeprom_section(self, name: str, saved) -> None:
+        """Один раздел «флеша»: у каждого свои правила разбора (битое — заводское)."""
+        if name == "serial_ports":
+            # Записи из старого «флеша» могли не иметь скоростей — добираем значения
+            # как в serialConfig_t по умолчанию, чтобы ответ вкладке «Порты» не падал,
+            # а не-объекты в списке отбрасываем: иначе старт падал на port.get().
+            ports = []
+            for port in saved if isinstance(saved, list) else []:
+                if not isinstance(port, dict):
+                    continue
+                functions = port.get("functions")
+                ports.append({
+                    "identifier": self._clamp_int(port.get("identifier"), 0, 255, 0),
+                    "functions": [f for f in functions if isinstance(f, str)]
+                    if isinstance(functions, list) else [],
+                    "msp_baudrate": self._clamp_int(port.get("msp_baudrate"), 0, 7, 0),
+                    "gps_baudrate": self._clamp_int(port.get("gps_baudrate"), 0, 7, 4),
+                    "telemetry_baudrate": self._clamp_int(port.get("telemetry_baudrate"), 0, 7, 0),
+                    "blackbox_baudrate": self._clamp_int(port.get("blackbox_baudrate"), 0, 7, 5),
+                })
+            self.serial_ports = ports or self._default_serial_ports()
+        elif name == "config_payloads":
+            # «Эхо» записей вкладок (коды, которые эмулятор не моделирует): код → payload,
+            # payload во «флеше» — hex-строка. Ключей в поле может не быть вовсе (свежий
+            # «флеш»), поэтому тип берём не из поля, а из самой секции: hex → байты.
+            # Значения не из hex отбрасываем: иначе в конфигурацию попала бы строка,
+            # которую MSP отдал бы клиенту вместо payload'а.
+            payloads = {}
+            if isinstance(saved, dict):
+                for code, payload in saved.items():
+                    data = self._hex_to_bytes(payload)
+                    if isinstance(code, str) and code.lstrip("-").isdigit() and data is not None:
+                        payloads[int(code)] = data
+            self.config_payloads = payloads
+        elif name == "vtx_table":
+            # Таблицу VTX восстанавливаем явно: в ней лежат строки и вложенные списки,
+            # а общий разбор «флеша» умеет только числа и hex-строки.
+            self.vtx_table = self._vtx_table_from_json(saved)
+        elif name == "osd_config":
+            # Настройки OSD — тоже со списками (места элементов, таймеры): разбираем явно и
+            # добираем недостающее заводскими значениями, чтобы старый «флеш» не ломал вкладку.
+            self.osd_config = self._osd_config_from_json(saved)
+        elif name == "adjustment_ranges":
+            # Слоты корректировок — список словарей: общий разбор умеет только числа,
+            # поэтому читаем сами и добираем недостающие слоты.
+            self.adjustment_ranges = self._adjustment_ranges_from_json(saved)
+        elif name == "mode_ranges":
+            # Слоты режимов: старый «флеш» знал только index/box/aux/start/end — добираем
+            # остальные слоты и поля (logic/linked), иначе вкладка «Режимы» увидела бы
+            # «дырки» в массиве из 20 записей.
+            self.mode_ranges = self._normalize_mode_ranges(saved)
+        elif name == "battery_profiles":
+            # Таблица профилей батареи — список словарей: разбираем сами, битое
+            # отбрасываем, недостающие профили добираем заводскими.
+            self.battery_profiles = self._battery_profiles_from_json(saved)
+        elif name == "resources":
+            # Назначения пинов: битые строки отбрасываем, длины выравниваем по таблице,
+            # чтобы старый «флеш» не ломал `resource`.
+            self.resources = self._resources_from_json(saved)
+        elif name == "vtx_activation":
+            # Слоты `vtx`: битое отбрасываем, недостающие добираем нулевыми,
+            # чтобы старый «флеш» не ломал команду.
+            self.vtx_activation = self._vtx_activation_from_json(saved)
+        elif name in ("rx_ranges", "led_configs", "led_colors", "mode_colors", "custom_motor_mix"):
+            # Таблицы команд CLI (rxrange/led/color/mmix): числа лежат вложенными списками,
+            # поэтому разбираем их сами — битое отбрасываем, недостающее добираем заводским.
+            self._load_cli_table(name, saved)
+        else:
+            # Остальные разделы — поля простых типов: числа, строки, наборы, кортежи, словари.
+            # Значение берём только подходящего типа, иначе остаётся заводское.
+            setattr(self, name, self._eeprom_value(getattr(self, name, None), saved))
+
+    @classmethod
+    def _eeprom_value(cls, current, saved):
+        """Значение из «флеша», приведённое к типу поля (словари — в _eeprom_dict).
+
+        JSON не знает про типы Python: во «флеше» может лежать строка вместо числа или
+        число вместо списка. Такое значение не применяем — лучше остаться на заводском,
+        чем потом падать в обработчике MSP.
+        """
+        if isinstance(current, dict):
+            return cls._eeprom_dict(current, saved)
+        if isinstance(current, bool):
+            return saved if isinstance(saved, bool) else current
+        if isinstance(current, int):
+            return int(saved) if isinstance(saved, int) and not isinstance(saved, bool) else current
+        if isinstance(current, float):
+            return float(saved) if isinstance(saved, (int, float)) and not isinstance(saved, bool) else current
+        if isinstance(current, str):
+            return saved if isinstance(saved, str) else current
+        if isinstance(current, (bytes, bytearray)):
+            return cls._eeprom_bytes(saved, bytes(current))
+        if isinstance(current, set):
+            return {item for item in saved if isinstance(item, str)} if isinstance(saved, list) else current
+        if isinstance(current, tuple):
+            if isinstance(saved, list) and len(saved) == len(current) and all(isinstance(i, int) for i in saved):
+                return tuple(int(i) for i in saved)
+            return current
+        if isinstance(current, list):
+            if not isinstance(saved, list):
+                return current
+            out = [cls._eeprom_value(current[i], saved[i])
+                   for i in range(min(len(current), len(saved)))]
+            out.extend(current[len(out):])       # недостающие записи — заводские
+            return out
+        return current
+
+    @classmethod
+    def _eeprom_dict(cls, current: dict, saved) -> dict:
+        """Словарь из «флеша»: тип значения берём из текущего поля, лишние ключи отбрасываем.
+
+        Так же разбираются и «байтовые» словари (`config_payloads`: код — записанный
+        вкладкой payload). Декодировать hex «на глаз» нельзя: имя профиля вида «BEEF»
+        тоже состоит из hex-символов, и после перезапуска оно превращалось в байты
+        b"\\xbe\\xef" — MSP2_GET_TEXT падал на чтении имени (находка повторного ревью).
+        Поэтому hex разбирается только там, где в поле действительно лежат байты.
+        """
+        if not isinstance(saved, dict):
+            return dict(current)
+        result = dict(current)
+        for key, item in saved.items():
+            if not isinstance(key, str):
                 continue
-            if name == "vtx_table":
-                # Таблицу VTX восстанавливаем явно: в ней лежат строки и вложенные списки,
-                # а общий разбор «флеша» умеет только числа и hex-строки.
-                self.vtx_table = self._vtx_table_from_json(state[name])
-                continue
-            if name == "osd_config":
-                # Настройки OSD — тоже со списками (места элементов, таймеры): разбираем явно и
-                # добираем недостающее заводскими значениями, чтобы старый «флеш» не ломал вкладку.
-                self.osd_config = self._osd_config_from_json(state[name])
-                continue
-            if name == "adjustment_ranges":
-                # Слоты корректировок — список словарей: общий разбор умеет только числа,
-                # поэтому читаем сами и добираем недостающие слоты.
-                self.adjustment_ranges = self._adjustment_ranges_from_json(state[name])
-                continue
-            if name == "mode_ranges":
-                # Слоты режимов: старый «флеш» знал только index/box/aux/start/end — добираем
-                # остальные слоты и поля (logic/linked), иначе вкладка «Режимы» увидела бы
-                # «дырки» в массиве из 20 записей.
-                self.mode_ranges = self._normalize_mode_ranges(state[name])
-                continue
-            if name == "battery_profiles":
-                # Таблица профилей батареи — список словарей: разбираем сами, битое
-                # отбрасываем, недостающие профили добираем заводскими.
-                self.battery_profiles = self._battery_profiles_from_json(state[name])
-                continue
-            if name == "resources":
-                # Назначения пинов: битые строки отбрасываем, длины выравниваем по таблице,
-                # чтобы старый «флеш» не ломал `resource`.
-                self.resources = self._resources_from_json(state[name])
-                continue
-            if name == "vtx_activation":
-                # Слоты `vtx`: битое отбрасываем, недостающие добираем нулевыми,
-                # чтобы старый «флеш» не ломал команду.
-                self.vtx_activation = self._vtx_activation_from_json(state[name])
-                continue
-            if name in ("rx_ranges", "led_configs", "led_colors", "mode_colors", "custom_motor_mix"):
-                # Таблицы команд CLI (rxrange/led/color/mmix): числа лежат вложенными списками,
-                # поэтому разбираем их сами — битое отбрасываем, недостающее добираем заводским.
-                self._load_cli_table(name, state[name])
-                continue
-            value = state[name]
-            current = getattr(self, name, None)
-            if isinstance(current, (bytes, bytearray)) and isinstance(value, str):
-                value = (bytes.fromhex(value)
-                         if len(value) % 2 == 0 and all(c in "0123456789abcdef" for c in value.lower())
-                         else current)          # подпись платы: hex во «флеше», байты в поле
-            elif isinstance(current, set):
-                value = set(value)
-            elif isinstance(current, tuple):
-                value = tuple(value)
-            elif isinstance(current, dict):
-                value = {
-                    int(k) if k.lstrip("-").isdigit() else k: (bytes.fromhex(v) if isinstance(v, str) and len(v) % 2 == 0 and all(c in "0123456789abcdef" for c in v.lower()) else v)
-                    for k, v in value.items()
-                }
-            setattr(self, name, value)
-        # Пищалка из старых «флешей»: сборки до 2026-10-08-b шли с «заводским» набором
-        # выключенных сигналов (RX_LOST, USB, CAM_CONNECTION_CLOSE, RC_SMOOTHING_INIT_FAIL),
-        # хотя в прошивке beeper_off_flags = 0 (pg/beeper.c), а DShot-бикон выключен по
-        # RX_LOST/RX_SET (DEFAULT_DSHOT_BEACON_OFF_FLAGS, io/beeper.h). Если во «флеше» лежит
-        # ровно старый заводской набор — подменяем на прошивочный: пользователь его не выбирал.
+            name = int(key) if key.lstrip("-").isdigit() else key
+            if name not in current:
+                continue                          # ключа нет в поле: чужой «флеш»
+            result[name] = cls._eeprom_value(current[name], item)
+        return result
+
+    @staticmethod
+    def _hex_to_bytes(saved):
+        """Байты во «флеше» записаны hex-строкой: разобрали — bytes, иначе None."""
+        if isinstance(saved, str) and len(saved) % 2 == 0 and all(c in "0123456789abcdef" for c in saved.lower()):
+            return bytes.fromhex(saved)
+        return None
+
+    @classmethod
+    def _eeprom_bytes(cls, saved, current: bytes) -> bytes:
+        """Байтовое поле из «флеша»; не разобрали — остаётся заводское."""
+        data = cls._hex_to_bytes(saved)
+        return current if data is None else data
+
+    def _apply_eeprom_tail(self):
+        """Догоняющие правки после чтения «флеша» (миграции старых сборок и зависимости).
+
+        Пищалка из старых «флешей»: сборки до 2026-10-08-b шли с «заводским» набором
+        выключенных сигналов (RX_LOST, USB, CAM_CONNECTION_CLOSE, RC_SMOOTHING_INIT_FAIL),
+        хотя в прошивке beeper_off_flags = 0 (pg/beeper.c), а DShot-бикон выключен по
+        RX_LOST/RX_SET (DEFAULT_DSHOT_BEACON_OFF_FLAGS, io/beeper.h). Если во «флеше» лежит
+        ровно старый заводской набор — подменяем на прошивочный: пользователь его не выбирал.
+        """
         if self.beepers_disabled == {"RX_LOST", "USB", "CAM_CONNECTION_CLOSE", "RC_SMOOTHING_INIT_FAIL"}:
             self.beepers_disabled = set()
         if not self.dshot_beacon_disabled:
@@ -542,9 +682,6 @@ class StateMixin:
         for name in ("craft_name", "pilot_name"):
             if isinstance(self.settings.get(name), str):
                 self._mirror_name_setting(name, self.settings[name])
-        self.eeprom_loaded = True
-        self._log(f"[FC] конфигурация загружена из «флеша»: {self.eeprom_path}")
-        return True
 
     def save_to_eeprom(self):
         """EEPROM_WRITE / 'save': пишем активную конфигурацию в «флеш».
@@ -588,24 +725,17 @@ class StateMixin:
             except OSError:
                 pass
         self._defaults_restore()
-        self.init_vtx_device()
 
     def _defaults_restore(self):
+        """Полный сброс, как resetConfig() в config.c: всё, что переживает ребут, — заводское.
+
+        Отдельного набора полей здесь больше нет: reset_to_defaults() сбрасывает
+        конфигурацию целиком (включая фичи, порты и «эхо» записей вкладок), а этот
+        метод оставлен точкой входа для путей, где нужен именно полный сброс:
+        MSP_RESET_CONF (кнопка Configurator) и erase «флеша».
+        """
         self.reset_to_defaults()
-        self.sync_soft_serial_ports()
-        self.config_payloads = {}
-        self.sensor_config = {
-            "acc_hardware": SENSOR_AUTO,
-            "baro_hardware": SENSOR_AUTO,
-            "mag_hardware": SENSOR_NONE,
-            "sonar_hardware": RANGEFINDER_NONE,
-        }
-        self.acc_calibrated = False   # после сброса прошивка снова просит калибровку
-        self.acc_calibration_until = 0.0
-        self.features = set(FEATURE_DEFAULTS)
-        self.beepers_disabled = set()          # как при старте: beeper_off_flags = 0
-        self.craft_name = STRING_DEFAULTS["craft_name"]
-        self.pilot_name = STRING_DEFAULTS["pilot_name"]
+        self.init_vtx_device()     # передатчик ищется заново: функции портов сброшены
 
     def _apply_overrides(self):
         """Небольшая таблица «хорошо известных» заводских значений.

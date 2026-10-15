@@ -2,7 +2,7 @@
 Транспорты виртуального FC и рабочая сессия.
 
 Поддерживаются:
-  * TCP  (--tcp 0.0.0.0:5761)   — Configurator: ручное подключение, порт "tcp://127.0.0.1:5761";
+  * TCP  (--tcp 127.0.0.1:5761) — Configurator: ручное подключение, порт "tcp://127.0.0.1:5761";
   * PTY  (--pty /tmp/ttyBFEMU)  — Linux/macOS: Configurator видит это как обычный COM/tty;
   * STDIO (--stdio)             — мост для socat / com0com / pipe.
 
@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import socket
 import sys
@@ -36,13 +37,6 @@ STX = 0x02
 ETX = 0x03
 
 _LOG_STREAM = None
-
-# Имена портов по serialPortIdentifier_e (как в Configurator: composables/ports/portNames.js)
-_PORT_NAMES = {
-    0: "UART1", 1: "UART2", 2: "UART3", 3: "UART4", 4: "UART5", 5: "UART6",
-    6: "UART7", 7: "UART8", 8: "UART9", 9: "UART10",
-    20: "VCP", 30: "SOFTSERIAL1", 31: "SOFTSERIAL2",
-}
 
 
 def set_log_file(path):
@@ -214,9 +208,21 @@ def _gps_state(fc) -> dict:
     }
 
 
+_CODE_NAMES: dict | None = None
+
+
 def _code_name(code: int) -> str:
-    names = {v: k for k, v in vars(__import__("bfemu.fc", fromlist=["x"])).items() if k.startswith("MSP") and isinstance(v, int)}
-    return names.get(code, "?")
+    """Имя MSP-кода для логов и страницы: обратный словарь собирается один раз.
+
+    Раньше он строился на каждый запрос (сканирование `vars(bfemu.fc)` — ~25 µs при
+    бюджете 0,12 мс на ответ), то есть пятая часть времени уходила на имя для лога.
+    """
+    global _CODE_NAMES
+    if _CODE_NAMES is None:
+        from . import fc as _fc
+        _CODE_NAMES = {value: name for name, value in vars(_fc).items()
+                       if name.startswith("MSP") and isinstance(value, int)}
+    return _CODE_NAMES.get(code, "?")
 
 
 # --------------------------------------------------------------------------- TCP
@@ -230,9 +236,39 @@ class TcpServer:
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._sock = None
+        # Окно загрузки после ребута: пока оно идёт, новые подключения ждут — как настоящий
+        # борт, который на это время отключает USB и только потом готов отвечать по MSP.
+        self.boot_delay = max(0.0, boot_delay)
+        self._boot_until = 0.0
+        self._boot_logged = False
+        # Сколько ждать сверх паузы, если перезагрузку никто не завершил (упавший поток,
+        # клиент, оборвавший линк): столько же, сколько раньше давала пауза, — 5 с.
+        self.boot_wait_slack = 5.0
 
     def log(self, msg):
         emit(msg)
+
+    def _wait_for_boot(self):
+        """Ждём окончания загрузки: и своё время, и фактическое состояние FC.
+
+        `pending_reboot` снимается в Session.on_reboot() уже после паузы, поэтому вторая
+        проверка закрывает гонку: подключение, отпущенное ровно на границе окна, не начнёт
+        читать конфигурацию, пока прошивка её «поднимает». Ждём не дольше `boot_delay +
+        boot_wait_slack`: если поток, который должен был завершить перезагрузку, умер —
+        эмулятор не «залипает» навсегда.
+        """
+        limit = time.time() + self.boot_delay + self.boot_wait_slack
+        while True:
+            left = self._boot_until - time.time()
+            if left <= 0 and not self.fc.pending_reboot:
+                return
+            if time.time() > limit:
+                self.log("[FC] загрузка не подтвердилась — продолжаю работу")
+                return
+            if left > 0 and not self._boot_logged:
+                self._boot_logged = True
+                self.log(f"[FC] идёт загрузка: MSP ответит через {left:.1f} с")
+            time.sleep(min(max(left, 0.02), 0.2))
 
     def serve_forever(self):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -285,6 +321,7 @@ class TcpServer:
                 pass
             conn.close()
             return
+        self._wait_for_boot()          # новое подключение «после ребута» ждёт загрузку
         session = Session(self.fc, verbose=self.verbose, log=self.log)
         conn.settimeout(0.2)
         try:
@@ -314,13 +351,20 @@ class TcpServer:
             except OSError:
                 pass
         if session.reboot_requested:
+            # Сначала объявляем окно загрузки (новые подключения ждут), только потом
+            # перечитываем конфигурацию: `--boot-delay` стало настоящей паузой, а не записью
+            # в лог после того, как MSP уже отвечал (находка повторного ревью, часть 4).
+            self._boot_until = time.time() + self.boot_delay
+            self._boot_logged = False
+            if self.boot_delay:
+                self.log(f"[FC] загрузка {self.boot_delay:g} с: MSP ответит после неё")
+                time.sleep(self.boot_delay)
             session.on_reboot()
             if self.fc.msc_active():
                 # не «перезагрузка», а вход в режим ЗУ: MSP остаётся молчащим до выхода
                 self.log(f"[MSC] борт ушёл в режим запоминающего устройства на {MSC_SECONDS // 60} мин")
                 return
-            self.log(f"[FC] перезагрузка завершена через {self.boot_delay}s")
-            time.sleep(self.boot_delay)
+            self.log("[FC] перезагрузка завершена, конфигурация поднята из «флеша»")
 
     def stop(self):
         self._stop.set()
@@ -335,9 +379,10 @@ class TcpServer:
 class PtyServer:
     """Linux/macOS: создаёт псевдотерминал, который виден как обычный последовательный порт."""
 
-    def __init__(self, fc: VirtualFC, link_path: str, verbose: bool = True):
+    def __init__(self, fc: VirtualFC, link_path: str, boot_delay: float = 1.5, verbose: bool = True):
         self.fc = fc
         self.link_path = Path(link_path)
+        self.boot_delay = max(0.0, boot_delay)
         self.verbose = verbose
         self._stop = threading.Event()
 
@@ -366,8 +411,14 @@ class PtyServer:
             if resp:
                 os.write(master, resp)
             if session.reboot_requested:
+                # та же пауза загрузки, что и по TCP: пока идёт — данные не читаем
+                if self.boot_delay:
+                    self.log(f"[FC] загрузка {self.boot_delay:g} с: MSP ответит после неё")
+                deadline = time.time() + self.boot_delay
+                while time.time() < deadline and not self._stop.is_set():
+                    time.sleep(min(0.1, max(0.0, deadline - time.time())))
                 session.on_reboot()
-                time.sleep(1.5)
+                self.log("[FC] перезагрузка завершена, конфигурация поднята из «флеша»")
 
     def stop(self):
         self._stop.set()
@@ -401,6 +452,107 @@ class StdioServer:
 
 
 # ------------------------------------------------------------------------ HTTP
+def _rc_channel_value_ok(value) -> bool:
+    """Годится ли значение канала: число (или строка с числом) в микросекундах.
+
+    Отдельно отсекаем bool (это не «канал в 1 мкс») и бесконечность: JSON принимает
+    `Infinity`, а `int(float("inf"))` в set_rc_channel падает уже после того, как
+    предыдущие каналы записаны.
+    """
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, str):
+        try:
+            int(value.strip())
+        except ValueError:
+            return False
+        return True
+    return False
+
+
+def _error_page(path: str, message: str) -> str:
+    """Страница отказа вместо обрыва соединения: видно, что именно не понравилось."""
+    return f"""<!doctype html><html lang=ru><meta charset=utf-8>
+<title>bfemu — запрос не выполнен</title>
+<style>
+ body{{font:14px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#101418;color:#e6edf3}}
+ header{{padding:18px 24px;background:#161b22;border-bottom:1px solid #30363d}}
+ h1{{margin:0 0 4px;font-size:18px}} .sub{{color:#8b949e;font-size:13px}}
+ main{{padding:18px 24px}} code{{color:#7ee787}} .warn{{color:#e3b341}} a{{color:#58a6ff}}
+</style>
+<header><h1>Запрос не выполнен</h1>
+<div class=sub>HTTP 400 · <code>{escape(path)}</code></div></header>
+<main><p class=warn>{escape(message)}</p>
+<p class=sub>Ничего не изменилось: эмулятор проверяет запрос до того, как применить его.</p>
+<p><a href="/">← монитор состояния</a> · <a href="/tx">аппаратура</a> · <a href="/failsafe">failsafe</a></p>
+</main></html>"""
+
+
+def _rc_payload_problem(fc, payload) -> str | None:
+    """Что не так с каналами в запросе /api/rc: текст ошибки для 400 или None.
+
+    Проверка идёт ДО применения запроса: раньше 400 уходил клиенту уже после того,
+    как часть полей была записана, и состояние оставалось изменённым (находка
+    повторного ревью). Здесь же отсекаются нечисловые значения — из-за них
+    обработчик падал в set_rc_channel и соединение обрывалось без ответа.
+    """
+    if isinstance(payload, dict):
+        unknown = [k for k in payload if fc._rc_channel_index(k) is None]
+        if unknown:
+            return ("каналы не распознаны: " + ", ".join(map(str, unknown)) +
+                    " (нужны roll/pitch/yaw/throttle/aux1…aux12 или номера 0…15)")
+        bad = [f"{k}={v!r}" for k, v in payload.items() if not _rc_channel_value_ok(v)]
+        if bad:
+            return ("значения каналов должны быть числами (микросекунды 1000…2000): " +
+                    ", ".join(bad))
+        return None
+    if isinstance(payload, (list, tuple)):
+        bad = [f"{i}={v!r}" for i, v in enumerate(list(payload)[:16])
+               if v is not None and not _rc_channel_value_ok(v)]
+        if bad:
+            return "значения каналов должны быть числами (микросекунды 1000…2000): " + ", ".join(bad)
+        return None
+    return "каналы должны быть объектом {имя: значение} или списком из 16 значений"
+
+
+def _rc_fields_problem(data: dict) -> str | None:
+    """Проверка остальных полей POST /api/rc — по типам, до применения запроса.
+
+    Раньше эти поля уходили в код как есть: `{"bind_seconds": "несколько"}` роняло
+    `float()` в start_bind() и обрывало соединение без ответа, `{"aux_map": 5}` —
+    перебор в set_rc_aux_map() (находка повторного ревью, часть 4).
+    """
+    if "bind_seconds" in data:
+        value = data["bind_seconds"]
+        if value is not None:
+            if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+                return "bind_seconds должен быть числом секунд (0 — связать сразу)"
+            try:
+                seconds = float(value)
+            except ValueError:
+                return f"bind_seconds: «{value}» — не число секунд"
+            if seconds < 0 or not math.isfinite(seconds):
+                return "bind_seconds: нужно неотрицательное число секунд"
+    if "aux_map" in data and not isinstance(data["aux_map"], (list, tuple, str)):
+        return "aux_map должен быть списком строк (раскладка тумблеров) или строкой"
+    if "rc_map" in data and not isinstance(data["rc_map"], dict):
+        return "rc_map должен быть объектом {ось: номер}"
+    if "layout_note" in data and not isinstance(data["layout_note"], str):
+        return "layout_note должен быть строкой"
+    if "source" in data and not isinstance(data["source"], str):
+        return "source должен быть строкой"
+    for flag in ("reset", "connected", "bind", "physical"):
+        if flag in data and not isinstance(data[flag], bool):
+            return f"{flag} должен быть true или false"
+    if "control" in data and str(data["control"]) not in ("virtual", "physical"):
+        return "control должен быть «virtual» (страница /tx) или «physical» (пульт)"
+    return None
+
+
 class HttpMonitor:
     """Небольшая веб-страница состояния — удобно смотреть, что делает Configurator."""
 
@@ -460,6 +612,38 @@ class HttpMonitor:
                 return True
 
             def do_GET(self):
+                """Любая ошибка внутри обработчика — ответ, а не обрыв соединения.
+
+                Ручки разбирают аргументы прямо из URL (`/failsafe/procedure/<n>`), а поля
+                `POST /api/rc` приходят из JSON: неожиданное значение раньше приводило к
+                необработанному исключению, клиент видел закрытое соединение без ответа,
+                а в консоли оставался трассировка (находка повторного ревью, часть 4).
+                """
+                try:
+                    self._do_GET()
+                except Exception as exc:
+                    self._fail(exc)
+
+            def _fail(self, exc: BaseException) -> None:
+                """Ответ на неожиданную ошибку: 400 с текстом (и трассировка — в лог)."""
+                import traceback
+                emit(f"[HTTP] {self.command} {self.path} — "
+                     f"{type(exc).__name__}: {exc}")
+                emit(traceback.format_exc())
+                message = (f"{type(exc).__name__}: {exc}")
+                if self.path.split("?")[0].startswith("/api/"):
+                    body = self._json_bytes({"error": message, "state": fc.rc_state()})
+                    self._send(body, "application/json; charset=utf-8", 400)
+                else:
+                    self._send(
+                        _error_page(self.path, message).encode(), "text/html; charset=utf-8", 400)
+
+            @staticmethod
+            def _json_bytes(data: dict) -> bytes:
+                import json as _json
+                return _json.dumps(data, ensure_ascii=False).encode()
+
+            def _do_GET(self):
                 import json as _json
                 path = self.path.split("?")[0].rstrip("/") or "/"
                 # Меняющие состояние адреса (кнопки страниц) защищаем от межсайтовых вызовов.
@@ -615,6 +799,12 @@ class HttpMonitor:
 
             def do_POST(self):
                 """Виртуальная аппаратура: POST /api/rc — каналы из страницы /tx или скрипта."""
+                try:
+                    self._do_POST()
+                except Exception as exc:
+                    self._fail(exc)
+
+            def _do_POST(self):
                 import json as _json
                 if self._deny_foreign():
                     return
@@ -664,6 +854,16 @@ class HttpMonitor:
                         "application/json; charset=utf-8", 409)
                     return
 
+                # Проверки каналов — ДО любых изменений: иначе отказ (400) уходил клиенту
+                # после того, как часть запроса уже применена (находка повторного ревью),
+                # а нечисловое значение роняло обработчик прямо посреди записи каналов.
+                problem = _rc_payload_problem(fc, payload) or _rc_fields_problem(data)
+                if problem:
+                    self._send(_json.dumps(
+                        {"error": problem, "state": fc.rc_state()}, ensure_ascii=False).encode(),
+                        "application/json; charset=utf-8", 400)
+                    return
+
                 applied = 0
                 if data.get("reset"):
                     fc.reset_rc_channels()
@@ -706,20 +906,17 @@ class HttpMonitor:
                         fc.unbind()
                     applied += 1
                 if payload:
-                    # сначала проверяем имена/типы, чтобы «повторное» значение не выглядело ошибкой
-                    unknown = [k for k in payload if fc._rc_channel_index(k) is None] \
-                        if isinstance(payload, dict) else []
-                    if not unknown and not isinstance(payload, (dict, list, tuple)):
-                        unknown = ["?"]
-                    if unknown:
-                        self._send(_json.dumps(
-                            {"error": "каналы не распознаны: " + ", ".join(map(str, unknown)) +
-                                      " (нужны roll/pitch/yaw/throttle/aux1…aux12 или номера 0…15)",
-                             "state": fc.rc_state()}, ensure_ascii=False).encode(),
-                            "application/json; charset=utf-8", 400)
-                        return
+                    # Имена и типы уже проверены выше — здесь только запись.
                     before = list(fc.rc_channels)
-                    fc.set_rc_channels(payload)
+                    try:
+                        fc.set_rc_channels(payload)
+                    except Exception as exc:  # отвечаем JSON'ом, а не рвём соединение
+                        emit(f"[HTTP] /api/rc: каналы не применены — {type(exc).__name__}: {exc}")
+                        self._send(_json.dumps(
+                            {"error": f"каналы применить не удалось: {type(exc).__name__}: {exc}",
+                             "state": fc.rc_state()}, ensure_ascii=False).encode(),
+                            "application/json; charset=utf-8", 500)
+                        return
                     applied += max(1, sum(1 for a, b in zip(before, fc.rc_channels, strict=False) if a != b))
                 if payload or data.get("reset"):
                     fc.note_rc_source(fc.rc_source)      # каналы точно менялись: отметим писателя
@@ -738,6 +935,11 @@ class HttpMonitor:
 
             def _msc_page(self):
                 f = fc
+                # «пролётов: 0» вместо «-1 пролётов», когда накопитель стёрт (в таблице файлов
+                # при этом стоит «накопитель пуст»): общее число файлов включает BLACKBOX_ALL.
+                count = max(0, len(self._msc_files()) - 1)
+                flights = f"пролётов: {count}" if count else "пролётов нет"
+
                 rows = "".join(
                     f"<tr><td><a href=\"/msc/{esc(item['name'])}\">{esc(item['name'])}</a></td>"
                     f"<td>{item['title']}</td><td>{item['size']:,} Б</td>"
@@ -763,7 +965,7 @@ __NAV__
 <header>
  <h1>Борт в режиме запоминающего устройства (MSC)</h1>
  <div class=sub>Так же, как у настоящего полётного контроллера: MSP не отвечает, а содержимое
- «флеша» видно файлами. {f.blackbox.used:,} Б занято, {len(self._msc_files()) - 1} пролётов.</div>
+ «флеша» видно файлами. {f.blackbox.used:,} Б занято, {flights}.</div>
 </header>
 <main>
  <div class=card><h2>Содержимое «флеша»</h2>
@@ -1342,14 +1544,18 @@ class ComServer:
 # --------------------------------------------------------------------------- CLI
 def build_arg_parser():
     p = argparse.ArgumentParser(description="Виртуальный полётный контроллер Betaflight (MSP + CLI) для Betaflight Configurator")
-    p.add_argument("--tcp", default="0.0.0.0:5761", help="адрес прослушивания TCP (пусто — не поднимать)")
+    p.add_argument("--tcp", default="127.0.0.1:5761",
+                   help="адрес прослушивания TCP (пусто — не поднимать; 0.0.0.0 — виден всей сети, "
+                        "а вместе с ним видны /api/rc и тест моторов)")
     p.add_argument("--pty", default=None, help="создать псевдотерминал (Linux/macOS), напр. /tmp/ttyBFEMU")
     p.add_argument("--stdio", action="store_true", help="работать через stdin/stdout")
     p.add_argument("--fc-version", default="4.5.4", help="версия прошивки, которую показываем")
     p.add_argument("--api-version", default="1.46.0", help="версия MSP API")
     p.add_argument("--data", default=None, help="путь к bf_data.json (сгенерирован tools/gen_data.py)")
     p.add_argument("--quiet", action="store_true", help="не логировать MSP-запросы")
-    p.add_argument("--boot-delay", type=float, default=1.5, help="сколько секунд «прошивка загружается» после ребута")
+    p.add_argument("--boot-delay", type=float, default=1.5,
+                   help="сколько секунд «прошивка загружается» после save/ребута (столько же "
+                        "ждут новые подключения: MSP отвечает только после загрузки)")
     p.add_argument("--http-host", default="127.0.0.1",
                    help="адрес веб-монитора (по умолчанию 127.0.0.1 — только эта машина; "
                         "0.0.0.0 — видно всей сети)")
@@ -1459,10 +1665,12 @@ def _run(args):
     servers = []
     if args.tcp:
         host, _, port = args.tcp.rpartition(":")
-        tcp = TcpServer(fc, host or "0.0.0.0", int(port), boot_delay=args.boot_delay, verbose=verbose)
+        # Пустой адрес (`--tcp :5761`) — тоже «только эта машина»: чтобы открыть эмулятор в сеть,
+        # нужен явный 0.0.0.0, потому что по MSP пишется конфигурация и принимаются каналы.
+        tcp = TcpServer(fc, host or "127.0.0.1", int(port), boot_delay=args.boot_delay, verbose=verbose)
         servers.append(tcp)
     if args.pty:
-        servers.append(PtyServer(fc, args.pty, verbose=verbose))
+        servers.append(PtyServer(fc, args.pty, boot_delay=args.boot_delay, verbose=verbose))
     if args.com:
         servers.append(ComServer(fc, args.com, baudrate=args.com_baud, verbose=verbose))
     if args.stdio:

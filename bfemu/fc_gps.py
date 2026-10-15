@@ -32,8 +32,25 @@ class GpsMixin:
         (6, 3, 43), (6, 4, 28), (6, 9, 37), (6, 10, 29), (6, 17, 32), (6, 21, 24),
     )
 
+    # Пустое решение: без фичи GPS у прошивки нулевой gpsSol, поэтому и ответы нулевые.
+    GPS_NO_FIX = {"fix": 0, "sats": 0, "lat": 0.0, "lon": 0.0, "alt_m": 0, "speed_cms": 0,
+                  "course_deg10": 0, "pdop": 0, "home_dist_m": 0, "home_dir_deg": 0,
+                  "satellites": 0}
+
+    @property
+    def gps_enabled(self) -> bool:
+        """Приёмник работает, только пока включена фича GPS.
+
+        `gpsInit()` прошивки не поднимает модуль без `FEATURE_GPS`: `gpsSol` остаётся нулевым,
+        `STATE(GPS_FIX)` не выставляется, каналов спутников нет — вкладка показывает «нет фикса»,
+        а не живые координаты (находка повторного ревью, часть 4).
+        """
+        return "GPS" in self.features
+
     def gps_solution(self) -> dict:
         """Текущее решение GPS: координаты, скорость, курс, высота, спутники, «дом»."""
+        if not self.gps_enabled:
+            return dict(self.GPS_NO_FIX)
         t = self._t()
         north = self.GPS_TRACK_M * math.sin(t / 37.0)          # м от базы
         east = self.GPS_TRACK_M * math.cos(t / 53.0)
@@ -89,6 +106,8 @@ class GpsMixin:
         2/4 отслеживается, 5…7 полностью отслеживается), бит 3 — «используется в решении»
         (Configurator читает: (quality & 0x8) >> 3 и quality & 0x7).
         """
+        if not self.gps_enabled:
+            return 0, []                              # GPS_numCh = 0: модуль не поднят
         if t is None:
             t = self._t()
         used = 9 + int(round(math.sin(t / 29.0)))     # 8…10 спутников идут в решение
@@ -128,7 +147,8 @@ class GpsMixin:
         """MSP_COMP_GPS (107): дистанция до дома (м), направление (град) и признак обновления."""
         g = self.gps_solution()
         w.u16(g["home_dist_m"]).u16(g["home_dir_deg"])
-        w.u8(1 if int(self._t() * 10) % 2 else 0)     # GPS_update & 1 — мигает, как на железе
+        # GPS_update & 1 — мигает, как на железе; без фичи данных нет и флаг снят
+        w.u8(1 if self.gps_enabled and int(self._t() * 10) % 2 else 0)
 
     def _h_sensor_status(self, w, r):
         w.u8(1).u8(1).u8(1 if "MAG" in self.active_boxes else 0).u8(1)

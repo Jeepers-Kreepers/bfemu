@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # ruff: noqa: F403, F405 -- legacy public MSP constants are re-exported from here.
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -113,29 +114,9 @@ class VirtualFC(
         self.beepers_disabled: set[str] = set()   # beeper_off_flags: поля нет в reset-шаблоне
         # (pg/beeper.c 4.5.4) → по умолчанию 0, то есть выключенных сигналов нет
         self.beeper_names = [b for b in BEEPER_NAMES]
-        # Идентификаторы — как в serialPortIdentifier_e прошивки:
-        # UART1..UART5 = 0..4, USB VCP = 20, SOFTSERIAL1/2 = 30/31. Именно их ждёт
-        # Configurator (composables/ports/usePortsState.js) при отрисовке вкладки «Порты».
-        # Порядок строк — тоже как в прошивке: массив serialPortIdentifiers[]
-        # (io/serial.c 4.5.4) начинается с USB VCP, и этот же порядок уходит в
-        # MSP_SERIAL_CONFIG / MSP2_COMMON_SERIAL_CONFIG и в CLI-дамп `serial`
-        # («serial 20 1 115200 ...» перед «serial 0 ...»). Configurator строки не
-        # сортирует — рисует как пришли, поэтому USB VCP в таблице идёт первым.
-        # Скорости — заводские, как pgResetFn_serialConfig() в io/serial.c 4.5.4:
-        # MSP 115200, датчики/GPS 57600, телеметрия AUTO, «чёрный ящик» 115200
-        # (baudRate_e: AUTO=0, 9600=1, ..., 57600=4, 115200=5).
-        def _port(identifier, functions):
-            return {"identifier": identifier, "functions": functions, "msp_baudrate": 5,
-                    "gps_baudrate": 4, "telemetry_baudrate": 0, "blackbox_baudrate": 5}
-
-        self.serial_ports = [
-            _port(20, ["MSP"]),              # USB VCP
-            _port(0, ["GPS"]),               # UART1 — GPS-модуль
-            _port(1, ["RX_SERIAL"]),         # UART2 — приёмник
-            _port(2, ["ESC_SENSOR"]),        # UART3 — ESC-телеметрия
-            _port(3, ["TBS_SMARTAUDIO"]),    # UART4 — VTX
-            _port(4, []),                    # UART5 — свободен
-        ]
+        # Порты — заводская таблица pgResetFn_serialConfig(); она же возвращается
+        # командой `defaults` (см. _default_serial_ports()).
+        self.serial_ports = self._default_serial_ports()
         self.boxes = self.data.get("boxes") or []
         if not self.boxes:
             self.boxes = [
@@ -201,7 +182,7 @@ class VirtualFC(
         self.RX_RATE_HZ = 33
         self.rx_bind_deadline = 0.0
         self.rx_bind_seconds = VirtualFC.RX_BIND_SECONDS
-        self.mixer_name = "QUADX"
+        self.mixer_name = self.MIXER_DEFAULT
         self.mixer_names = ["TRI", "QUADP", "QUADX", "BI", "GIMBAL", "Y6", "HEX6", "FLYING_WING", "Y4",
                             "HEX6X", "OCTOX8", "OCTOFLATP", "OCTOFLATX", "AIRPLANE", "HELI_120_CCPM",
                             "HELI_90_DEG", "VTAIL4", "HEX6H", "PPM_TO_SERVO", "DUALCOPTER", "SINGLECOPTER",
@@ -327,6 +308,12 @@ class VirtualFC(
         self.acc_calibration_until = 0.0
         self._cli = CliEngine(self)
         self._cli_log: list[str] = []
+        # Буфер вывода для постраничного чтения MSP2_CLI_COMMAND. Он у каждого соединения
+        # свой: у прошивки буфер один, но там и порт один, а у эмулятора клиентов бывает
+        # несколько — вторая страница `dump` иначе приезжала из чужого вывода (находка
+        # повторного ревью, часть 4). Соединение обслуживается своим потоком, поэтому
+        # хранилище потоковое.
+        self._cli_out_local = threading.local()
         # «Флеш» читаем последним: к этому моменту созданы все поля, которые он восстанавливает
         # (фичи, порты, имена, профили, UID), иначе значения перетирались бы инициализацией.
         self.load_eeprom()
@@ -355,6 +342,14 @@ class VirtualFC(
             # 'save'/'exit'/'defaults' перезагружают FC: связь оборвётся
             pass
         return text
+
+    def store_cli_output(self, text: str) -> None:
+        """Запомнить вывод CLI для постраничного чтения (буфер текущего соединения)."""
+        self._cli_out_local.text = text
+
+    def cli_output(self) -> str:
+        """Вывод CLI текущего соединения (пустая строка, если команды ещё не было)."""
+        return getattr(self._cli_out_local, "text", "")
 
     def terminal(self):
         """Терминал «сырого» CLI-порта для текущего соединения."""
@@ -564,7 +559,7 @@ class VirtualFC(
                 MSP_SET_MOTOR: self._h_set_motor,
                 MSP_SET_SERVO_CONFIGURATION: self._h_set_servo_configuration,
                 MSP_SET_SERVO_MIX_RULE: self._h_set_servo_mix_rule,
-                MSP_SET_RAW_RC: self._h_ack,
+                MSP_SET_RAW_RC: self._h_set_raw_rc,
                 MSP_ACC_CALIBRATION: self._h_acc_calibration,
                 MSP_MAG_CALIBRATION: self._h_ack,
                 MSP_EEPROM_WRITE: self._h_eeprom_write,

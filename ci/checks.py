@@ -71,22 +71,58 @@ def run(command: Sequence[str], cwd: Path | None = None, timeout: int | None = N
         return 127
 
 
+# Интерпретатор, которым запускаются проверки. Обычно это тот же Python, что позвал скрипт;
+# если пакеты в него не ставятся (PEP 668 на Debian/Ubuntu), проверки переезжают в окружение
+# `build/ci-tools-venv`, которое создаётся автоматически.
+TOOLS_PYTHON = Path(sys.executable)
+
+
 def ensure(module: str, package: str | None = None) -> bool:
     """Поставить инструмент, если его ещё нет (в CI окружение всегда чистое).
 
-    Возвращает False, если поставить не удалось: на домашней машине системный Python
-    обычно защищён от установки пакетов (PEP 668), и честное объяснение полезнее
-    невнятного «No module named ruff».
+    Возвращает False, если поставить не удалось даже в окружение. На домашней машине
+    системный Python обычно защищён от установки пакетов (PEP 668), поэтому при отказе
+    создаётся отдельное окружение `build/ci-tools-venv` — «одна команда» остаётся одной
+    командой, а система не трогается (находка повторного ревью, часть 4).
     """
+    global TOOLS_PYTHON
     if _importable(module):
         return True
-    say(f"[i] ставлю {package or module}")
-    if run([sys.executable, "-m", "pip", "install", "--quiet", package or module]) == 0:
+    name = package or module
+    say(f"[i] ставлю {name}")
+    if run([str(TOOLS_PYTHON), "-m", "pip", "install", "--quiet", name]) == 0:
         return True
-    say(f"[!] не удалось поставить {package or module} в {sys.executable}.")
-    say('    Создайте окружение: python -m venv .venv && .venv/bin/pip install -e ".[dev]"')
-    say("    и запускайте проверки его интерпретатором: .venv/bin/python ci/checks.py all")
+    if _bootstrap_tools_venv(name):
+        return True
+    say(f"[!] не удалось поставить {name} ни в {sys.executable}, ни в {TOOLS_PYTHON}.")
+    say('    Проверьте сеть или поставьте зависимости вручную: python -m venv .venv &&')
+    say('    .venv/bin/pip install -e ".[dev]" (и запустите: .venv/bin/python ci/checks.py all)')
     return False
+
+
+def _bootstrap_tools_venv(package: str) -> bool:
+    """Окружение для инструментов в `build/ci-tools-venv` — обход «externally managed».
+
+    Каталог `build/` уже в .gitignore, так что ничего лишнего в репозитории не появляется.
+    """
+    global TOOLS_PYTHON
+    if TOOLS_PYTHON != Path(sys.executable):       # окружение уже поднято — просто ставим
+        return run([str(TOOLS_PYTHON), "-m", "pip", "install", "--quiet", package]) == 0
+    env_dir = ROOT / "build" / "ci-tools-venv"
+    if not (env_dir / "pyvenv.cfg").exists():
+        say(f"[i] системный Python защищён от установки пакетов — делаю окружение {env_dir}")
+        try:
+            venv.create(env_dir, with_pip=True, clear=True)
+        except Exception as exc:                   # сообщаем и отдаём наверх
+            say(f"[!] не удалось создать окружение: {type(exc).__name__}: {exc}")
+            return False
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    python = env_dir / ("Scripts" if platform.system() == "Windows" else "bin") / f"python{suffix}"
+    if run([str(python), "-m", "pip", "install", "--quiet", package]) != 0:
+        return False
+    TOOLS_PYTHON = python
+    say(f"[i] дальше проверки идут интерпретатором {python}")
+    return True
 
 
 def _importable(module: str) -> bool:
@@ -106,19 +142,19 @@ def check_lint() -> int:
     """Линтер: правила E/W/F/B/UP/RUF, настройки — в `pyproject.toml`."""
     if not ensure("ruff"):
         return 127
-    return run([sys.executable, "-m", "ruff", "check", "."])
+    return run([str(TOOLS_PYTHON), "-m", "ruff", "check", "."])
 
 
 def check_unit() -> int:
-    """Быстрые тесты: виртуальный FC в памяти, без сокетов и подпроцессов (~10 с)."""
+    """Быстрые тесты: виртуальный FC в памяти, плюс транспорт на живых сокетах (~45 с)."""
     if not ensure("pytest"):
         return 127
-    return run([sys.executable, "-m", "pytest", "tests", "-q"])
+    return run([str(TOOLS_PYTHON), "-m", "pytest", "tests", "-q"])
 
 
 def check_smoke() -> int:
-    """Сквозной прогон: настоящий сервер, настоящие MSP-кадры, 617 проверок (~100 с)."""
-    return run([sys.executable, "tests/smoke_test.py"], timeout=900)
+    """Сквозной прогон: настоящий сервер, настоящие MSP-кадры, 621 проверка (~100 с)."""
+    return run([str(TOOLS_PYTHON), "tests/smoke_test.py"], timeout=900)
 
 
 def check_bat() -> int:
@@ -154,7 +190,7 @@ def check_package() -> int:
     dist = ROOT / "dist"
     if dist.exists():
         shutil.rmtree(dist)
-    if (code := run([sys.executable, "-m", "build"])) != 0:
+    if (code := run([str(TOOLS_PYTHON), "-m", "build"])) != 0:
         return code
 
     wheels = sorted(dist.glob("*.whl"))

@@ -39,3 +39,22 @@ def test_cross_domain_dispatch_and_persistence(fc):
     assert restarted.mode_ranges[0]["start"] == 1700
     assert "MIXINTEST" in restarted.cli_execute("get craft_name")
     assert len(restarted.handle(public.MSP_STATUS, b"", 1)) == 13
+
+
+def test_rc_api_keeps_state_on_wrong_types(fc):
+    """Кривой тип поля от страницы /api/rc раньше ронял обработчик (обрыв соединения).
+
+    Теперь значение просто остаётся прежним: раскладка AUX и карта осей — украшение
+    страницы /tx, из-за ошибки в них терять состояние борта нельзя (часть 4 ревью).
+    """
+    fc.set_rc_aux_map(["AUX1 ← тумблер (2 положения) — ось 3"])
+    fc.set_rc_aux_map(5)
+    assert fc.rc_aux_map == ["AUX1 ← тумблер (2 положения) — ось 3"]
+    assert fc.set_rc_aux_map("AUX2 ← крутилка") == ["AUX2 ← крутилка"], "строка — тоже раскладка"
+
+    fc.set_rc_map_info({"roll": 1, "device": "TX16S"})
+    saved = dict(fc.rc_map_info)
+    assert saved["roll"] == 1 and saved["device"] == "TX16S"
+    fc.set_rc_map_info("нет")                       # не объект
+    fc.set_rc_map_info({"roll": "не-число"})        # объект, но ось не разобрать
+    assert fc.rc_map_info == saved
