@@ -111,7 +111,13 @@ ruff check .                  # линтер: ожидается «All checks pa
 bfemu/
 ├─ bfemu/
 │  ├─ msp.py        # кодек MSP v1/v2 (кадры, CRC, потоковый парсер, Writer/Reader)
-│  ├─ fc.py         # виртуальный FC: состояние, ~90 обработчиков MSP, телеметрия
+│  ├─ fc.py         # VirtualFC: инициализация, диспетчер MSP/CLI, публичные импорты
+│  ├─ fc_constants.py # MSP-коды, таблицы и заводские константы
+│  ├─ fc_state.py   # примесь: настройки и EEPROM
+│  ├─ fc_modes.py / fc_receiver.py / fc_failsafe.py  # режимы, RX, failsafe
+│  ├─ fc_power.py / fc_motors.py / fc_gps.py        # модели питания, моторов и GPS
+│  ├─ fc_video.py / fc_tuning.py / fc_blackbox.py  # OSD/VTX, PID, чёрный ящик
+│  ├─ fc_identity.py / fc_resources.py             # плата/датчики, ресурсы и DMA
 │  ├─ cli.py        # CLI-движок: команды, вывод в стиле 4.5.4, терминал «сырого» порта
 │  ├─ server.py     # транспорты TCP / PTY / stdio + веб-монитор и API аппаратуры (/api/rc)
 │  ├─ tx_page.py    # страница виртуальной аппаратуры /tx (стики и тумблеры AUX)
@@ -134,6 +140,11 @@ bfemu/
 ├─ pyproject.toml      # упаковка, точка входа `bfemu`, настройки ruff и pytest
 └─ docs/               # эталонные исходники Betaflight/Configurator для сверки
 ```
+
+`VirtualFC` остаётся единой точкой входа (`from bfemu.fc import VirtualFC`): примеси не
+создаются отдельно, они работают с общим состоянием объекта. Код MSP-команд распределён по
+доменам; `handle()` и карта диспетчеризации находятся в `fc.py`. Константы вынесены в
+`fc_constants.py`, но прежний импорт из `bfemu.fc` сохранён для совместимости.
 
 ## Откуда берутся настройки
 
