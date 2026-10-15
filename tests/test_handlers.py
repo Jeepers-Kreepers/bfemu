@@ -9,7 +9,9 @@ import ast
 import struct
 
 from bfemu.fc import (MSP2_SEND_DSHOT_COMMAND, MSP2_SET_MOTOR_OUTPUT_REORDERING, MSP_ANALOG,
-                      MSP_BOARD_INFO, MSP_SET_RC_TUNING, MSP_STATUS, MSP_STATUS_EX, MSP_VTX_CONFIG)
+                      MSP_BOARD_INFO, MSP_COMP_GPS, MSP_GPS_SV_INFO, MSP_RAW_GPS, MSP_RC,
+                      MSP_SET_RAW_RC, MSP_SET_RC_TUNING, MSP_STATUS, MSP_STATUS_EX, MSP_VTX_CONFIG,
+                      VirtualFC)
 
 
 def test_handler_map_has_no_repeated_keys(repo_root):
@@ -92,3 +94,70 @@ def test_handler_exception_does_not_break_fc(fc):
     """Кривые данные не должны валить обработчик: ответ пустой, FC продолжает работать."""
     fc.handle(0x3012, b"\xff" * 3, 2)
     assert len(fc.handle(MSP_STATUS, b"", 1)) == 13
+
+
+# --- повторное ревью, часть 4: MSP_SET_RAW_RC -------------------------------------------------
+def rc_frame(*values) -> bytes:
+    return struct.pack(f"<{len(values)}H", *values)
+
+
+def test_set_raw_rc_needs_rx_msp_feature(fc):
+    """Раньше кадр каналов «принимался», а каналы не менялись: обработчик их не разбирал.
+
+    В прошивке msp.c под USE_RX_MSP зовёт rxMspFrameReceive(), а приёмник по MSP включается
+    фичей RX_MSP — без неё кадр не должен попадать в rcChannel[].
+    """
+    before = list(fc.rc_channels)
+    assert fc.handle(MSP_SET_RAW_RC, rc_frame(1700, 1600, 1500, 1200), 1) == b""
+    assert fc.rc_channels == before, "без фичи RX_MSP каналы не меняются"
+    assert "RX_MSP" not in fc.features
+    assert "фича RX_MSP выключена" in fc.writes_log[-1]
+
+
+def test_set_raw_rc_applies_channels_with_feature(fc):
+    """С включённой фичей кадр доходит до rcChannel[]: каналы видны Configurator'у."""
+    fc.cli_execute("feature RX_MSP")
+    fc.handle(MSP_SET_RAW_RC, rc_frame(1700, 1600, 1500, 1200), 1)
+    assert fc.rc_channels[:4] == [1700, 1600, 1500, 1200]
+    assert "MSP_SET_RAW_RC" in fc.rc_source and fc.rx_link_connected
+    assert struct.unpack_from("<4H", fc.handle(MSP_RC, b"", 1), 0) == (1700, 1600, 1500, 1200)
+
+
+def test_set_raw_rc_rejects_oversize_and_torn_frames(fc, tmp_path):
+    """Больше MAX_SUPPORTED_RC_CHANNEL_COUNT (16) и непарная длина — ошибка, а не «как вышло»."""
+    messages: list[str] = []
+    checked = VirtualFC(eeprom_path=tmp_path / "rc.json", log=messages.append)
+    checked.cli_execute("feature RX_MSP")
+    before = list(checked.rc_channels)
+
+    checked.handle(MSP_SET_RAW_RC, rc_frame(*([1500] * 17)), 1)
+    assert checked.rc_channels == before
+    assert any("17 каналов" in message for message in messages), messages[-1:]
+
+    checked.handle(MSP_SET_RAW_RC, b"\x01\x02\x03", 1)
+    assert checked.rc_channels == before
+    assert any("нечётная длина" in message for message in messages), messages[-1:]
+
+    checked.handle(MSP_SET_RAW_RC, rc_frame(*([1400] * 16)), 1)
+    assert checked.rc_channels == [1400] * 16, "ровно 16 каналов принимаются"
+
+
+# --- повторное ревью, часть 4: GPS по фиче ----------------------------------------------------
+def test_gps_answers_are_empty_without_the_feature(fc):
+    """С `feature -GPS` вкладка «GPS» показывала живой фикс: MSP_RAW_GPS отдавал fix 2 и спутников.
+
+    В прошивке модуль поднимает `gpsInit()` — только при FEATURE_GPS: без неё `gpsSol` нулевой,
+    `STATE(GPS_FIX)` снят, `GPS_numCh` = 0, и датчика GPS нет в `MSP_STATUS` (часть 4 ревью).
+    """
+    assert fc.gps_enabled and fc.handle(MSP_RAW_GPS, b"", 1)[0] == 2, "с фичей фикс есть"
+    fc.cli_execute("feature -GPS")
+
+    raw = fc.handle(MSP_RAW_GPS, b"", 1)
+    assert len(raw) == 18 and set(raw) == {0}, f"решение GPS должно быть нулевым: {list(raw)}"
+    assert fc.handle(MSP_COMP_GPS, b"", 1) == bytes(5), "до дома 0 м, направление 0, обновления нет"
+    assert fc.handle(MSP_GPS_SV_INFO, b"", 1) == b"\x00", "GPS_numCh = 0 — каналов нет"
+    sensors = struct.unpack_from("<H", fc.handle(MSP_STATUS, b"", 1), 4)[0]
+    assert not sensors & (1 << 3), "без фичи GPS бит датчика в MSP_STATUS не выставляется"
+
+    fc.cli_execute("feature GPS")
+    assert fc.handle(MSP_RAW_GPS, b"", 1)[0] == 2 and fc.gps_solution()["sats"] > 0

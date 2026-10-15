@@ -321,7 +321,13 @@ class ReceiverMixin:
         """
         if isinstance(items, (str, bytes)):
             items = [items]
-        self.rc_aux_map = [str(item)[:80] for item in (items or []) if str(item).strip()][:16]
+        elif isinstance(items, dict):        # старый инструмент мог прислать {ось: подпись}
+            items = list(items.values())
+        elif not isinstance(items, (list, tuple, set)):
+            self._log(f"[API] раскладка AUX: ожидался список строк, пришло {type(items).__name__} — "
+                      "значение оставлено прежним")
+            return self.rc_aux_map
+        self.rc_aux_map = [str(item)[:80] for item in items if str(item).strip()][:16]
         return self.rc_aux_map
 
     def set_rc_map_info(self, info) -> dict:

@@ -169,3 +169,27 @@ def test_ci_workflow_calls_only_existing_checks(repo_root):
     unknown = called - set(checks.CHECKS) - {"all"}
     assert not unknown, f"сценарий зовёт несуществующие проверки: {sorted(unknown)}"
     assert set(checks.ORDER) == set(checks.CHECKS), "ORDER и CHECKS разошлись"
+
+
+def test_status_shows_gps_only_with_the_feature(fc):
+    """Раньше `status` печатал «GPS: connected» даже без фичи GPS.
+
+    В cli.c строка строится под featureIsEnabled(FEATURE_GPS), иначе «NOT ENABLED» — иначе
+    человек видел приёмник, которого прошивка не использует (повторное ревью, часть 4).
+    """
+    assert "GPS: connected" in fc.cli_execute("status"), "по умолчанию GPS включён фичей"
+    fc.cli_execute("feature -GPS")
+    status = fc.cli_execute("status")
+    assert "GPS: NOT ENABLED" in status and "GPS: connected" not in status
+
+
+def test_status_prints_port_and_msp_provider_like_firmware(fc):
+    """У GPS по MSP нет UART — прошивка печатает «GPS: connected, MSP, …» (cli.c)."""
+    fc.cli_execute("set gps_provider = 2")
+    gps_line = next(line for line in fc.cli_execute("status").splitlines()
+                    if line.startswith("GPS: "))
+    assert gps_line.startswith("GPS: connected, MSP,"), gps_line
+    fc.cli_execute("set gps_provider = 1")
+    gps_line = next(line for line in fc.cli_execute("status").splitlines()
+                    if line.startswith("GPS: "))
+    assert "UART" in gps_line and "set to" in gps_line, gps_line

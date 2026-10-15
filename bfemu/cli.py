@@ -28,6 +28,16 @@ def _pad(name: str, width: int = 24) -> str:
     return name + " " * max(0, width - len(name))
 
 
+def _baud(index) -> str:
+    """Скорость порта по индексу baudRate_e — так же, как печатает cliStatus()."""
+    from .fc_constants import BAUD_RATES
+
+    try:
+        return BAUD_RATES[int(index)]
+    except (IndexError, TypeError, ValueError):
+        return "AUTO"
+
+
 class CliEngine:
     def __init__(self, fc):
         self.fc = fc
@@ -160,7 +170,37 @@ class CliEngine:
         self._w(f"Voltage: 1 * 0.01V ({f.battery_cells}S battery - OK)")
         self._w("I2C Errors: 0")
         self._w("SD card: Not configured")
+        self._w(self._status_gps_line())
         self._w(f"Arming disable flags: {f.arming_disable_names}")
+
+    def _status_gps_line(self) -> str:
+        """Строка «GPS: …» из cliStatus() 4.5.4 (cli.c).
+
+        С фичей GPS: «connected, UART1 57600 (set to 57600), configured, version = …»;
+        без фичи — «NOT ENABLED»: прошивка показывает приёмник только когда он включён
+        фичей, даже если модуль подключён (находка повторного ревью, часть 4).
+        """
+        f = self.fc
+        if "GPS" not in f.features:
+            return "GPS: NOT ENABLED"
+        provider = f._setting("gps_provider", 1)
+        port = next((item for item in f.serial_ports if "GPS" in item["functions"]), None)
+        if provider == 2:                                   # GPS_MSP
+            where = "MSP, "
+        elif port is None:                                  # findSerialPortConfig(FUNCTION_GPS)
+            where = "NO PORT, "
+        else:
+            actual = _baud(port.get("gps_baudrate", 0))
+            if f._setting("gps_auto_baud", 0):               # GPS_AUTOBAUD_ON
+                setting = "AUTO"
+            else:
+                setting = _baud(port.get("gps_baudrate", 0))
+            where = f"UART{port['identifier'] + 1} {actual} (set to {setting}), "
+        configured = "auto config OFF" if not f._setting("gps_auto_config", 1) else "configured"
+        # ubloxVersionMap[] прошивки: у приёмника по MSP версии нет, у NMEA протокол не
+        # определяется — печатаем «unknown», как это делает прошивка.
+        version = "UBLOX 1.01" if provider == 1 else "unknown"
+        return f"GPS: connected, {where}{configured}, version =  {version}"
 
     def cmd_tasks(self, args=""):
         self._hash("Task list")

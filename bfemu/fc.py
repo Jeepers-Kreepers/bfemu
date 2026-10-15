@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # ruff: noqa: F403, F405 -- legacy public MSP constants are re-exported from here.
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -307,6 +308,12 @@ class VirtualFC(
         self.acc_calibration_until = 0.0
         self._cli = CliEngine(self)
         self._cli_log: list[str] = []
+        # Буфер вывода для постраничного чтения MSP2_CLI_COMMAND. Он у каждого соединения
+        # свой: у прошивки буфер один, но там и порт один, а у эмулятора клиентов бывает
+        # несколько — вторая страница `dump` иначе приезжала из чужого вывода (находка
+        # повторного ревью, часть 4). Соединение обслуживается своим потоком, поэтому
+        # хранилище потоковое.
+        self._cli_out_local = threading.local()
         # «Флеш» читаем последним: к этому моменту созданы все поля, которые он восстанавливает
         # (фичи, порты, имена, профили, UID), иначе значения перетирались бы инициализацией.
         self.load_eeprom()
@@ -335,6 +342,14 @@ class VirtualFC(
             # 'save'/'exit'/'defaults' перезагружают FC: связь оборвётся
             pass
         return text
+
+    def store_cli_output(self, text: str) -> None:
+        """Запомнить вывод CLI для постраничного чтения (буфер текущего соединения)."""
+        self._cli_out_local.text = text
+
+    def cli_output(self) -> str:
+        """Вывод CLI текущего соединения (пустая строка, если команды ещё не было)."""
+        return getattr(self._cli_out_local, "text", "")
 
     def terminal(self):
         """Терминал «сырого» CLI-порта для текущего соединения."""
@@ -544,7 +559,7 @@ class VirtualFC(
                 MSP_SET_MOTOR: self._h_set_motor,
                 MSP_SET_SERVO_CONFIGURATION: self._h_set_servo_configuration,
                 MSP_SET_SERVO_MIX_RULE: self._h_set_servo_mix_rule,
-                MSP_SET_RAW_RC: self._h_ack,
+                MSP_SET_RAW_RC: self._h_set_raw_rc,
                 MSP_ACC_CALIBRATION: self._h_acc_calibration,
                 MSP_MAG_CALIBRATION: self._h_ack,
                 MSP_EEPROM_WRITE: self._h_eeprom_write,

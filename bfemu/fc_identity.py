@@ -25,6 +25,7 @@ from .fc_constants import (
     MSP_REBOOT_MSC_UTC,
     PID_PROFILE_COUNT,
     RANGEFINDER_NONE,
+    RC_CHANNEL_COUNT,
     RC_MAPPABLE_CHANNEL_COUNT,
     SENSOR_ACC,
     SENSOR_BARO,
@@ -214,7 +215,11 @@ class IdentityMixin:
     def _active_sensor_mask(self):
         """Что FC видит «живым». Учитываем выбор во вкладке «Датчики»: NONE = датчик выключен."""
         cfg = self.sensor_config
-        mask = SENSOR_GYRO | SENSOR_GPS
+        mask = SENSOR_GYRO
+        if "GPS" in self.features:
+            # sensors(SENSOR_GPS) поднимает сама gpsInit(), то есть только с фичей GPS:
+            # без неё Configurator и не должен спрашивать MSP_RAW_GPS (часть 4 ревью).
+            mask |= SENSOR_GPS
         if cfg["acc_hardware"] != SENSOR_NONE:
             mask |= SENSOR_ACC
         if cfg["baro_hardware"] != SENSOR_NONE:
@@ -491,6 +496,34 @@ class IdentityMixin:
     def _h_ack(self, w, r):
         self.writes_log.append("ack")
 
+    def _h_set_raw_rc(self, w, r):
+        """MSP_SET_RAW_RC (200): кадр каналов от внешнего источника — rxMspFrameReceive().
+
+        В прошивке приёмник по MSP включается фичей RX_MSP (FEATURE_RX_MSP, без неё
+        msp.c только отвечает ACK и кадр никуда не идёт). Поэтому и здесь каналы
+        принимаются лишь при включённой фиче — иначе пишем в журнал, что кадр отброшен.
+        Больше 16 каналов (MAX_SUPPORTED_RC_CHANNEL_COUNT) прошивка отвергает ошибкой.
+        """
+        data = bytes(r.rest())
+        if len(data) % 2:
+            self._log("[MSP] MSP_SET_RAW_RC: нечётная длина кадра — отвергнут")
+            return
+        count = len(data) // 2
+        if count > RC_CHANNEL_COUNT:
+            self._log(f"[MSP] MSP_SET_RAW_RC: {count} каналов — больше {RC_CHANNEL_COUNT}, "
+                      "прошивка отвечает ошибкой")
+            return
+        frame = [int.from_bytes(data[i * 2:i * 2 + 2], "little") for i in range(count)]
+        if "RX_MSP" not in self.features:
+            self.writes_log.append("MSP_SET_RAW_RC: фича RX_MSP выключена — кадр не принят")
+            return
+        self.set_rc_channels(frame)
+        self.rx_link_connected = True
+        self.rc_source = f"MSP_SET_RAW_RC ({count} кан.)"
+        self.note_rc_source(self.rc_source)
+        self._log(f"[MSP] MSP_SET_RAW_RC: принято {count} каналов "
+                  f"({frame[:4]}…) — фича RX_MSP включена")
+
     def _h_set_echo(self, w, r):
         """Сохраняем payload записи и отдаём его же в соответствующем GET."""
         return None
@@ -617,8 +650,10 @@ class IdentityMixin:
             cmdline, offset = raw, 0
         line = cmdline.decode("latin-1", "replace")
         if offset == 0:
-            self._cli_out = self.cli_execute(line)
-        out = getattr(self, "_cli_out", "")
+            # Вывод запоминаем в буфере соединения, а не в общем поле FC: иначе вторая
+            # вкладка CLI (или второй инструмент) подменяла бы страницы чужой командой.
+            self.store_cli_output(self.cli_execute(line))
+        out = self.cli_output()
         block = out.encode("latin-1", "replace")
         window = block[offset : offset + 480]
         w.u16(len(block)).u8(0).raw(window)

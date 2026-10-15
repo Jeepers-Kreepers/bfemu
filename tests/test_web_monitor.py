@@ -13,6 +13,7 @@ import urllib.request
 
 import pytest
 
+from bfemu.fc import MSP_DATAFLASH_ERASE
 from bfemu.server import HttpMonitor
 
 
@@ -134,3 +135,51 @@ def test_api_state_has_expected_sections(monitor):
 
 def test_unknown_blackbox_file_is_404(monitor):
     assert get(monitor + "/msc/NOPE.BBL")[0] == 404
+
+
+# --- повторное ревью, часть 4: кривой ввод больше не рвёт соединение -----------------------
+BAD_RC_FIELDS = [
+    ({"bind_seconds": "несколько"}, "bind_seconds"),
+    ({"bind_seconds": -1}, "bind_seconds"),
+    ({"bind_seconds": True}, "bind_seconds"),
+    ({"aux_map": 5}, "aux_map"),
+    ({"rc_map": "нет"}, "rc_map"),
+    ({"layout_note": 3}, "layout_note"),
+    ({"source": 7}, "source"),
+    ({"reset": "нет"}, "reset"),
+    ({"connected": "да"}, "connected"),
+    ({"control": "нет-такого"}, "control"),
+]
+
+
+@pytest.mark.parametrize("payload,field", BAD_RC_FIELDS)
+def test_bad_field_type_is_answered_with_json_400(fc, monitor, payload, field):
+    """Раньше обработчик падал на `float("несколько")`/`list(5)`: клиент получал обрыв связи.
+
+    `/api/rc` — единственная точка записи для страницы /tx и инструмента tools/tx.py, поэтому
+    отказ обязан приходить ответом: 400, текст про поле и состояние, ничего не изменив.
+    """
+    before = json.loads(get(monitor + "/api/rc")[1])
+    status, body = post(monitor + "/api/rc", payload)
+    answer = json.loads(body)
+    assert status == 400, f"{payload} принят как верный"
+    assert field in answer["error"] and "state" in answer
+    after = json.loads(get(monitor + "/api/rc")[1])
+    assert after["channels"] == before["channels"], "каналы не должны измениться при отказе"
+    assert get(monitor + "/api/state")[0] == 200, "монитор продолжает работать"
+
+
+def test_non_numeric_dashboard_path_is_answered_with_page(fc, monitor):
+    """`/failsafe/procedure/abc` роняло обработчик `int(action.split('/')[1])` — обрыв без ответа."""
+    status, body = get(monitor + "/failsafe/procedure/abc")
+    page = body.decode()
+    assert status == 400 and "не выполнен" in page
+    assert get(monitor + "/")[0] == 200, "страница отвечает после отказа"
+
+
+def test_msc_page_says_no_flights_after_erase(fc, monitor):
+    """Шаблон /msc показывал «-1 пролётов»: служебный дамп считался пролётом (часть 4)."""
+    assert "пролётов: -1" not in get(monitor + "/msc")[1].decode()
+    fc.handle(MSP_DATAFLASH_ERASE, b"", 1)
+    page = get(monitor + "/msc")[1].decode()
+    assert "пролётов нет" in page and "пролётов: -1" not in page
