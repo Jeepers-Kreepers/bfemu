@@ -256,39 +256,93 @@ class StateMixin:
         # Фичи сброшены — значит список портов мог поменяться (SOFTSERIAL1/2).
         self.sync_soft_serial_ports()
 
+    def find_setting(self, name: str):
+        """Настройка по имени без учёта регистра — cliGetSettingIndex() из cli.c.
+
+        Прошивка сравнивает имя через `strncasecmp` и требует совпадения длины целиком:
+        `set GYRO_LPF1_TYPE = PT1` работает, `set gyro = 1` — нет.
+        """
+        entry = self.settings_by_name.get(name)
+        if entry is not None:
+            return entry
+        lowered = name.lower()
+        for key, candidate in self.settings_by_name.items():
+            if key.lower() == lowered:
+                return candidate
+        return None
+
+    def setting_range_lines(self, entry) -> list:
+        """Строки cliPrintVarRange(): границы числовой настройки, имена списка, длины строки."""
+        if entry["mode"] == "MODE_LOOKUP" and entry.get("values"):
+            return ["Allowed values: " + ", ".join(entry["values"])]
+        if entry["mode"] == "MODE_STRING":
+            lo, hi = self.setting_lengths(entry)
+            return [f"String length: {lo} - {hi}"]
+        if entry["mode"] == "MODE_ARRAY":
+            # Длину массива берём из таблицы (cli_settings.c: .config.array.length = N);
+            # если генератор её не разобрал, лучше промолчать, чем напечатать ноль.
+            length = entry.get("array_length")
+            return [f"Array length: {length}"] if length else []
+        if entry["mode"] == "MODE_BITSET":
+            return ["Allowed values: OFF, ON"]
+        return [f"Allowed range: {entry['min']} - {entry['max']}"]
+
     def set_setting(self, name: str, raw: str):
-        entry = self.settings_by_name[name]
+        """`set` как cliSet(): (получилось, текст дополнительной ошибки).
+
+        Второй элемент нужен только MODE_STRING («STRING MUST BE 1-N CHARACTERS OR
+        '-' FOR EMPTY»); при любом другом отказе прошивка печатает `INVALID VALUE` и
+        границы настройки — это делает вызывающий (cli.py::cmd_set).
+        """
+        entry = self.find_setting(name)
+        if entry is None:
+            return False, None
+        name = entry["name"]
         if entry["mode"] == "MODE_STRING":
             # cliSet(): пустая строка и '-' (emptyName) стирают значение, длиннее max —
             # «STRING MUST BE 1-N CHARACTERS», а строка без завершающего нуля вообще
             # не принимается (границы в прошивке заданы как «до следующего параметра»).
             lengths = self.setting_lengths(entry)
             if raw == "":
-                return False, f"STRING MUST BE {lengths[0]}-{lengths[1]} CHARACTERS OR '-' FOR EMPTY"
+                return False, f"STRING MUST BE 1-{lengths[1]} CHARACTERS OR '-' FOR EMPTY"
             if raw == "-":
                 self.settings[name] = ""
                 self._mirror_name_setting(name, "")
                 return True, None
             if len(raw) > lengths[1]:
-                return False, f"STRING MUST BE {lengths[0]}-{lengths[1]} CHARACTERS OR '-' FOR EMPTY"
+                return False, f"STRING MUST BE 1-{lengths[1]} CHARACTERS OR '-' FOR EMPTY"
             self.settings[name] = raw
             self._mirror_name_setting(name, raw)
             return True, None
         if entry["mode"] == "MODE_LOOKUP" and entry.get("values"):
+            # cliSet() ищет значение перебором `strcasecmp(tableEntry->values[i], eqptr)`:
+            # номер элемента списка числом не принимается, только имя.
             value = self._parse_lookup(entry, raw)
             if value is None:
-                return False, f"INVALID NAME: {name}"
+                return False, None
             self.settings[name] = value
             return True, None
-        try:
-            value = int(raw, 0)
-        except ValueError:
-            return False, f"INVALID NAME: {name}"
+        value = self._atoi(raw)
         lo, hi = entry["min"], entry["max"]
         if not (lo <= value <= hi):
-            return False, f"{name} NOT BETWEEN {lo} AND {hi}"
+            return False, None
         self.settings[name] = value
         return True, None
+
+    @staticmethod
+    def _atoi(text: str) -> int:
+        """atoi()/strtoul() из cliSet(): десятичное число в начале строки, хвост игнорируется."""
+        i, sign = 0, 1
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i < len(text) and text[i] in "+-":
+            sign = -1 if text[i] == "-" else 1
+            i += 1
+        digits = ""
+        while i < len(text) and text[i].isdigit():
+            digits += text[i]
+            i += 1
+        return sign * int(digits or 0)
 
     def _mirror_name_setting(self, name: str, value: str) -> None:
         """Имя дрона/пилота живёт и в таблице настроек, и отдельным полем («MSP2_GET_TEXT»).
@@ -309,15 +363,16 @@ class StateMixin:
 
     @staticmethod
     def _parse_lookup(entry, raw: str):
+        """Значение списка по имени — как cliSet(): только `strcasecmp` с элементами.
+
+        Номер элемента числом прошивка не принимает: `set gyro_lpf1_type = 1` отвечает
+        `INVALID VALUE` и печатает список, хотя элемент с этим номером существует.
+        """
         raw = raw.strip().upper()
         for i, v in enumerate(entry["values"]):
             if v.upper() == raw:
                 return i
-        try:
-            n = int(raw)
-        except ValueError:
-            return None
-        return n if 0 <= n < len(entry["values"]) else None
+        return None
 
     def format_setting(self, entry):
         value = self.settings[entry["name"]]

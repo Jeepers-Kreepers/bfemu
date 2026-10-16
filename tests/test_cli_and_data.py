@@ -185,11 +185,91 @@ def test_status_shows_gps_only_with_the_feature(fc):
 
 def test_status_prints_port_and_msp_provider_like_firmware(fc):
     """У GPS по MSP нет UART — прошивка печатает «GPS: connected, MSP, …» (cli.c)."""
-    fc.cli_execute("set gps_provider = 2")
+    # Значение списка задаётся именем: cliSet() сверяет его через strcasecmp, номер не принимает.
+    fc.cli_execute("set gps_provider = MSP")
     gps_line = next(line for line in fc.cli_execute("status").splitlines()
                     if line.startswith("GPS: "))
     assert gps_line.startswith("GPS: connected, MSP,"), gps_line
-    fc.cli_execute("set gps_provider = 1")
+    fc.cli_execute("set gps_provider = UBLOX")
     gps_line = next(line for line in fc.cli_execute("status").splitlines()
                     if line.startswith("GPS: "))
     assert "UART" in gps_line and "set to" in gps_line, gps_line
+
+
+# ---------------------------------------------------------------------------------------
+# Повторное ревью, часть 5: вывод CLI должен совпадать с cli.c 4.5.4
+# (формат ошибок, `set`, `get` без аргументов, строки профилей)
+
+def test_error_lines_end_with_hashes(fc):
+    """cliPrintErrorVa() печатает «###ERROR IN <команда>: <текст>###».
+
+    Раньше закрывающих «###» не было. По ним Configurator отличает отказ от обычного
+    вывода (в его тестах ответ FC выглядит как «###ERROR IN cli: UNKNOWN COMMAND###»).
+    """
+    answer = fc.cli_execute("get nosuchsetting")
+    assert answer.strip() == "###ERROR IN get: INVALID NAME: nosuchsetting###", answer
+
+
+def test_set_confirms_the_new_value(fc):
+    """cliSet(): успешная запись печатается как «<имя> set to <значение>»."""
+    assert fc.cli_execute("set gyro_lpf1_static_hz = 320").strip() == "gyro_lpf1_static_hz set to 320"
+
+
+def test_set_accepts_name_in_any_case(fc):
+    """cliGetSettingIndex(): strncasecmp — регистр имени не важен, но имя целиком."""
+    assert "gyro_lpf1_static_hz set to 330" in fc.cli_execute("set GYRO_LPF1_STATIC_HZ = 330")
+    # имя должно совпасть целиком: не «префикс», а именно строка настройки
+    assert fc.cli_execute("set gyro_lpf1 = 330").strip() == "###ERROR IN set: INVALID NAME: gyro_lpf1 = 330###"
+
+
+def test_set_rejects_number_for_a_lookup_value(fc):
+    """Значение списка задаётся именем: cliSet() сверяет его с таблицей через strcasecmp."""
+    before = fc.settings["gyro_lpf1_type"]
+    answer = fc.cli_execute("set gyro_lpf1_type = 1")
+    assert "###ERROR IN set: INVALID VALUE###" in answer, answer
+    assert "Allowed values: PT1, BIQUAD, PT2, PT3" in answer, answer
+    assert fc.settings["gyro_lpf1_type"] == before
+    assert "gyro_lpf1_type set to BIQUAD" in fc.cli_execute("set gyro_lpf1_type = biquad")
+
+
+def test_set_failure_prints_the_range(fc):
+    """После «INVALID VALUE» прошивка печатает cliPrintVarRange(): границы или имена."""
+    answer = fc.cli_execute("set gyro_calib_duration = 10")
+    assert answer.splitlines()[1] == "Allowed range: 50 - 3000", answer
+    answer = fc.cli_execute("set craft_name = A_TOO_LONG_CRAFT_NAME")
+    assert "STRING MUST BE 1-16 CHARACTERS OR '-' FOR EMPTY###" in answer, answer
+    assert "String length: 1 - 16" in answer, answer
+
+
+def test_set_parses_numbers_like_atoi(fc):
+    """cliSet() использует atoi()/strtoul(..., 10): «250abc» — это 250, «0x10» — это 0."""
+    fc.cli_execute("set gyro_lpf1_static_hz = 250abc")
+    assert fc.settings["gyro_lpf1_static_hz"] == 250
+    fc.cli_execute("set gyro_lpf1_static_hz = 0x10")
+    assert fc.settings["gyro_lpf1_static_hz"] == 0
+
+
+def test_set_star_appends_limits_to_numeric_settings(fc):
+    """cliSet() с «*» зовёт cliPrintVar(..., full=true): у числовых настроек — «min max»."""
+    lines = fc.cli_execute("set *").splitlines()
+    assert lines[0] == "Current settings: ", lines[0]
+    assert "gyro_lpf1_static_hz = 250 0 1000" in lines
+    assert "gyro_lpf1_type = PT1" in lines, "у списка границы не печатаются"
+    assert len(lines) == len(fc.settings_list) + 1
+
+
+def test_get_without_arguments_lists_the_whole_table(fc):
+    """cliGet(): пустая подстрока есть в любом имени, поэтому `get` печатает все настройки."""
+    lines = fc.cli_execute("get").splitlines()
+    assert len(lines) > 2 * len(fc.settings_list), "на каждую настройку минимум две строки"
+    assert "gyro_lpf1_static_hz = 250" in lines
+
+
+def test_get_prints_profile_number_for_profile_settings(fc):
+    """cliGet() для PROFILE_VALUE зовёт cliProfile(), для рейтов — cliRateProfile()."""
+    rate = fc.cli_execute("get roll_rc_rate").splitlines()
+    assert rate[1] == "rateprofile 0", rate
+    profile = fc.cli_execute("get profile_name").splitlines()
+    assert "profile 0" in profile, profile
+    fc.cli_execute("profile 2")
+    assert "profile 2" in fc.cli_execute("get profile_name").splitlines()

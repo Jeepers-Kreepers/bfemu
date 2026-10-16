@@ -2034,7 +2034,7 @@ global.setInterval = () => 1;
           "CLI: 'beacon' по умолчанию — RX_LOST и RX_SET выключены (DEFAULT_DSHOT_BEACON_OFF_FLAGS)")
     check(cli_over_msp(c454, "beacon -RX_LOST").strip() == "Disabled RX_LOST",
           "CLI: 'beacon -RX_LOST' выключает пищалку по потере связи")
-    check(cli_over_msp(c454, "beacon GYRO_CALIBRATED").strip().endswith("INVALID NAME: GYRO_CALIBRATED"),
+    check(cli_over_msp(c454, "beacon GYRO_CALIBRATED").strip().endswith("INVALID NAME: GYRO_CALIBRATED###"),
           "CLI: 'beacon' принимает только RX_LOST/RX_SET — остальные имена не проходят")
     cli_over_msp(c454, "beacon RX_SET")          # включили RX_SET — остался только RX_LOST
     beacon_flags = int.from_bytes(c454.request(184)[5:9], "little")
@@ -2050,9 +2050,9 @@ global.setInterval = () => 1;
           "CLI: 'vtx' без аргументов — 10 нулевых слотов, как printVtx()")
     check(cli_over_msp(c454, "vtx 0 4 1 2 1 1500 1700").strip() == "vtx 0 4 1 2 1 1500 1700",
           "CLI: 'vtx <слот> <aux> <band> <channel> <power> <нач> <кон>' пишет и печатает слот")
-    check(cli_over_msp(c454, "vtx 1 4").strip().endswith("INVALID ARGUMENT COUNT"),
+    check(cli_over_msp(c454, "vtx 1 4").strip().endswith("INVALID ARGUMENT COUNT###"),
           "CLI: меньше шести валидных аргументов — слот обнулён и INVALID ARGUMENT COUNT")
-    check(cli_over_msp(c454, "vtx 12 0 0 0 0 900 900").strip().endswith("INDEX NOT BETWEEN 0 AND 9"),
+    check(cli_over_msp(c454, "vtx 12 0 0 0 0 900 900").strip().endswith("INDEX NOT BETWEEN 0 AND 9###"),
           "CLI: индекс вне 0…9 — ошибка диапазона индекса")
     check("vtx 0 4 1 2 1 1500 1700" in cli_over_msp(c454, "diff all"),
           "CLI: 'diff all' показывает настроенный слот `vtx`")
