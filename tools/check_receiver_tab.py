@@ -24,8 +24,9 @@
   Раньше эмулятор отдавал Рыск=1000 / Газ=1500, и модель крутилась на ~2000 °/с.
 
 Ожидаемые значения — из прошивки Betaflight 4.5.4:
-  serialrx_provider CRSF (9), диапазон стиков 1000/1500/2000, rx_min_usec 885,
-  rx_max_usec 2115, airmode_start_throttle_percent 30, rc_smoothing ON (mode AUTО),
+  serialrx_provider CRSF (9), диапазон стиков 1050/1500/1900 (min_check/mid_rc/max_check
+  из pg/rx.c), rx_min_usec 885,
+  rx_max_usec 2115, airmode_start_throttle_percent 25 (airModeActivateThreshold), rc_smoothing ON (mode AUTО),
   auto_factor 30, карта AETR1234 -> [0, 1, 3, 2, 4, 5, 6, 7], дедбенды 0/0/50,
   рейты ACTUAL: rc_rate 7 (70), srate 67 (670), thr_mid 50, лимит 1998°/с,
   каналов 16 (CRSF_MAX_CHANNEL), микшер QUADX (2).
@@ -262,11 +263,11 @@ def main():
     rx = read_rx_config(fc)
     check(len(rx["raw"]) == 38, f"MSP_RX_CONFIG: {len(rx['raw'])} байт (раскладка MSPHelper.js для API 1.46)")
     check(rx["provider"] == 9, f"Serial RX: {PROVIDERS.get(rx['provider'], rx['provider'])} (provider {rx['provider']})")
-    check((rx["stick_min"], rx["stick_center"], rx["stick_max"]) == (1050, 1500, 2000),
+    check((rx["stick_min"], rx["stick_center"], rx["stick_max"]) == (1050, 1500, 1900),
           f"«Диапазон стиков»: {rx['stick_min']} / {rx['stick_center']} / {rx['stick_max']} мкс")
     check((rx["rx_min_usec"], rx["rx_max_usec"]) == (885, 2115),
           f"диапазон импульсов приёмника: {rx['rx_min_usec']}…{rx['rx_max_usec']} мкс")
-    check(rx["airmode"] == 30, f"«Порог включения Airmode»: {rx['airmode']}%")
+    check(rx["airmode"] == 25, f"«Порог включения Airmode»: {rx['airmode']}%")
     check(rx["rc_smoothing"] == 1 and rx["auto_factor"] == 30
           and rx["setpoint_cutoff"] == 0 and rx["feedforward_cutoff"] == 0,
           f"RC-сглаживание: {SMOOTHING[rx['rc_smoothing']]} / множитель {rx['auto_factor']} / "
@@ -360,7 +361,7 @@ def main():
     check(fc3.call(50) == b"\x00", "«Канал RSSI» снова 0")
     check(read_deadband(fc3) == [0, 0, 40, 50, 0], f"дедбенды снова заводские: {read_deadband(fc3)}")
     rx4 = read_rx_config(fc3)
-    check(rx4["provider"] == 9 and (rx4["stick_min"], rx4["stick_max"]) == (1050, 2000),
+    check(rx4["provider"] == 9 and (rx4["stick_min"], rx4["stick_max"]) == (1050, 1900),
           f"RX_CONFIG снова заводской: {PROVIDERS[rx4['provider']]}, стики {rx4['stick_min']}…{rx4['stick_max']}")
     channels4 = read_channels(fc3)
     check(channels4[:4] == [1500, 1500, 1500, 1000], f"каналы снова на столе: {channels4[:4]}")

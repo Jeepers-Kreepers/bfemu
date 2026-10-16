@@ -134,6 +134,13 @@ TABLE_ENTRY_RE = re.compile(r'"([^"]*)"')
 
 
 def parse_lookup_tables(settings_c: str):
+    """Имена из массивов `const char * const name[] = {...}`.
+
+    Массив читается до закрывающей скобки включительно: однострочный `{...};` кончается
+    там же, где начался. Раньше цикл ждал `};` на следующих строках, и таблица
+    `batteryStateStrings` (объявлена одной строкой) затягивала в значения имена
+    последующих `#include` — в данных оказывались «platform.h», «common/maths.h» и т. п.
+    """
     tables = {}
     lines = settings_c.splitlines()
     i = 0
@@ -147,13 +154,12 @@ def parse_lookup_tables(settings_c: str):
         j = i
         while j < len(lines):
             line = lines[j]
-            if j > i and "};" in line:
-                values.extend(TABLE_ENTRY_RE.findall(line))
+            # имя строки после «=» может быть не в начале строки, поэтому обрезаем и до «}»
+            body = line.split("=", 1)[1] if j == i else line
+            body = body.split("}", 1)[0]
+            values.extend(TABLE_ENTRY_RE.findall(body))
+            if "}" in (line if j > i else line.split("=", 1)[1]):
                 break
-            if j > i:
-                values.extend(TABLE_ENTRY_RE.findall(line))
-            else:
-                values.extend(TABLE_ENTRY_RE.findall(line.split("=", 1)[1]))
             j += 1
         tables[name] = [v for v in values if v != ""]
         i = j + 1
@@ -489,6 +495,10 @@ def collect_enum_constants(repo: Path):
 ASSIGN_RE = re.compile(r"(?:(\w+)\s*->\s*(\w+)|\.\s*(\w+))\s*=\s*([^;,]+)[;,]")
 RESET_FN_RE = re.compile(r"(?:void|STATIC_UNIT_TESTED void)\s+pgResetFn_(\w+)\s*\(\s*(\w+)\s*\*\s*(\w+)\s*\)\s*\{")
 RESET_TPL_RE = re.compile(r"PG_RESET_TEMPLATE\s*\(\s*(\w+)\s*,\s*(\w+)\s*,")
+# RESET_CONFIG(Type, name, .field = value, ...) и RESET_CONFIG_2(...) — config/config_reset.h:
+# оба разворачиваются в составной литерал со значениями по умолчанию. Раньше такие
+# reset-функции (rxConfig, systemConfig у части целей и др.) не разбирались вовсе.
+RESET_CONFIG_RE = re.compile(r"RESET_CONFIG(?:_2)?\s*\(\s*(\w+)\s*,\s*(\w+)\s*,")
 
 
 def parse_defaults(repo: Path, defines: dict, enums: dict):
@@ -502,6 +512,27 @@ def parse_defaults(repo: Path, defines: dict, enums: dict):
             continue
         # --- PG_RESET_TEMPLATE(Type, name, .field = value, ...) ---
         for m in RESET_TPL_RE.finditer(text):
+            struct_type = m.group(1)
+            args = text[m.end():]
+            depth = 1
+            buf = []
+            for ch in args:
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                buf.append(ch)
+            for am in ASSIGN_RE.finditer("".join(buf)):
+                field = am.group(3) or am.group(2)
+                if not field:
+                    continue
+                val = resolve_value(am.group(4), defines, enums)
+                if val is not None and (struct_type, field) not in defaults:
+                    defaults[(struct_type, field)] = val
+        # --- pgResetFn_x(Type *ptr) { RESET_CONFIG(_2)(Type, ptr, .field = value, ...); } ---
+        for m in RESET_CONFIG_RE.finditer(text):
             struct_type = m.group(1)
             args = text[m.end():]
             depth = 1
@@ -625,9 +656,27 @@ def main():
     # У failsafeConfig_t в failsafe.c сначала идёт ветка USE_RACE_PRO
     # (DEFAULT_FAILSAFE_RECOVERY_DELAY 1), затем штатная (5, «500 ms of valid rx data»),
     # а stick_threshold вообще задан только в PG_RESET_TEMPLATE — берём штатные значения.
+    # Значения под #if/#else: разбор #define условий не видит и берёт первую ветку,
+    # поэтому для эмулируемой платы их приходится задавать явно. Все они — ветка `#else`
+    # обычной цели STM32F405 (без RACE_PRO, без BEEPER_INVERTED, без SDCARD_DETECT_INVERTED,
+    # без RX_CC2500_SPI_DISABLE_CHIP_DETECTION и не F411) — та же, что у стоковой прошивки:
+    #   flight/imu.c:119–121            DEFAULT_SMALL_ANGLE = 180 только под USE_RACE_PRO
+    #   drivers/stm32/platform_mcu.h    DEFAULT_CPU_OVERCLOCK = 1 только для F411 (в SITL тоже 1)
+    #   pg/scheduler.h                  SCHEDULER_RELAX_RX/OSD = 1 только для F411
+    #   pg/beeper_dev.c                 IS_INVERTED/IS_OPEN_DRAIN — ветка BEEPER_INVERTED
+    #   pg/sdcard.c                     SDCARD_DETECT_IS_INVERTED — под SDCARD_DETECT_INVERTED
+    #   pg/rx_spi_cc2500.c              CC2500_SPI_CHIP_DETECTION — под RX_CC2500_SPI_DISABLE_CHIP_DETECTION
     for key, value in {("motorConfig_t", "minthrottle"): 1070,
                        ("failsafeConfig_t", "failsafe_recovery_delay"): 5,
-                       ("failsafeConfig_t", "failsafe_stick_threshold"): 30}.items():
+                       ("failsafeConfig_t", "failsafe_stick_threshold"): 30,
+                       ("systemConfig_t", "cpu_overclock"): 0,
+                       ("imuConfig_t", "small_angle"): 25,
+                       ("schedulerConfig_t", "rxRelaxDeterminism"): 25,
+                       ("schedulerConfig_t", "osdRelaxDeterminism"): 25,
+                       ("beeperDevConfig_t", "isOpenDrain"): 1,
+                       ("beeperDevConfig_t", "isInverted"): 0,
+                       ("sdcardConfig_t", "cardDetectInverted"): 0,
+                       ("rxCc2500SpiConfig_t", "chipDetectEnabled"): 1}.items():
         defaults[key] = value
     hits = 0
     for st in value_table:

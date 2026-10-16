@@ -222,6 +222,37 @@ def test_set_accepts_name_in_any_case(fc):
     assert fc.cli_execute("set gyro_lpf1 = 330").strip() == "###ERROR IN set: INVALID NAME: gyro_lpf1 = 330###"
 
 
+def test_set_without_equals_reads_the_setting(fc):
+    """cliSet(): ветка «без =» зовёт cliGet() — `set <имя>` это чтение, а не отказ.
+
+    Прошивка (cli.c 4.5.4, конец cliSet): `} else { cliGet(cmdName, cmdline); }`. Эмулятор
+    отвечал на это `INVALID NAME`, из-за чего Configurator и скрипты, читавшие настройку
+    через `set`, видели ошибку вместо значения.
+    """
+    assert fc.cli_execute("set gyro_lpf1_static_hz") == fc.cli_execute("get gyro_lpf1_static_hz")
+    # подстрока, как в strcasestr(): совпадений может быть несколько
+    many = fc.cli_execute("set gyro_lpf1")
+    assert many.startswith("gyro_lpf1_type =") and "gyro_lpf1_dyn_min_hz =" in many, many
+
+
+def test_set_without_equals_reports_the_set_command(fc):
+    """В ветке чтения cmdName остаётся «set» — так и печатается имя команды в ошибке."""
+    assert fc.cli_execute("set nosuchthing").strip() == "###ERROR IN set: INVALID NAME: nosuchthing###"
+    assert fc.cli_execute("get nosuchthing").strip() == "###ERROR IN get: INVALID NAME: nosuchthing###"
+
+
+def test_set_without_arguments_prints_the_whole_table(fc):
+    """len == 0 в cliSet() — «Current settings: » и таблица (без границ: они только у `set *`)."""
+    answer = fc.cli_execute("set")
+    lines = answer.splitlines()
+    assert lines[0] == "Current settings: ", repr(lines[0])
+    assert lines[1].startswith(fc.settings_list[0]["name"] + " = "), lines[1]
+    assert len(lines) == len(fc.settings_list) + 1, len(lines)
+    full = fc.cli_execute("set *").splitlines()
+    assert len(full) == len(fc.settings_list) + 1
+    assert " 0 1000" in full[3] or any(line.endswith(" 0 1000") for line in full), full[:5]
+
+
 def test_set_rejects_number_for_a_lookup_value(fc):
     """Значение списка задаётся именем: cliSet() сверяет его с таблицей через strcasecmp."""
     before = fc.settings["gyro_lpf1_type"]
@@ -273,3 +304,132 @@ def test_get_prints_profile_number_for_profile_settings(fc):
     assert "profile 0" in profile, profile
     fc.cli_execute("profile 2")
     assert "profile 2" in fc.cli_execute("get profile_name").splitlines()
+
+
+# ---------------------------------------------------------------------------------------
+# Повторное ревью, часть 5: заводские значения из reset-шаблонов прошивки
+# ---------------------------------------------------------------------------------------
+
+# Значения, которые `tools/gen_data.py` раньше не находил (reset-функции через
+# RESET_CONFIG/RESET_CONFIG_2), а эмулятор выводил из своих «эвристик». Все — из
+# pgResetFn_*/PG_RESET_TEMPLATE 4.5.4; в скобках — место в исходниках прошивки.
+FIRMWARE_DEFAULTS = {
+    # flight/pid.c:123 resetPidProfile()
+    "iterm_windup": 85, "iterm_limit": 400, "pidsum_limit": 500, "pidsum_limit_yaw": 400,
+    "dyn_idle_p_gain": 50, "dyn_idle_i_gain": 50, "dyn_idle_d_gain": 50,
+    "dyn_idle_max_increase": 150, "dyn_idle_start_increase": 50,
+    "acro_trainer_lookahead_ms": 50, "acro_trainer_gain": 75, "angle_earth_ref": 100,
+    "horizon_limit_degrees": 135, "horizon_delay_ms": 500, "abs_control_limit": 90,
+    "abs_control_error_limit": 20, "abs_control_cutoff": 11, "launch_control_gain": 40,
+    "launch_trigger_throttle_percent": 20, "launch_trigger_allow_reset": 1,
+    "throttle_boost_cutoff": 15, "pid_at_min_throttle": 1, "anti_gravity_p_gain": 100,
+    "anti_gravity_cutoff_hz": 5, "angle_feedforward_smoothing_ms": 80,
+    # flight/imu.c:127 imuConfig
+    "acc_lpf_hz": 25, "small_angle": 25,
+    # fc/controlrate_profile.c:45, flight/servos.c:90
+    "tpa_low_rate": 20, "tpa_low_breakpoint": 1050, "ez_landing_threshold": 25,
+    "ez_landing_limit": 15, "ez_landing_speed": 50,
+    # pg/rx.c:80 pgResetFn_rxConfig (RESET_CONFIG_2)
+    "max_aux_channels": 14, "rssi_scale": 100, "rssi_src_frame_lpf_period": 30,
+    "rssi_smoothing": 125, "rc_smoothing_auto_factor_throttle": 30, "srxl2_unit_id": 1,
+    "srxl2_baud_fast": 1, "serialrx_halfduplex": 1, "spektrum_sat_bind_autoreset": 1,
+    "max_check": 1900, "mid_rc": 1500, "min_check": 1050, "airmode_start_throttle_percent": 25,
+    # flight/crash_recovery.c
+    "crash_dthreshold": 50, "crash_gthreshold": 400, "crash_setpoint_threshold": 350,
+    "crash_time": 500, "crash_recovery_angle": 10, "crash_recovery_rate": 100,
+    "crash_limit_yaw": 200,
+    # PG-настройки под #if/#else: ветка стоковой цели без RACE_PRO, не F411, без
+    # BEEPER_INVERTED (imu.c:119-121, pg/scheduler.h, pg/beeper_dev.c, pg/sdcard.c,
+    # pg/rx_spi_cc2500.c, drivers/stm32/platform_mcu.h)
+    "cpu_overclock": 0, "scheduler_relax_rx": 25, "scheduler_relax_osd": 25,
+    "beeper_od": 1, "beeper_inversion": 0, "sdcard_detect_inverted": 0,
+    "cc2500_spi_chip_detect": 1,
+}
+
+# Настройки, которые эмулятор намеренно держит не заводскими (виртуальное железо).
+DOCUMENTED_DEVIATIONS = {
+    "gps_ublox_use_galileo", "gps_set_home_point_once",   # уходят в MSP_GPS_CONFIG
+    "battery_meter", "current_meter",                     # ADC-датчики виртуальной платы
+    "bat_capacity",                                       # ёмкость для симуляции разряда
+    "blackbox_device",                                    # виртуальный накопитель
+}
+
+
+def load_data(repo_root) -> dict:
+    return json.loads((repo_root / "bfemu" / "data" / "bf_data.json").read_text())
+
+
+def load_overrides(repo_root) -> dict:
+    return json.loads((repo_root / "bfemu" / "data" / "fc_overrides.json").read_text())
+
+
+def test_factory_values_come_from_reset_templates(repo_root):
+    """Заводские значения — из pgResetFn_*/PG_RESET_TEMPLATE, а не из догадок.
+
+    Генератор не разбирал reset-функции через RESET_CONFIG/RESET_CONFIG_2 (rxConfig и др.)
+    и брал первую ветку `#if`, поэтому 363 настройки оставались без значения, а часть
+    (small_angle, cpu_overclock, beeper_od…) получала не ту ветку. Здесь они сверяются
+    со значениями прошивки 4.5.4 — по именам из `docs/betaflight-4.5.4`.
+    """
+    data = {s["name"]: s for s in load_data(repo_root)["settings"]}
+    wrong = {n: data[n]["default"] for n, want in FIRMWARE_DEFAULTS.items()
+             if data[n]["default"] != want}
+    assert wrong == {}, f"расходится с прошивкой: {wrong}"
+    missing = [n for n in FIRMWARE_DEFAULTS if data[n]["default"] is None]
+    assert missing == [], f"нет заводского значения: {missing}"
+
+
+def test_most_settings_have_a_factory_value(repo_root):
+    """После разбора reset-шаблонов заводских значений должно быть заметно больше 320."""
+    settings = load_data(repo_root)["settings"]
+    known = [s for s in settings if s["default"] is not None]
+    assert len(known) >= 450, f"заводских значений всего {len(known)}/{len(settings)}"
+
+
+def test_overrides_only_touch_existing_and_documented_settings(repo_root):
+    """fc_overrides.json — только существующие настройки и только документированные отклонения.
+
+    В файле было 95 ключей: 25 на имена, которых в 4.5.4 нет вовсе (`midrc`, `maxcheck`,
+    `minthrottle`… — это имена полей структур, а не настройки CLI), ещё 40 дублировали
+    заводские значения из bf_data.json, а три (`max_check` 2000, `airmode_start_throttle_percent`
+    30, `blackbox_sample_rate` 1/2) расходились с прошивкой. Теперь файл описывает только
+    то, что нельзя вывести из исходников.
+    """
+    data = {s["name"]: s for s in load_data(repo_root)["settings"]}
+    overrides = load_overrides(repo_root)
+
+    assert set(overrides) - set(data) == set(), "ключи без такой настройки"
+    for name, value in overrides.items():
+        if name in DOCUMENTED_DEVIATIONS or data[name]["default"] is None:
+            continue
+        expected = value
+        values = data[name].get("values") or []
+        if isinstance(value, str) and value in values:
+            expected = values.index(value)
+        assert data[name]["default"] == expected, (
+            f"{name}: override {value!r} не совпадает с заводским "
+            f"{data[name]['default']!r} и не объявлен в DOCUMENTED_DEVIATIONS")
+
+
+def test_lookup_tables_have_no_header_names(repo_root):
+    """В таблицах имён не должно быть имён включённых файлов.
+
+    `batteryStateStrings` объявлена одной строкой, а разбор ждал `};` на следующих строках
+    и затягивал в значения имена последующих `#include` («platform.h», «common/maths.h»…).
+    """
+    tables = load_data(repo_root)["lookup_tables"]
+    junk = {name: values for name, values in tables.items()
+            if any(v.endswith(".h") for v in values)}
+    assert junk == {}, f"в таблицах имена файлов: {junk}"
+    assert tables["batteryStateStrings"] == ["OK", "WARNING", "CRITICAL", "NOT PRESENT", "INIT"]
+
+
+def test_defaults_reset_uses_the_factory_values(fc):
+    """`defaults` возвращает именно заводские значения прошивки."""
+    fc.cli_execute("set small_angle = 45")
+    fc.cli_execute("set dyn_idle_p_gain = 20")
+    fc.reset_to_defaults()
+    assert fc.settings["small_angle"] == 25, "imuConfig.small_angle = DEFAULT_SMALL_ANGLE (25)"
+    assert fc.settings["dyn_idle_p_gain"] == 50, "resetPidProfile(): dyn_idle_p_gain = 50"
+    assert fc.settings["max_check"] == 1900, "rxConfig.maxcheck = 1900"
+    assert fc.settings["cpu_overclock"] == 0, "DEFAULT_CPU_OVERCLOCK = 0 для F40X"
