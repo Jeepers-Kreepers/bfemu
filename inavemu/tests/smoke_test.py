@@ -31,8 +31,14 @@ from inavemu.fc import (  # noqa: E402
     MSP_EEPROM_WRITE, MSP_FC_VARIANT, MSP_FC_VERSION, MSP_FEATURE, MSP_MODE_RANGES,
     MSP_NAME, MSP_RC, MSP_RC_DEADBAND, MSP_RX_CONFIG, MSP_RX_MAP,
     MSP_SENSOR_ALIGNMENT, MSP_SENSOR_STATUS, MSP_SET_FEATURE, MSP_SET_MODE_RANGE,
-    MSP_SET_REBOOT, MSP_SET_RX_MAP, MSP_SONAR, MSP_ALTITUDE, MSP_ATTITUDE,
+    MSP_SET_REBOOT, MSP_SET_RX_MAP, MSP_SET_WP, MSP_SONAR, MSP_ALTITUDE,
+    MSP_ATTITUDE,
     MSP_RAW_IMU, MSP_UID, MSP_VTX_CONFIG,
+    MSP_WP, MSP_WP_GETINFO, MSP_WP_MISSION_SAVE,
+    MSP2_BLACKBOX_CONFIG, MSP2_INAV_GEOZONE_VERTEX, MSP2_INAV_LOGIC_CONDITIONS_SINGLE,
+    MSP2_INAV_SAFEHOME, MSP2_INAV_SET_GEOZONE, MSP2_INAV_SET_GEOZONE_VERTICE,
+    MSP2_INAV_SET_LOGIC_CONDITIONS, MSP2_INAV_SET_SAFEHOME,
+    MSP2_SET_BLACKBOX_CONFIG,
     OSD_ITEM_COUNT, OSD_LAYOUT_COUNT,
 )
 from inavemu.fc import InavFC  # noqa: E402
@@ -284,6 +290,45 @@ def main():
         check(api[1] == 2, "второе подключение: MSP API")
         ad = c2.request(MSP2_COMMON_SETTING, b"applied_defaults\x00").payload
         check(ad == b"\x05", "applied_defaults пережил перезагрузку (диалог не вернётся)")
+
+        # --- фаза 3: миссия/WP, safehome, geozone, логика по TCP ---
+        def wp_pack(no, action, lat, lon, alt, flag):
+            return (bytes([no, action]) + struct.pack("<iiI", lat, lon, alt)
+                    + struct.pack("<HHH", 0, 0, 0) + bytes([flag]))
+
+        c2.request(MSP_SET_WP, wp_pack(1, 1, 55755830, 37617380, 5000, 0))
+        c2.request(MSP_SET_WP, wp_pack(2, 1, 55756000, 37618000, 7000, 0))
+        c2.request(MSP_SET_WP, wp_pack(3, 4, 0, 0, 0, 0xA5))
+        info = c2.request(MSP_WP_GETINFO).payload
+        check(info == bytes([0, 120, 1, 3]), f"GETINFO миссии: {info.hex()}")
+        wp2 = c2.request(MSP_WP, bytes([2])).payload
+        check(struct.unpack_from("<iiI", wp2, 2) == (55756000, 37618000, 7000),
+              "MSP_WP вернул сохранённую точку")
+        c2.request(MSP_WP_MISSION_SAVE, bytes([0]))
+        check(True, "MISSION_SAVE принят")
+
+        sh = bytes([0, 1]) + struct.pack("<ii", 55755830, 37617380)
+        c2.request(MSP2_INAV_SET_SAFEHOME, sh)
+        check(c2.request(MSP2_INAV_SAFEHOME, bytes([0])).payload == sh,
+              "safehome round-trip")
+        gz = (bytes([0, 1, 1]) + struct.pack("<ii", 0, 10000)
+              + bytes([0, 0, 2]))
+        c2.request(MSP2_INAV_SET_GEOZONE, gz)
+        v0 = bytes([0, 0]) + struct.pack("<ii", 1, 2)
+        v1 = bytes([0, 1]) + struct.pack("<ii", 3, 4)
+        c2.request(MSP2_INAV_SET_GEOZONE_VERTICE, v0)
+        c2.request(MSP2_INAV_SET_GEOZONE_VERTICE, v1)
+        check(c2.request(MSP2_INAV_GEOZONE_VERTEX, bytes([0, 1])).payload == v1,
+              "geozone vertex round-trip")
+        lc = (bytes([0, 1, 255, 4]) + bytes([1]) + struct.pack("<i", 10)
+              + bytes([1]) + struct.pack("<i", 20) + bytes([0]))
+        c2.request(MSP2_INAV_SET_LOGIC_CONDITIONS, lc)
+        check(c2.request(MSP2_INAV_LOGIC_CONDITIONS_SINGLE, bytes([0])).payload
+              == lc[1:], "logic condition round-trip")
+        bb = bytes([1]) + struct.pack("<HHI", 1, 32, 0)
+        c2.request(MSP2_SET_BLACKBOX_CONFIG, bb)
+        check(c2.request(MSP2_BLACKBOX_CONFIG).payload == bytes([1]) + bb,
+              "blackbox v2 round-trip")
         c2.close()
         c.close()
         server.stop()

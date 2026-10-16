@@ -25,8 +25,12 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 | Настройки | 677 реальных настроек INAV 9.1.0 из `settings.yaml` (типы, min/max, lookup-таблицы, секции профилей) + протокол `MSP2_COMMON_SETTING_INFO` (0x1007), `MSP2_COMMON_SETTING` (0x1003), `MSP2_COMMON_SET_SETTING` (0x1004) |
 | Конфигурация | `MSP_FEATURE`, `MSP2_INAV_MISC`, `MSP2_INAV_BATTERY_CONFIG`, `MSP2_INAV_MIXER`, `MSP2_CF_SERIAL_CONFIG`, `MSP_RX_CONFIG`, `MSP_RX_MAP`, `MSP_RC_DEADBAND`, `MSP2_INAV_RATE_PROFILE`, `MSP_MODE_RANGES` (40), `MSP_ADJUSTMENT_RANGES` (20), `MSP_SENSOR_ALIGNMENT`, `MSP_ADVANCED_CONFIG`, `MSP_VTX_CONFIG`, `MSP_BOARD_ALIGNMENT`, `MSP_CURRENT_METER_CONFIG`, `MSP_LOOP_TIME`, `MSP_INAV_PID` — и их SET-варианты |
 | PID / тюнинг | `MSP2_PID` (11 банков) + `MSP2_SET_PID`, `MSP2_INAV_RATE_DYNAMICS`, `MSP2_INAV_EZ_TUNE`, `MSP_SENSOR_CONFIG`, `MSP2_INAV_SERVO_MIXER` — вкладка PID Tuning |
-| OSD | `MSP2_INAV_OSD_LAYOUTS` (4 раскладки × 165 элементов), `MSP2_INAV_OSD_ALARMS`, `MSP2_INAV_OSD_PREFERENCES`, `MSP2_INAV_CUSTOM_OSD_ELEMENTS`, `MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED` — вкладка OSD открывается и сохраняет позиции |
+| OSD | `MSP2_INAV_OSD_LAYOUTS` (4 раскладки × 169 элементов), `MSP2_INAV_OSD_ALARMS`, `MSP2_INAV_OSD_PREFERENCES`, `MSP2_INAV_CUSTOM_OSD_ELEMENTS`, `MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED` — вкладка OSD открывается и сохраняет позиции (заводская раскладка как в прошивке) |
 | GPS | `MSP_RAW_GPS`, `MSP_COMP_GPS`, `MSP_GPSSTATISTICS`, `MSP2_ADSB_VEHICLE_LIST` — вкладка GPS |
+| Миссии / навигация | `MSP_WP_GETINFO`, `MSP_WP`, `MSP_SET_WP` (21 байт, порядковая загрузка, JUMP p1↔индекс), `MSP_WP_MISSION_LOAD`/`SAVE` (миссия в NVM), `MSP2_INAV_SAFEHOME` (8), `MSP2_INAV_FW_APPROACH` (17), `MSP2_INAV_GEOZONE` + `MSP2_INAV_GEOZONE_VERTEX` (63 зоны / 126 вершин, круговые с радиусом) — вкладка Mission Control загружает и сохраняет миссии |
+| Failsafe | `MSP_FAILSAFE_CONFIG` / `MSP_SET_FAILSAFE_CONFIG` (20 байт) — вкладка Failsafe |
+| Программирование | `MSP2_INAV_LOGIC_CONDITIONS_SINGLE`/`SET` (64 условия + маска `CONFIGURED`), `MSP2_INAV_LOGIC_CONDITIONS_STATUS`, `MSP2_INAV_GVAR_STATUS`, `MSP2_INAV_PROGRAMMING_PID` (+SET/STATUS) — вкладки Programming |
+| Blackbox | `MSP2_BLACKBOX_CONFIG` / `MSP2_SET_BLACKBOX_CONFIG` (9 байт), `MSP_DATAFLASH_SUMMARY`/`READ`/`ERASE`, `MSP_SDCARD_SUMMARY` — вкладка Onboard Logging (Blackbox) |
 | Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c` |
 | CLI | «сырой» CLI-порт (`#`, эхо, приглашение `# `, TAB-автодополнение, CTRL-D/CTRL-L): **62 команды `cmdTable[]` прошивки** — `help`, `version`, `status`, `tasks`, `get`, `set`, `dump`, `diff`, `defaults`, `save`, `exit`, `feature`, `serial`, `aux`, `adjrange`, `map`, `mmix`, `smix`, `servo`, `motor`, `pid`, `wp`, `resource`, `batch`…; `save`/`exit`/`defaults` печатают «Rebooting» и рвут линк |
 | «Флеш» | `MSP_EEPROM_WRITE` и CLI `save` пишут конфигурацию в `inav_eeprom.json`; после перезагрузки (`MSP_SET_REBOOT` — линк рвётся) она поднимается обратно |
@@ -122,9 +126,9 @@ inavemu/
 └── tests/                # pytest + smoke_test.py
 ```
 
-Планируемое (фаза 3): навигация и миссии (`MSP_SET_WP`, Mission Control,
-полноценные `wp`/`geozone`/`safehome`), failsafe, логические условия,
-программирование (logic conditions / gvar), blackbox-файлы.
+Фаза 3 реализована: миссии Mission Control (`MSP_SET_WP`, `wp`/`geozone`/`safehome`),
+failsafe, логические условия и программирование (logic conditions / gvar),
+blackbox-вкладка. Дальше — доводка по результатам проверок с реальным Configurator.
 
 ## Лицензия
 

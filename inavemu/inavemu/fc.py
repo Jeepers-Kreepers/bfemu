@@ -52,6 +52,7 @@ MSP_LOOP_TIME = 73
 MSP_SET_LOOP_TIME = 74
 MSP_FAILSAFE_CONFIG = 75
 MSP_SET_FAILSAFE_CONFIG = 76
+MSP_SDCARD_SUMMARY = 79
 MSP_BLACKBOX_CONFIG = 80
 MSP_SET_BLACKBOX_CONFIG = 81
 MSP_VTX_CONFIG = 88
@@ -137,6 +138,24 @@ MSP2_INAV_OSD_PREFERENCES = 0x2016
 MSP2_INAV_OSD_SET_PREFERENCES = 0x2017
 MSP2_INAV_SERVO_MIXER = 0x2020
 MSP2_INAV_SET_SERVO_MIXER = 0x2021
+MSP2_INAV_LOGIC_CONDITIONS = 0x2022          # устарел: прошивка отвечает ошибкой
+MSP2_INAV_SET_LOGIC_CONDITIONS = 0x2023
+MSP2_INAV_LOGIC_CONDITIONS_STATUS = 0x2026
+MSP2_INAV_GVAR_STATUS = 0x2027
+MSP2_INAV_PROGRAMMING_PID = 0x2028
+MSP2_INAV_SET_PROGRAMMING_PID = 0x2029
+MSP2_INAV_PROGRAMMING_PID_STATUS = 0x202A
+MSP2_INAV_SAFEHOME = 0x2038
+MSP2_INAV_SET_SAFEHOME = 0x2039
+MSP2_INAV_LOGIC_CONDITIONS_SINGLE = 0x203B
+MSP2_INAV_FW_APPROACH = 0x204A
+MSP2_INAV_SET_FW_APPROACH = 0x204B
+MSP2_INAV_GEOZONE = 0x2210
+MSP2_INAV_SET_GEOZONE = 0x2211
+MSP2_INAV_GEOZONE_VERTEX = 0x2212
+MSP2_INAV_SET_GEOZONE_VERTICE = 0x2213
+MSP_WP_MISSION_LOAD = 18
+MSP_WP_MISSION_SAVE = 19
 MSP_WP_GETINFO = 20
 MSP_WP = 118
 MSP_SET_WP = 209
@@ -325,8 +344,52 @@ class InavFC:
             "right_sidebar_scroll": 0, "sidebar_scroll_arrows": 0,
             "units": 0, "stats_energy_unit": 0, "adsb_warning_style": 0,
         }
+        # --- фаза 3: навигация, safehome, geozone, логика, blackbox ---
+        # миссия: список WP, нумерация с 1 (0 = HOME, 255 = «куда лететь сейчас»)
         self.wp_count = 0
-        self.wp_max = 15
+        self.wp_max = 120                # NAV_MAX_WAYPOINTS (target/common.h)
+        self.waypoints = []              # [{action,lat,lon,alt,p1,p2,p3,flag}, ...]
+        self.waypoint_list_valid = False
+        self.mission_nv = None           # «NVM»: сохранённая миссия (MISSION_SAVE)
+        self.home = {"lat": 0, "lon": 0, "alt": 0}
+        # safehome: MAX_SAFE_HOMES = 8
+        self.safehomes = [
+            {"enabled": 0, "lat": 0, "lon": 0} for _ in range(8)
+        ]
+        # fw-approach: MAX_FW_LAND_APPOACH_SETTINGS = MAX_SAFE_HOMES + 9 = 17
+        self.fw_approaches = [
+            {"approach_alt": 0, "land_alt": 0, "direction": 0,
+             "heading1": 0, "heading2": 0, "sea_level_ref": 0}
+            for _ in range(17)
+        ]
+        # geozone: MAX_GEOZONES_IN_CONFIG = 63, MAX_VERTICES_IN_CONFIG = 126
+        self.geozones = [
+            {"type": 0, "shape": 0, "min_alt": 0, "max_alt": 0,
+             "sea_level_ref": 0, "fence_action": 0, "vertex_count": 0,
+             "vertices": []}
+            for _ in range(63)
+        ]
+        # логические условия: MAX_LOGIC_CONDITIONS = 64
+        self.logic_conditions = [
+            {"enabled": 0, "activator": 255, "operation": 0,
+             "a_type": 0, "a_value": 0, "b_type": 0, "b_value": 0, "flags": 0}
+            for _ in range(64)
+        ]
+        # programming PID: MAX_PROGRAMMING_PID_COUNT = 4
+        self.programming_pids = [
+            {"enabled": 0, "sp_type": 0, "sp_value": 0,
+             "meas_type": 0, "meas_value": 0,
+             "p": 0, "i": 0, "d": 0, "ff": 0}
+            for _ in range(4)
+        ]
+        self.gvars = [0] * 8             # MAX_GLOBAL_VARIABLES
+        self.failsafe_extra = {}         # поля failsafe не из settings.yaml
+        # blackbox + виртуальный флеш
+        self.blackbox = {"device": 0, "rate_num": 1, "rate_denom": 32,
+                         "include_flags": 0}
+        self.flash_sectors = 4096
+        self.flash_total = 16 * 1024 * 1024
+        self.flash_used = 0
 
         # режимы (mode ranges / adjustment ranges)
         self.mode_ranges = [
@@ -373,6 +436,22 @@ class InavFC:
                 self.mixer.update(data.get("mixer", {}))
                 self.mode_ranges = data.get("mode_ranges", self.mode_ranges)
                 self.adjustment_ranges = data.get("adjustment_ranges", self.adjustment_ranges)
+                self.waypoints = data.get("waypoints", self.waypoints)
+                self.waypoint_list_valid = data.get("waypoint_list_valid",
+                                                    self.waypoint_list_valid)
+                self.mission_nv = data.get("mission_nv", self.mission_nv)
+                self.safehomes = data.get("safehomes", self.safehomes)
+                self.fw_approaches = data.get("fw_approaches", self.fw_approaches)
+                self.geozones = data.get("geozones", self.geozones)
+                self.logic_conditions = data.get("logic_conditions",
+                                                 self.logic_conditions)
+                self.programming_pids = data.get("programming_pids",
+                                                 self.programming_pids)
+                self.gvars = data.get("gvars", self.gvars)
+                self.failsafe_extra = data.get("failsafe_extra",
+                                               self.failsafe_extra)
+                self.blackbox.update(data.get("blackbox", {}))
+                self.flash_used = data.get("flash_used", self.flash_used)
                 for name, val in (data.get("settings") or {}).items():
                     self.store.set(name, val)
             except Exception as exc:  # noqa: BLE001
@@ -394,6 +473,18 @@ class InavFC:
             "rate_profile": self.rate_profile, "mixer": self.mixer,
             "mode_ranges": self.mode_ranges,
             "adjustment_ranges": self.adjustment_ranges,
+            "waypoints": self.waypoints,
+            "waypoint_list_valid": self.waypoint_list_valid,
+            "mission_nv": self.mission_nv,
+            "safehomes": self.safehomes,
+            "fw_approaches": self.fw_approaches,
+            "geozones": self.geozones,
+            "logic_conditions": self.logic_conditions,
+            "programming_pids": self.programming_pids,
+            "gvars": self.gvars,
+            "failsafe_extra": self.failsafe_extra,
+            "blackbox": self.blackbox,
+            "flash_used": self.flash_used,
             "settings": self.store.values,
         }
         self.eeprom_path.write_text(json.dumps(data, ensure_ascii=False, indent=1),
@@ -513,10 +604,14 @@ class InavFC:
             MSP_SET_RTC: self._ack,
             MSP_RTC: self._msp_rtc,
             MSP_PIDNAMES: lambda p: b"ROLL;PITCH;YAW;ALT;PosH;POSR;NAVR;LEVEL;MAG;VEL;",
-            MSP_BLACKBOX_CONFIG: self._msp_blackbox_config,
-            MSP_SET_BLACKBOX_CONFIG: self._ack,
-            MSP2_BLACKBOX_CONFIG: self._msp_blackbox_config,
-            MSP2_SET_BLACKBOX_CONFIG: self._ack,
+            MSP_BLACKBOX_CONFIG: self._msp_blackbox_config_v1,
+            MSP2_BLACKBOX_CONFIG: self._msp2_blackbox_config,
+            MSP2_SET_BLACKBOX_CONFIG: self._msp2_set_blackbox_config,
+            MSP_SDCARD_SUMMARY: self._msp_sdcard_summary,
+            MSP_FAILSAFE_CONFIG: self._msp_failsafe_config,
+            MSP_SET_FAILSAFE_CONFIG: self._msp_set_failsafe_config,
+            MSP_DATAFLASH_READ: self._msp_dataflash_read,
+            MSP_DATAFLASH_ERASE: self._msp_dataflash_erase,
             MSP2_COMMON_MOTOR_MIXER: self._msp2_motor_mixer,
             MSP2_COMMON_SET_MOTOR_MIXER: self._msp2_set_motor_mixer,
             MSP2_INAV_SELECT_BATTERY_PROFILE: self._msp2_select_battery_profile,
@@ -542,10 +637,28 @@ class InavFC:
             MSP2_INAV_CUSTOM_OSD_ELEMENTS: self._msp2_custom_osd_elements,
             MSP2_INAV_CUSTOM_OSD_ELEMENT: self._msp2_custom_osd_element,
             MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS: self._ack,
-            MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED: lambda p: b"\x00" * 8,
+            MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED: self._msp2_logic_conditions_configured,
+            MSP2_INAV_LOGIC_CONDITIONS: self._msp2_logic_conditions_deprecated,
+            MSP2_INAV_SET_LOGIC_CONDITIONS: self._msp2_set_logic_condition,
+            MSP2_INAV_LOGIC_CONDITIONS_STATUS: lambda p: b"".join(i32(0) for _ in range(64)),
+            MSP2_INAV_LOGIC_CONDITIONS_SINGLE: self._msp2_logic_condition_single,
+            MSP2_INAV_GVAR_STATUS: lambda p: b"".join(i32(v) for v in self.gvars),
+            MSP2_INAV_PROGRAMMING_PID: self._msp2_programming_pid,
+            MSP2_INAV_SET_PROGRAMMING_PID: self._msp2_set_programming_pid,
+            MSP2_INAV_PROGRAMMING_PID_STATUS: lambda p: b"".join(i32(0) for _ in range(4)),
+            MSP2_INAV_SAFEHOME: self._msp2_safehome,
+            MSP2_INAV_SET_SAFEHOME: self._msp2_set_safehome,
+            MSP2_INAV_FW_APPROACH: self._msp2_fw_approach,
+            MSP2_INAV_SET_FW_APPROACH: self._msp2_set_fw_approach,
+            MSP2_INAV_GEOZONE: self._msp2_geozone,
+            MSP2_INAV_SET_GEOZONE: self._msp2_set_geozone,
+            MSP2_INAV_GEOZONE_VERTEX: self._msp2_geozone_vertex,
+            MSP2_INAV_SET_GEOZONE_VERTICE: self._msp2_set_geozone_vertex,
             MSP_WP_GETINFO: self._msp_wp_getinfo,
             MSP_WP: self._msp_wp,
-            MSP_SET_WP: self._ack,
+            MSP_SET_WP: self._msp_set_wp,
+            MSP_WP_MISSION_LOAD: self._msp_wp_mission_load,
+            MSP_WP_MISSION_SAVE: self._msp_wp_mission_save,
             MSP_DEBUGMSG: lambda p: b"",
             MSP_DEBUG: lambda p: b"\x00" * 8,
         }
@@ -619,7 +732,29 @@ class InavFC:
         return bytes([1, 0, 0, 0, 0, 0, 0, 0, 0])
 
     def _msp_dataflash_summary(self, _p):
-        return u8(0b11) + u32(0) + u32(0) + u32(0)  # ready+supported, пусто
+        # flashfs: ready + sectors + totalSize + usedSize
+        return u8(1) + u32(self.flash_sectors) + u32(self.flash_total) + u32(self.flash_used)
+
+    def _msp_dataflash_read(self, p):
+        # [addr u32][len u16?] -> [addr u32][data]; размер по умолчанию 128
+        if len(p) < 4:
+            raise MSPError("DATAFLASH_READ: нет адреса")
+        addr = int.from_bytes(p[:4], "little")
+        read_len = int.from_bytes(p[4:6], "little") if len(p) >= 6 else 128
+        if addr >= self.flash_total:
+            read_len = 0
+        else:
+            read_len = min(read_len, self.flash_total - addr, 4096)
+        return u32(addr) + bytes(read_len)  # флеш пустой — читаются нули
+
+    def _msp_dataflash_erase(self, _p):
+        self.flash_used = 0
+        self._log("dataflash: стёрт")
+        return b""
+
+    def _msp_sdcard_summary(self, _p):
+        # [flags][state][fsError][freeKB u32][totalKB u32] — карты нет
+        return u8(0) + u8(0) + u8(0) + u32(0) + u32(0)
 
     # --- датчики ---
     def _msp_raw_imu(self, _p):
@@ -1032,8 +1167,25 @@ class InavFC:
         now = time.time()
         return u32(int(now)) + u16(int((now % 1) * 1000))
 
-    def _msp_blackbox_config(self, _p):
-        return u8(0) + u8(0) + u8(1) + u8(32)  # не поддерживается
+    def _msp_blackbox_config_v1(self, _p):
+        return u8(0) + u8(0) + u8(0) + u8(0)  # «API no longer supported»
+
+    def _msp2_blackbox_config(self, _p):
+        bb = self.blackbox
+        return (u8(1) + u8(bb["device"]) + u16(bb["rate_num"])
+                + u16(bb["rate_denom"]) + u32(bb["include_flags"]))
+
+    def _msp2_set_blackbox_config(self, p):
+        if len(p) != 9:
+            raise MSPError("SET_BLACKBOX_CONFIG: ожидается 9 байт")
+        self.blackbox.update({
+            "device": p[0],
+            "rate_num": int.from_bytes(p[1:3], "little"),
+            "rate_denom": int.from_bytes(p[3:5], "little"),
+            "include_flags": int.from_bytes(p[5:9], "little"),
+        })
+        self._log(f"blackbox: {self.blackbox}")
+        return b""
 
     # ------------------------------------------------------------------
     # фаза 2: PID, динамика рулений, ez-tune, датчики, GPS, OSD, миссии
@@ -1211,11 +1363,325 @@ class InavFC:
         return u8(0) + u16(0)
 
     def _msp_wp_getinfo(self, _p):
-        return u8(0) + u8(self.wp_max) + u8(0) + u8(self.wp_count)
+        # [reserved][NAV_MAX_WAYPOINTS][valid][count]
+        return u8(0) + u8(self.wp_max) + u8(self.waypoint_list_valid) + u8(len(self.waypoints))
+
+    def _wp_pack(self, no, wp):
+        action = wp["action"]
+        p1 = wp["p1"] + 1 if action == 6 else wp["p1"]  # JUMP: индекс → № WP
+        return (u8(no) + u8(action) + i32(wp["lat"]) + i32(wp["lon"])
+                + i32(wp["alt"]) + u16(p1) + u16(wp["p2"]) + u16(wp["p3"])
+                + u8(wp["flag"]))
 
     def _msp_wp(self, p):
         if len(p) < 1:
             raise MSPError("WP: нет индекса")
+        no = p[0]
+        # как getWaypoint() в navigation.c: по умолчанию RTH + LAST
+        default = {"action": 4, "lat": 0, "lon": 0, "alt": 0,
+                   "p1": 0, "p2": 0, "p3": 0, "flag": 0xA5}
+        if no == 0:
+            wp = dict(default, **self.home, action=4, flag=0xA5)
+        elif 1 <= no <= len(self.waypoints):
+            wp = self.waypoints[no - 1]
+        else:
+            wp = default
+        return self._wp_pack(no, wp)
+
+    def _msp_set_wp(self, p):
+        # ровно 21 байт: [no][action][lat][lon][alt][p1][p2][p3][flag]
+        if len(p) != 21:
+            raise MSPError("SET_WP: ожидается 21 байт")
+        no = p[0]
+        wp = {"action": p[1],
+              "lat": int.from_bytes(p[2:6], "little", signed=True),
+              "lon": int.from_bytes(p[6:10], "little", signed=True),
+              "alt": int.from_bytes(p[10:14], "little", signed=True),
+              "p1": int.from_bytes(p[14:16], "little"),
+              "p2": int.from_bytes(p[16:18], "little"),
+              "p3": int.from_bytes(p[18:20], "little"),
+              "flag": p[20]}
+        if no == 0:
+            self.home = {"lat": wp["lat"], "lon": wp["lon"], "alt": wp["alt"]}
+            return b""
+        allowed = {1, 3, 4, 5, 6, 7, 8}
+        if not (1 <= no <= self.wp_max) or wp["action"] not in allowed:
+            return b""  # прошивка молча игнорирует
+        # загрузка только по порядку: №1 (новая миссия) или № count+1
+        if no != len(self.waypoints) + 1 and no != 1:
+            return b""
+        if no == 1:
+            self.waypoints = []
+            self.waypoint_list_valid = False
+        if wp["action"] == 6:  # JUMP: № WP → индекс
+            wp["p1"] = (wp["p1"] - 1) & 0xFFFF
+        self.waypoints.append(wp)
+        self.waypoint_list_valid = (wp["flag"] == 0xA5)
+        return b""
+
+    def _msp_wp_mission_load(self, p):
+        # [mission id] (зарезервирован, у прошивки одна миссия в NVM)
+        if len(p) != 1:
+            raise MSPError("MISSION_LOAD: ожидается 1 байт")
+        if self.mission_nv is None:
+            raise MSPError("MISSION_LOAD: в NVM нет миссии")
+        self.waypoints = [dict(wp) for wp in self.mission_nv]
+        self.waypoint_list_valid = any(wp["flag"] == 0xA5 for wp in self.waypoints)
+        if not self.waypoint_list_valid:
+            self.waypoints = []
+            raise MSPError("MISSION_LOAD: миссия повреждена")
+        self._log(f"миссия загружена из NVM: {len(self.waypoints)} WP")
+        return b""
+
+    def _msp_wp_mission_save(self, p):
+        if len(p) != 1:
+            raise MSPError("MISSION_SAVE: ожидается 1 байт")
+        if not self.waypoint_list_valid:
+            raise MSPError("MISSION_SAVE: миссия не помечена LAST-флагом")
+        self.mission_nv = [dict(wp) for wp in self.waypoints]
+        self.save_eeprom()
+        self._log(f"миссия сохранена в NVM: {len(self.mission_nv)} WP")
+        return b""
+
+    # --- failsafe (MSP 75/76) ---
+    _FAILSAFE_FIELDS = [
+        ("failsafe_delay", "B"), ("failsafe_off_delay", "B"),
+        ("failsafe_throttle", "H"), (None, "B"),  # был failsafe_kill_switch
+        ("failsafe_throttle_low_delay", "H"), ("failsafe_procedure", "B"),
+        ("failsafe_recovery_delay", "B"), ("failsafe_fw_roll_angle", "h"),
+        ("failsafe_fw_pitch_angle", "h"), ("failsafe_fw_yaw_rate", "h"),
+        ("failsafe_stick_motion_threshold", "H"), ("failsafe_min_distance", "H"),
+        ("failsafe_min_distance_procedure", "B"),
+    ]
+
+    def _msp_failsafe_config(self, _p):
+        out = b""
+        for name, fmt in self._FAILSAFE_FIELDS:
+            if name is None:
+                val = 0
+            elif name in self.store.by_name:
+                val = self.store.get(name)
+            else:
+                val = self.failsafe_extra.get(name, 0)  # не settings.yaml
+            out += struct.pack("<" + fmt, int(val or 0))
+        return out
+
+    def _msp_set_failsafe_config(self, p):
+        if len(p) != 20:
+            raise MSPError("SET_FAILSAFE_CONFIG: ожидается 20 байт")
+        off = 0
+        for name, fmt in self._FAILSAFE_FIELDS:
+            size = struct.calcsize("<" + fmt)
+            val = struct.unpack_from("<" + fmt, p, off)[0]
+            off += size
+            if name is None:
+                continue
+            if name in self.store.by_name:
+                self.store.set(name, val)
+            else:
+                self.failsafe_extra[name] = val
+        self._log("failsafe: конфигурация обновлена")
+        return b""
+
+    # --- safehome (0x2038/0x2039) ---
+    def _msp2_safehome(self, p):
+        if len(p) < 1:
+            raise MSPError("SAFEHOME: нет индекса")
+        no = p[0]
+        if no >= len(self.safehomes):
+            raise MSPError("SAFEHOME: индекс вне диапазона")
+        sh = self.safehomes[no]
+        return u8(no) + u8(sh["enabled"]) + i32(sh["lat"]) + i32(sh["lon"])
+
+    def _msp2_set_safehome(self, p):
+        if len(p) != 10:
+            raise MSPError("SET_SAFEHOME: ожидается 10 байт")
+        no = p[0]
+        if no >= len(self.safehomes):
+            raise MSPError("SET_SAFEHOME: индекс вне диапазона")
+        self.safehomes[no] = {
+            "enabled": p[1],
+            "lat": int.from_bytes(p[2:6], "little", signed=True),
+            "lon": int.from_bytes(p[6:10], "little", signed=True),
+        }
+        return b""
+
+    # --- fw-approach (0x204A/0x204B) ---
+    def _msp2_fw_approach(self, p):
+        if len(p) < 1:
+            raise MSPError("FW_APPROACH: нет индекса")
         idx = p[0]
-        return (u8(idx) + u8(0) + i32(0) + i32(0) + i32(0)
-                + i16(0) + i16(0) + i16(0) + u8(0))
+        if idx >= len(self.fw_approaches):
+            raise MSPError("FW_APPROACH: индекс вне диапазона")
+        fw = self.fw_approaches[idx]
+        return (u8(idx) + i32(fw["approach_alt"]) + i32(fw["land_alt"])
+                + u8(fw["direction"]) + i16(fw["heading1"]) + i16(fw["heading2"])
+                + u8(fw["sea_level_ref"]))
+
+    def _msp2_set_fw_approach(self, p):
+        if len(p) != 15:
+            raise MSPError("SET_FW_APPROACH: ожидается 15 байт")
+        idx = p[0]
+        if idx >= len(self.fw_approaches):
+            raise MSPError("SET_FW_APPROACH: индекс вне диапазона")
+        self.fw_approaches[idx] = {
+            "approach_alt": int.from_bytes(p[1:5], "little", signed=True),
+            "land_alt": int.from_bytes(p[5:9], "little", signed=True),
+            "direction": p[9],
+            "heading1": int.from_bytes(p[10:12], "little", signed=True),
+            "heading2": int.from_bytes(p[12:14], "little", signed=True),
+            "sea_level_ref": p[14],
+        }
+        return b""
+
+    # --- geozone (0x2210-0x2213) ---
+    def _msp2_geozone(self, p):
+        if len(p) < 1:
+            raise MSPError("GEOZONE: нет индекса")
+        idx = p[0]
+        if idx >= len(self.geozones):
+            raise MSPError("GEOZONE: индекс вне диапазона")
+        gz = self.geozones[idx]
+        # vertexCount — конфиг-поле (пишется в SET_GEOZONE), не len(vertices)
+        return (u8(idx) + u8(gz["type"]) + u8(gz["shape"])
+                + i32(gz["min_alt"]) + i32(gz["max_alt"])
+                + u8(gz["sea_level_ref"]) + u8(gz["fence_action"])
+                + u8(gz.get("vertex_count", 0)))
+
+    def _msp2_set_geozone(self, p):
+        if len(p) != 14:
+            raise MSPError("SET_GEOZONE: ожидается 14 байт")
+        idx = p[0]
+        if idx >= len(self.geozones):
+            raise MSPError("SET_GEOZONE: индекс вне диапазона")
+        # как в прошивке: SET_GEOZONE сбрасывает вершины зоны
+        self.geozones[idx] = {
+            "type": p[1], "shape": p[2],
+            "min_alt": int.from_bytes(p[3:7], "little", signed=True),
+            "max_alt": int.from_bytes(p[7:11], "little", signed=True),
+            "sea_level_ref": p[11], "fence_action": p[12],
+            "vertex_count": p[13], "vertices": [],
+        }
+        return b""
+
+    def _geozone_find_vertex(self, zone, vertex_id):
+        for v in zone["vertices"]:
+            if v["idx"] == vertex_id:
+                return v
+        return None
+
+    def _msp2_geozone_vertex(self, p):
+        if len(p) < 2:
+            raise MSPError("GEOZONE_VERTEX: нужны zoneId и vertexId")
+        zone_id, vertex_id = p[0], p[1]
+        if zone_id >= len(self.geozones):
+            raise MSPError("GEOZONE_VERTEX: зона вне диапазона")
+        zone = self.geozones[zone_id]
+        v = self._geozone_find_vertex(zone, vertex_id)
+        if v is None:
+            raise MSPError("GEOZONE_VERTEX: вершины нет")
+        out = u8(zone_id) + u8(v["idx"]) + i32(v["lat"]) + i32(v["lon"])
+        if zone["shape"] == 0:  # CIRCULAR: радиус хранится в вершине №+1
+            r = self._geozone_find_vertex(zone, vertex_id + 1)
+            if r is None:
+                raise MSPError("GEOZONE_VERTEX: нет радиуса")
+            out += u32(r["lat"])
+        return out
+
+    def _msp2_set_geozone_vertex(self, p):
+        # 10 байт [zone][vertex][lat][lon]; для CIRCULAR +4 байта радиуса
+        if len(p) not in (10, 14):
+            raise MSPError("SET_GEOZONE_VERTEX: ожидается 10 или 14 байт")
+        zone_id, vertex_id = p[0], p[1]
+        if zone_id >= len(self.geozones):
+            raise MSPError("SET_GEOZONE_VERTEX: зона вне диапазона")
+        if vertex_id >= 126:
+            raise MSPError("SET_GEOZONE_VERTEX: вершина вне диапазона")
+        zone = self.geozones[zone_id]
+        lat = int.from_bytes(p[2:6], "little", signed=True)
+        lon = int.from_bytes(p[6:10], "little", signed=True)
+        self._geozone_put_vertex(zone, vertex_id, lat, lon)
+        if zone["shape"] == 0 and len(p) == 14:
+            radius = int.from_bytes(p[10:14], "little")
+            self._geozone_put_vertex(zone, vertex_id + 1, radius, 0)
+        return b""
+
+    def _geozone_put_vertex(self, zone, vertex_id, lat, lon):
+        v = self._geozone_find_vertex(zone, vertex_id)
+        if v is not None:
+            v.update({"lat": lat, "lon": lon})
+        else:
+            zone["vertices"].append({"idx": vertex_id, "lat": lat, "lon": lon})
+
+    # --- логические условия (0x2022-0x2026, 0x203B/0x203C) ---
+    def _msp2_logic_conditions_deprecated(self, _p):
+        # прошивка: «Deprecated, causes buffer overflow»
+        raise MSPError("LOGIC_CONDITIONS: устаревшая команда")
+
+    def _logic_pack(self, lc):
+        return (u8(lc["enabled"]) + u8(lc["activator"]) + u8(lc["operation"])
+                + u8(lc["a_type"]) + i32(lc["a_value"])
+                + u8(lc["b_type"]) + i32(lc["b_value"]) + u8(lc["flags"]))
+
+    def _msp2_logic_condition_single(self, p):
+        if len(p) < 1:
+            raise MSPError("LOGIC_CONDITIONS_SINGLE: нет индекса")
+        idx = p[0]
+        if idx >= len(self.logic_conditions):
+            raise MSPError("LOGIC_CONDITIONS_SINGLE: индекс вне диапазона")
+        return self._logic_pack(self.logic_conditions[idx])
+
+    def _msp2_set_logic_condition(self, p):
+        # [idx] + 14 байт записи
+        if len(p) != 15:
+            raise MSPError("SET_LOGIC_CONDITIONS: ожидается 15 байт")
+        idx = p[0]
+        if idx >= len(self.logic_conditions):
+            raise MSPError("SET_LOGIC_CONDITIONS: индекс вне диапазона")
+        self.logic_conditions[idx] = {
+            "enabled": p[1], "activator": p[2], "operation": p[3],
+            "a_type": p[4], "a_value": int.from_bytes(p[5:9], "little", signed=True),
+            "b_type": p[9], "b_value": int.from_bytes(p[10:14], "little", signed=True),
+            "flags": p[14],
+        }
+        return b""
+
+    def _msp2_logic_conditions_configured(self, _p):
+        # 8-байтная маска: бит N = 1, если условие N отличается от дефолта
+        mask = 0
+        for i, lc in enumerate(self.logic_conditions[:64]):
+            configured = (lc["enabled"] != 0 or lc["activator"] != 255
+                          or lc["operation"] != 0 or lc["a_type"] != 0
+                          or lc["a_value"] != 0 or lc["b_type"] != 0
+                          or lc["b_value"] != 0 or lc["flags"] != 0)
+            if configured:
+                mask |= 1 << i
+        return u32(mask & 0xFFFFFFFF) + u32(mask >> 32)
+
+    # --- programming PID (0x2028-0x202A) ---
+    def _programming_pid_pack(self, pid):
+        return (u8(pid["enabled"]) + u8(pid["sp_type"]) + i32(pid["sp_value"])
+                + u8(pid["meas_type"]) + i32(pid["meas_value"])
+                + u16(pid["p"]) + u16(pid["i"]) + u16(pid["d"]) + u16(pid["ff"]))
+
+    def _msp2_programming_pid(self, _p):
+        return b"".join(self._programming_pid_pack(pid)
+                        for pid in self.programming_pids)
+
+    def _msp2_set_programming_pid(self, p):
+        if len(p) != 20:
+            raise MSPError("SET_PROGRAMMING_PID: ожидается 20 байт")
+        idx = p[0]
+        if idx >= len(self.programming_pids):
+            raise MSPError("SET_PROGRAMMING_PID: индекс вне диапазона")
+        self.programming_pids[idx] = {
+            "enabled": p[1], "sp_type": p[2],
+            "sp_value": int.from_bytes(p[3:7], "little", signed=True),
+            "meas_type": p[7],
+            "meas_value": int.from_bytes(p[8:12], "little", signed=True),
+            "p": int.from_bytes(p[12:14], "little"),
+            "i": int.from_bytes(p[14:16], "little"),
+            "d": int.from_bytes(p[16:18], "little"),
+            "ff": int.from_bytes(p[18:20], "little"),
+        }
+        return b""
