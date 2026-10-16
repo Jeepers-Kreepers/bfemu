@@ -41,6 +41,7 @@ class SettingsStore:
         self.features = data.get("features", [])
         self.boxes = data.get("boxes", [])
         self.serial = data.get("serial", {})
+        self.osd_layout_defaults = data.get("osd_layout_defaults", [])
         self.settings = data["settings"]
         self.by_name = {s["name"]: s for s in self.settings}
         self.by_index = {s["index"]: s for s in self.settings} if "index" in self.settings[0] \

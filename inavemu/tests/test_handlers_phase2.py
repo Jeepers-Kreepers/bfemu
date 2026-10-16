@@ -112,6 +112,20 @@ def test_osd_layout_counts(fc):
     assert head == bytes([OSD_LAYOUT_COUNT, OSD_ITEM_COUNT])
 
 
+def test_osd_default_layout(fc):
+    """Заводская раскладка прошивки: layout 0 из pgResetFn_osdLayoutsConfig,
+    раскладки 1..3 пустые (всё скрыто) — как на новом FC."""
+    l0 = ask(fc, MSP2_INAV_OSD_LAYOUTS, bytes([0]))
+    vals = struct.unpack(f"<{OSD_ITEM_COUNT}H", l0)
+    visible = [i for i, v in enumerate(vals) if v & 0x2000]
+    assert visible == [0, 1, 7, 9, 11, 12, 14, 15, 28, 30]
+    assert vals[0] == 0x2000 | (0 << 6) | 23  # OSD_RSSI_VALUE: POS(23,0)|VISIBLE
+    assert vals[1] == 0x2000 | (0 << 6) | 12  # OSD_MAIN_BATT_VOLTAGE: POS(12,0)|VISIBLE
+    for layout in (1, 2, 3):
+        data = ask(fc, MSP2_INAV_OSD_LAYOUTS, bytes([layout]))
+        assert data == b"\x00" * (OSD_ITEM_COUNT * 2)
+
+
 def test_osd_layout_items(fc):
     layout = ask(fc, MSP2_INAV_OSD_LAYOUTS, bytes([0]))
     assert len(layout) == OSD_ITEM_COUNT * 2

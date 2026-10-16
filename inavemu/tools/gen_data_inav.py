@@ -606,6 +606,49 @@ def build_settings(repo: Path, cfg: dict, consts: dict):
     return settings, tables, warnings
 
 
+def extract_osd_layout_defaults(repo: Path):
+    """Дефолтная раскладка OSD (layout 0) из pgResetFn_osdLayoutsConfig (io/osd.c).
+
+    Позиции элементов не лежат в settings.yaml — их задаёт сброс PG в osd.c:
+    `item_pos[0][OSD_X] = OSD_POS(x, y) [| OSD_VISIBLE_FLAG]`. Порядок id —
+    enum osd_items_e из io/osd.h. Раскладки 1..3 сбросом не трогаются (нули).
+    """
+    osd_h = (repo / "src/main/io/osd.h").read_text(errors="ignore")
+    osd_c = (repo / "src/main/io/osd.c").read_text(errors="ignore")
+
+    m = re.search(r"typedef enum\s*\{(.*?)\}\s*osd_items_e;", osd_h, re.S)
+    if not m:
+        sys.exit("[gen] не найден enum osd_items_e в io/osd.h")
+    body = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    names = []
+    for part in body.split(","):
+        mm = re.search(r"(OSD_[A-Z0-9_]+)", part.strip())
+        if mm:
+            names.append(mm.group(1))
+    if not names or names[-1] != "OSD_ITEM_COUNT":
+        sys.exit("[gen] enum osd_items_e не заканчивается OSD_ITEM_COUNT")
+    names = names[:-1]  # OSD_ITEM_COUNT — счётчик, не элемент
+    ids = {n: i for i, n in enumerate(names)}
+
+    fn = osd_c[osd_c.index("pgResetFn_osdLayoutsConfig"):]
+    fn = fn[: fn.index("\n}", fn.index("{"))]
+    pat = re.compile(
+        r"item_pos\[0\]\[(OSD_[A-Z0-9_]+)\]\s*=\s*OSD_POS\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)"
+        r"\s*(\|\s*OSD_VISIBLE_FLAG)?\s*;")
+    defaults = [0] * len(names)
+    for name, x, y, vis in pat.findall(fn):
+        if name not in ids:
+            continue
+        val = (int(x) & 0x3F) | ((int(y) & 0x3F) << 6)
+        if vis:
+            val |= 0x2000
+        defaults[ids[name]] = val
+    print(f"[gen] OSD: элементов {len(names)}, "
+          f"видимых по умолчанию {sum(1 for v in defaults if v & 0x2000)}")
+    return defaults
+
+
 def extract_boxes(repo: Path):
     text = (repo / "src/main/fc/fc_msp_box.c").read_text(errors="ignore")
     boxes = []
@@ -681,6 +724,7 @@ def main():
     boxes = extract_boxes(repo)
     features = extract_features(configurator)
     serial = extract_serial_functions(configurator)
+    osd_layout_defaults = extract_osd_layout_defaults(repo)
 
     data = {
         "source": {
@@ -694,6 +738,7 @@ def main():
         "features": features,
         "boxes": boxes,
         "serial": serial if isinstance(serial, dict) else {"functions": [], "port_identifiers": {}},
+        "osd_layout_defaults": osd_layout_defaults,
     }
 
     out = Path(args.output) if args.output else (

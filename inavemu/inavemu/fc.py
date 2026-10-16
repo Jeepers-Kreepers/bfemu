@@ -144,7 +144,7 @@ MSP_SET_RESET_CURR_PID = 219
 MSP_GPSSTATISTICS = 166
 
 OSD_LAYOUT_COUNT = 4
-OSD_ITEM_COUNT = 165
+OSD_ITEM_COUNT = 169   # OSD_ITEM_COUNT из io/osd.h (enum osd_items_e, INAV 9.1.0)
 
 # Ёмкости generic-таргета INAV (flight/mixer.h, flight/servos.h). Прошивка отдаёт
 # именно их в MSP2_INAV_MIXER как numberOfMotors/numberOfServos — конфигуратор
@@ -303,12 +303,14 @@ class InavFC:
                               "pitot": 0, "rangefinder": 0, "opflow": 0}
         self.servo_mix = [[0] * 6 for _ in range(MAX_SERVO_RULES)]   # 6 байт/строка
         self.motor_mix = [[0] * 8 for _ in range(MAX_SUPPORTED_MOTORS)]  # 8 байт/строка
-        self.osd_layouts = [
-            [0x2000 | ((y & 0x3F) << 6) | (x & 0x3F) for y, x in
-             [(2, 2), (2, 10), (2, 18), (1, 12), (2, 22), (1, 1), (1, 2), (1, 4)]
-             + [(0, 0)] * (OSD_ITEM_COUNT - 8)]
-            for _ in range(OSD_LAYOUT_COUNT)
-        ]
+        # Раскладка OSD: layout 0 — заводская из pgResetFn_osdLayoutsConfig
+        # (io/osd.c; таблица osd_layout_defaults в data/inav_data.json),
+        # раскладки 1..3 у прошивки после сброса пустые (всё скрыто).
+        layout0 = [0] * OSD_ITEM_COUNT
+        for i, val in enumerate(self.store.osd_layout_defaults[:OSD_ITEM_COUNT]):
+            layout0[i] = val
+        self.osd_layouts = [layout0] + [
+            [0] * OSD_ITEM_COUNT for _ in range(OSD_LAYOUT_COUNT - 1)]
         self.osd_alarms = {
             "rssi": 50, "fly_minutes": 30, "max_altitude": 100, "dist": 500,
             "max_neg_altitude": 5, "gforce": 40, "gforce_axis_min": -25,

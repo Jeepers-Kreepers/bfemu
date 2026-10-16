@@ -32,6 +32,7 @@ from inavemu.fc import (  # noqa: E402
     MSP_SENSOR_ALIGNMENT, MSP_SENSOR_STATUS, MSP_SET_FEATURE, MSP_SET_MODE_RANGE,
     MSP_SET_REBOOT, MSP_SET_RX_MAP, MSP_SONAR, MSP_ALTITUDE, MSP_ATTITUDE,
     MSP_RAW_IMU, MSP_UID, MSP_VTX_CONFIG,
+    OSD_ITEM_COUNT, OSD_LAYOUT_COUNT,
 )
 from inavemu.fc import InavFC  # noqa: E402
 from inavemu.server import FCServer  # noqa: E402
@@ -226,9 +227,9 @@ def main():
         check(len(c.request(MSP_GPSSTATISTICS).payload) == 21, "GPSSTATISTICS")
         check(len(c.request(MSP2_ADSB_VEHICLE_LIST).payload) == 10, "ADSB list")
         head = c.request(MSP2_INAV_OSD_LAYOUTS).payload
-        check(head == bytes([4, 165]), f"OSD counts {head.hex()}")
-        check(len(c.request(MSP2_INAV_OSD_LAYOUTS, bytes([0])).payload) == 330,
-              "OSD layout 0: 165 позиций")
+        check(head == bytes([OSD_LAYOUT_COUNT, OSD_ITEM_COUNT]), f"OSD counts {head.hex()}")
+        check(len(c.request(MSP2_INAV_OSD_LAYOUTS, bytes([0])).payload) == OSD_ITEM_COUNT * 2,
+              f"OSD layout 0: {OSD_ITEM_COUNT} позиций")
         check(len(c.request(MSP2_INAV_OSD_ALARMS).payload) == 28, "OSD alarms")
         check(len(c.request(MSP2_INAV_OSD_PREFERENCES).payload) == 10, "OSD prefs")
         check(len(c.request(MSP_WP_GETINFO).payload) == 4, "WP_GETINFO")
