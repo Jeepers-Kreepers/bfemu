@@ -49,8 +49,8 @@ def main(argv=None):
         monitor = MonitorServer(server, host=args.http_host, port=args.http)
         monitor.start()
 
-    print("Для подключения: INAV Configurator → Manual connection → "
-          f"tcp://{host}:{port}  (Ctrl+C — выход)")
+    print(f"Для подключения: INAV Configurator → тип соединения TCP → "
+          f"IP:Port {host}:{port} (без «tcp://») → Подключиться  (Ctrl+C — выход)")
     try:
         while True:
             import time
