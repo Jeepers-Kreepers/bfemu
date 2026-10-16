@@ -516,9 +516,9 @@ class ReceiverMixin:
         угол камеры, два устаревших байта, срезы RC-smoothing, два устаревших байта,
         USB CDC HID, авто-фактор и режим RC-smoothing, UID ExpressLRS (6 байт).
         """
-        airmode_wire = self._setting("airmode_start_throttle_percent", 30) * 10 + 1000
+        airmode_wire = self._setting("airmode_start_throttle_percent", 25) * 10 + 1000
         w.u8(self._setting("serialrx_provider", 0))
-        w.u16(self._setting("max_check", 2000))
+        w.u16(self._setting("max_check", 1900))
         w.u16(self._setting("mid_rc", 1500))
         w.u16(self._setting("min_check", 1050))
         w.u8(self._setting("spektrum_sat_bind", 0))
