@@ -56,7 +56,10 @@ class FCServer:
 
     def _client_loop(self, conn: socket.socket, addr):
         print(f"[TCP] подключился {addr[0]}:{addr[1]}")
+        from .cli import CliSession
         parser = msp.Parser()
+        cli = CliSession(self.fc)
+        in_cli = False
         conn.settimeout(1.0)
         try:
             while not self._stop.is_set():
@@ -66,11 +69,36 @@ class FCServer:
                     continue
                 if not data:
                     break
-                for req in parser.feed(data):
-                    self.requests += 1
-                    reply = self._dispatch(req)
-                    if reply is not None:
-                        conn.sendall(reply)
+                if in_cli:
+                    out = cli.feed(data)
+                    if out:
+                        conn.sendall(out)
+                    if cli.reboot_requested:
+                        self.fc.save_eeprom()
+                        conn.close()
+                        print("[TCP] линк разорван (перезагрузка FC)")
+                        return
+                    continue
+                for i, byte in enumerate(data):
+                    if byte == 0x23 and not parser._buf:  # '#' — вход в CLI
+                        in_cli = True
+                        self.fc._log("CLI: режим командной строки")
+                        conn.sendall(cli.enter())
+                        rest = data[i + 1:]
+                        if rest:
+                            out = cli.feed(rest)
+                            if out:
+                                conn.sendall(out)
+                            if cli.reboot_requested:
+                                self.fc.save_eeprom()
+                                conn.close()
+                                return
+                        break
+                    for req in parser.feed(bytes([byte])):
+                        self.requests += 1
+                        reply = self._dispatch(req)
+                        if reply is not None:
+                            conn.sendall(reply)
                     if self.fc.reboot_requested:
                         # как настоящий FC: после перезагрузки линк рвётся
                         self.fc.reboot_requested = False

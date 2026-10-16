@@ -81,6 +81,24 @@ class Client:
             pass
 
 
+def _recv_until(client: Client, marker: bytes, timeout: float = 5.0) -> bytes:
+    """Читает из сокета, пока не встретится маркер (например, приглашение '# ')."""
+    buf = bytearray()
+    deadline = time.time() + timeout
+    client.sock.settimeout(0.5)
+    while time.time() < deadline:
+        if marker in buf:
+            return bytes(buf)
+        try:
+            data = client.sock.recv(65536)
+        except socket.timeout:
+            continue
+        if not data:
+            break
+        buf.extend(data)
+    return bytes(buf)
+
+
 def main():
     global CHECKS
     print("=== inavemu smoke-тест ===")
@@ -195,6 +213,58 @@ def main():
         idx = struct.unpack_from("<H", i, idx_off)[0]
         v = c.request(MSP2_COMMON_SETTING, bytes([0]) + struct.pack("<H", idx)).payload
         check(struct.unpack("<H", v)[0] == 500, "looptime = 500")
+
+        # --- фаза 2: PID / OSD / GPS ---
+        from inavemu.fc import (
+            MSP2_ADSB_VEHICLE_LIST, MSP2_INAV_EZ_TUNE, MSP2_INAV_OSD_ALARMS,
+            MSP2_INAV_OSD_LAYOUTS, MSP2_INAV_OSD_PREFERENCES, MSP2_INAV_RATE_DYNAMICS,
+            MSP2_PID, MSP_GPSSTATISTICS, MSP_WP, MSP_WP_GETINFO,
+        )
+        check(len(c.request(MSP2_PID).payload) == 44, "MSP2_PID: 11 банков")
+        check(len(c.request(MSP2_INAV_RATE_DYNAMICS).payload) == 6, "RATE_DYNAMICS")
+        check(len(c.request(MSP2_INAV_EZ_TUNE).payload) == 11, "EZ_TUNE")
+        check(len(c.request(MSP_GPSSTATISTICS).payload) == 21, "GPSSTATISTICS")
+        check(len(c.request(MSP2_ADSB_VEHICLE_LIST).payload) == 10, "ADSB list")
+        head = c.request(MSP2_INAV_OSD_LAYOUTS).payload
+        check(head == bytes([4, 165]), f"OSD counts {head.hex()}")
+        check(len(c.request(MSP2_INAV_OSD_LAYOUTS, bytes([0])).payload) == 330,
+              "OSD layout 0: 165 позиций")
+        check(len(c.request(MSP2_INAV_OSD_ALARMS).payload) == 28, "OSD alarms")
+        check(len(c.request(MSP2_INAV_OSD_PREFERENCES).payload) == 10, "OSD prefs")
+        check(len(c.request(MSP_WP_GETINFO).payload) == 4, "WP_GETINFO")
+        check(len(c.request(MSP_WP, bytes([1])).payload) == 21, "MSP_WP")
+
+        # --- CLI по «сырому» порту: вход, команда, выход с перезагрузкой ---
+        c2 = Client(server.port)
+        c2.sock.sendall(b"#")
+        banner = _recv_until(c2, b"# ")
+        check(b"Entering CLI Mode" in banner, f"CLI banner: {banner[:60]!r}")
+        c2.sock.sendall(b"version\n")
+        out = _recv_until(c2, b"# ")
+        check(b"INAV/9.1.0" in out or b"INAV/SITL" in out, f"cli version: {out[:80]!r}")
+        c2.sock.sendall(b"set looptime = 4444\n")
+        out = _recv_until(c2, b"# ")
+        check(b"looptime set to 4444" in out, f"cli set: {out[:80]!r}")
+        c2.sock.sendall(b"get looptime\n")
+        out = _recv_until(c2, b"# ")
+        check(b"looptime = 4444" in out, f"cli get: {out[:80]!r}")
+        c2.sock.sendall(b"diff\n")
+        out = _recv_until(c2, b"# ")
+        check(b"set looptime = 4444" in out and b"batch start" in out,
+              f"cli diff: {out[:120]!r}")
+        c2.sock.sendall(b"save\n")
+        out = _recv_until(c2, b"Rebooting")
+        check(b"Saving" in out, f"cli save: {out[:60]!r}")
+        time.sleep(0.3)
+        c2.close()
+
+        # значение из CLI пережило «перезагрузку»
+        c3 = Client(server.port)
+        i = c3.request(MSP2_COMMON_SETTING_INFO, b"looptime\x00").payload
+        idx = struct.unpack_from("<H", i, len(b"looptime\x00") + 13)[0]
+        v = c3.request(MSP2_COMMON_SETTING, bytes([0]) + struct.pack("<H", idx)).payload
+        check(struct.unpack("<H", v)[0] == 4444, "CLI set пережил перезагрузку")
+        c3.close()
 
         # --- сохранение + перезагрузка: линк рвётся, конфигурация живёт ---
         c.request(MSP_SET_FEATURE, struct.pack("<I", 0x40))

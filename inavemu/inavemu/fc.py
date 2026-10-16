@@ -116,6 +116,32 @@ MSP2_INAV_DEBUG = 0x2019
 MSP2_BLACKBOX_CONFIG = 0x201A
 MSP2_SET_BLACKBOX_CONFIG = 0x201B
 MSP2_INAV_TEMPERATURES = 0x201E
+MSP2_PID = 0x2030
+MSP2_SET_PID = 0x2031
+MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED = 0x203C
+MSP2_INAV_RATE_DYNAMICS = 0x2060
+MSP2_INAV_SET_RATE_DYNAMICS = 0x2061
+MSP2_INAV_EZ_TUNE = 0x2070
+MSP2_INAV_EZ_TUNE_SET = 0x2071
+MSP2_ADSB_VEHICLE_LIST = 0x2090
+MSP2_INAV_CUSTOM_OSD_ELEMENTS = 0x2100
+MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS = 0x2102
+MSP2_INAV_OSD_LAYOUTS = 0x2012
+MSP2_INAV_OSD_SET_LAYOUT_ITEM = 0x2013
+MSP2_INAV_OSD_ALARMS = 0x2014
+MSP2_INAV_OSD_SET_ALARMS = 0x2015
+MSP2_INAV_OSD_PREFERENCES = 0x2016
+MSP2_INAV_OSD_SET_PREFERENCES = 0x2017
+MSP2_INAV_SERVO_MIXER = 0x2020
+MSP2_INAV_SET_SERVO_MIXER = 0x2021
+MSP_WP_GETINFO = 20
+MSP_WP = 118
+MSP_SET_WP = 209
+MSP_SET_RESET_CURR_PID = 219
+MSP_GPSSTATISTICS = 166
+
+OSD_LAYOUT_COUNT = 4
+OSD_ITEM_COUNT = 165
 
 MODE_ACTIVATION_CONDITION_COUNT = 40  # rc_modes.h
 ADJUSTMENT_RANGE_COUNT = 20           # rc_adjustments.h
@@ -249,6 +275,44 @@ class InavFC:
         self.battery_profile = 0
         self.mixer_profile = 0
         self.arming_flags = 0
+
+        # --- фаза 2: PID / навигация / OSD ---
+        # MSP2_PID: 11 банков (ROLL, PITCH, YAW, ALT, PosH, PosR, NavR, LEVEL, MAG, VEL, ...)
+        self.pids = [
+            [40, 30, 23, 60], [40, 30, 23, 60], [40, 30, 23, 0],
+            [75, 30, 0, 0], [40, 30, 0, 0], [40, 30, 0, 0],
+            [40, 30, 0, 0], [40, 30, 0, 0], [40, 30, 0, 0],
+            [100, 30, 0, 0], [40, 30, 0, 0],
+        ]
+        self.rate_dynamics = [100, 100, 100, 100, 100, 100]
+        self.ez_tune = {"enabled": 0, "filter_hz": 120, "axis_ratio": 80,
+                        "response": 40, "damping": 40, "stability": 40,
+                        "aggressiveness": 40, "rate": 40, "expo": 20, "snappiness": 40}
+        self.sensor_config = {"accelerometer": 0, "barometer": 0, "magnetometer": 0,
+                              "pitot": 0, "rangefinder": 0, "opflow": 0}
+        self.servo_mix = []      # строки smix: 6 байт каждая
+        self.osd_layouts = [
+            [0x2000 | ((y & 0x3F) << 6) | (x & 0x3F) for y, x in
+             [(2, 2), (2, 10), (2, 18), (1, 12), (2, 22), (1, 1), (1, 2), (1, 4)]
+             + [(0, 0)] * (OSD_ITEM_COUNT - 8)]
+            for _ in range(OSD_LAYOUT_COUNT)
+        ]
+        self.osd_alarms = {
+            "rssi": 50, "fly_minutes": 30, "max_altitude": 100, "dist": 500,
+            "max_neg_altitude": 5, "gforce": 40, "gforce_axis_min": -25,
+            "gforce_axis_max": 25, "current": 0,
+            "imu_temp_alarm_min": 0, "imu_temp_alarm_max": 70,
+            "baro_temp_alarm_min": 0, "baro_temp_alarm_max": 70,
+            "adsb_distance_warning": 1000, "adsb_distance_alert": 500,
+        }
+        self.osd_preferences = {
+            "video_system": 1, "main_voltage_decimals": 1, "ahi_reverse_roll": 0,
+            "crosshairs_style": 0, "left_sidebar_scroll": 0,
+            "right_sidebar_scroll": 0, "sidebar_scroll_arrows": 0,
+            "units": 0, "stats_energy_unit": 0, "adsb_warning_style": 0,
+        }
+        self.wp_count = 0
+        self.wp_max = 15
 
         # режимы (mode ranges / adjustment ranges)
         self.mode_ranges = [
@@ -440,6 +504,31 @@ class InavFC:
             MSP2_BLACKBOX_CONFIG: self._msp_blackbox_config,
             MSP2_SET_BLACKBOX_CONFIG: self._ack,
             MSP2_COMMON_MOTOR_MIXER: lambda p: b"",
+            MSP2_PID: self._msp2_pid,
+            MSP2_SET_PID: self._msp2_set_pid,
+            MSP_SET_RESET_CURR_PID: self._ack,
+            MSP2_INAV_RATE_DYNAMICS: self._msp2_rate_dynamics,
+            MSP2_INAV_SET_RATE_DYNAMICS: self._msp2_set_rate_dynamics,
+            MSP2_INAV_EZ_TUNE: self._msp2_ez_tune,
+            MSP2_INAV_EZ_TUNE_SET: self._msp2_set_ez_tune,
+            MSP_SENSOR_CONFIG: self._msp_sensor_config,
+            MSP_SET_SENSOR_CONFIG: self._msp_set_sensor_config,
+            MSP2_INAV_SERVO_MIXER: self._msp2_servo_mixer,
+            MSP2_INAV_SET_SERVO_MIXER: self._msp2_set_servo_mixer,
+            MSP2_ADSB_VEHICLE_LIST: self._msp2_adsb_vehicle_list,
+            MSP_GPSSTATISTICS: self._msp_gps_statistics,
+            MSP2_INAV_OSD_LAYOUTS: self._msp2_osd_layouts,
+            MSP2_INAV_OSD_SET_LAYOUT_ITEM: self._msp2_osd_set_layout_item,
+            MSP2_INAV_OSD_ALARMS: self._msp2_osd_alarms,
+            MSP2_INAV_OSD_SET_ALARMS: self._msp2_osd_set_alarms,
+            MSP2_INAV_OSD_PREFERENCES: self._msp2_osd_preferences,
+            MSP2_INAV_OSD_SET_PREFERENCES: self._msp2_osd_set_preferences,
+            MSP2_INAV_CUSTOM_OSD_ELEMENTS: lambda p: b"",
+            MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS: self._ack,
+            MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED: lambda p: b"\x00" * 8,
+            MSP_WP_GETINFO: self._msp_wp_getinfo,
+            MSP_WP: self._msp_wp,
+            MSP_SET_WP: self._ack,
             MSP_DEBUGMSG: lambda p: b"",
             MSP_DEBUG: lambda p: b"\x00" * 8,
         }
@@ -915,3 +1004,150 @@ class InavFC:
 
     def _msp_blackbox_config(self, _p):
         return u8(0) + u8(0) + u8(1) + u8(32)  # не поддерживается
+
+    # ------------------------------------------------------------------
+    # фаза 2: PID, динамика рулений, ez-tune, датчики, GPS, OSD, миссии
+    # ------------------------------------------------------------------
+    def _msp2_pid(self, _p):
+        return b"".join(bytes(row[:4]) for row in self.pids)
+
+    def _msp2_set_pid(self, p):
+        if len(p) % 4:
+            raise MSPError("PID: неверная длина")
+        rows = [list(p[i:i + 4]) for i in range(0, min(len(p), 44), 4)]
+        self.pids[:len(rows)] = rows
+        return b""
+
+    def _msp2_rate_dynamics(self, _p):
+        return bytes(self.rate_dynamics)
+
+    def _msp2_set_rate_dynamics(self, p):
+        if len(p) < 6:
+            raise MSPError("RATE_DYNAMICS: короткий payload")
+        self.rate_dynamics = list(p[:6])
+        return b""
+
+    def _msp2_ez_tune(self, _p):
+        e = self.ez_tune
+        return (u8(e["enabled"]) + u16(e["filter_hz"]) + u8(e["axis_ratio"])
+                + u8(e["response"]) + u8(e["damping"]) + u8(e["stability"])
+                + u8(e["aggressiveness"]) + u8(e["rate"]) + u8(e["expo"])
+                + u8(e["snappiness"]))
+
+    def _msp2_set_ez_tune(self, p):
+        if len(p) < 11:
+            raise MSPError("EZ_TUNE: короткий payload")
+        (enabled, filter_hz) = self._take(p, "<BH")
+        keys = ["axis_ratio", "response", "damping", "stability",
+                "aggressiveness", "rate", "expo", "snappiness"]
+        self.ez_tune.update({"enabled": enabled, "filter_hz": filter_hz})
+        self.ez_tune.update(dict(zip(keys, p[3:11])))
+        return b""
+
+    def _msp_sensor_config(self, _p):
+        s = self.sensor_config
+        return bytes([s["accelerometer"], s["barometer"], s["magnetometer"],
+                      s["pitot"], s["rangefinder"], s["opflow"]])
+
+    def _msp_set_sensor_config(self, p):
+        if len(p) < 6:
+            raise MSPError("SENSOR_CONFIG: короткий payload")
+        self.sensor_config.update({
+            "accelerometer": p[0], "barometer": p[1], "magnetometer": p[2],
+            "pitot": p[3], "rangefinder": p[4], "opflow": p[5]})
+        return b""
+
+    def _msp2_servo_mixer(self, _p):
+        return b"".join(bytes(row) for row in self.servo_mix)
+
+    def _msp2_set_servo_mixer(self, p):
+        if len(p) % 6:
+            raise MSPError("SERVO_MIXER: неверная длина")
+        self.servo_mix = [list(p[i:i + 6]) for i in range(0, len(p), 6)]
+        return b""
+
+    def _msp2_adsb_vehicle_list(self, _p):
+        # vehiclesCount=0, callsignLength=8, два счётчика пакетов
+        return u8(0) + u8(8) + u32(0) + u32(0)
+
+    def _msp_gps_statistics(self, _p):
+        return (u16(100) + u32(0) + u32(0) + u32(1250)  # dt, errors, timeouts, packets
+                + u16(self.gps["hdop"]) + u16(120) + u16(120) + u8(3))
+
+    def _msp2_osd_layouts(self, p):
+        if len(p) == 0:
+            return u8(OSD_LAYOUT_COUNT) + u8(OSD_ITEM_COUNT)
+        layout = p[0]
+        if layout >= OSD_LAYOUT_COUNT:
+            raise MSPError("OSD: нет такой раскладки")
+        if len(p) >= 3:
+            item = int.from_bytes(p[1:3], "little")
+            if item >= OSD_ITEM_COUNT:
+                raise MSPError("OSD: нет такого элемента")
+            return u16(self.osd_layouts[layout][item])
+        return b"".join(u16(pos) for pos in self.osd_layouts[layout])
+
+    def _msp2_osd_set_layout_item(self, p):
+        if len(p) < 4:
+            raise MSPError("OSD: короткий payload")
+        layout, item = p[0], p[1]
+        if layout >= OSD_LAYOUT_COUNT or item >= OSD_ITEM_COUNT:
+            raise MSPError("OSD: индекс вне диапазона")
+        self.osd_layouts[layout][item] = int.from_bytes(p[2:4], "little")
+        return b""
+
+    def _msp2_osd_alarms(self, _p):
+        a = self.osd_alarms
+        return (u8(a["rssi"]) + u16(a["fly_minutes"]) + u16(a["max_altitude"])
+                + u16(a["dist"]) + u16(a["max_neg_altitude"]) + u16(a["gforce"])
+                + i16(a["gforce_axis_min"]) + i16(a["gforce_axis_max"])
+                + u8(a["current"]) + i16(a["imu_temp_alarm_min"])
+                + i16(a["imu_temp_alarm_max"]) + i16(a["baro_temp_alarm_min"])
+                + i16(a["baro_temp_alarm_max"]) + i16(a["adsb_distance_warning"])
+                + i16(a["adsb_distance_alert"]))
+
+    def _msp2_osd_set_alarms(self, p):
+        if len(p) < 28:
+            raise MSPError("OSD alarms: короткий payload")
+        (rssi,) = self._take(p, "<B")
+        (fly, alt, dist, neg_alt, gforce) = self._take(p, "<HHHHH", 1)
+        (amin, amax) = self._take(p, "<hh", 11)
+        (current,) = self._take(p, "<B", 15)
+        (itmin, itmax, btmin, btmax, aw, aa) = self._take(p, "<hhhhhh", 16)
+        self.osd_alarms.update({
+            "rssi": rssi, "fly_minutes": fly, "max_altitude": alt,
+            "dist": dist, "max_neg_altitude": neg_alt, "gforce": gforce,
+            "gforce_axis_min": amin, "gforce_axis_max": amax,
+            "current": current, "imu_temp_alarm_min": itmin,
+            "imu_temp_alarm_max": itmax, "baro_temp_alarm_min": btmin,
+            "baro_temp_alarm_max": btmax,
+            "adsb_distance_warning": aw, "adsb_distance_alert": aa})
+        return b""
+
+    def _msp2_osd_preferences(self, _p):
+        p = self.osd_preferences
+        return bytes([p["video_system"], p["main_voltage_decimals"],
+                      p["ahi_reverse_roll"], p["crosshairs_style"],
+                      p["left_sidebar_scroll"], p["right_sidebar_scroll"],
+                      p["sidebar_scroll_arrows"], p["units"],
+                      p["stats_energy_unit"], p["adsb_warning_style"]])
+
+    def _msp2_osd_set_preferences(self, p):
+        if len(p) < 10:
+            raise MSPError("OSD preferences: короткий payload")
+        keys = ["video_system", "main_voltage_decimals", "ahi_reverse_roll",
+                "crosshairs_style", "left_sidebar_scroll", "right_sidebar_scroll",
+                "sidebar_scroll_arrows", "units", "stats_energy_unit",
+                "adsb_warning_style"]
+        self.osd_preferences.update(dict(zip(keys, p[:10])))
+        return b""
+
+    def _msp_wp_getinfo(self, _p):
+        return u8(0) + u8(self.wp_max) + u8(0) + u8(self.wp_count)
+
+    def _msp_wp(self, p):
+        if len(p) < 1:
+            raise MSPError("WP: нет индекса")
+        idx = p[0]
+        return (u8(idx) + u8(0) + i32(0) + i32(0) + i32(0)
+                + i16(0) + i16(0) + i16(0) + u8(0))

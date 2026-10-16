@@ -15,7 +15,7 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 [TCP] виртуальный FC INAV слушает 127.0.0.1:5761
 ```
 
-## Что эмулируется (фаза 1)
+## Что эмулируется
 
 | Слой | Что реализовано |
 |---|---|
@@ -24,8 +24,12 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 | Телеметрия | `MSP2_INAV_STATUS`, `MSP2_INAV_ANALOG`, `MSP_SENSOR_STATUS`, `MSP_ACTIVEBOXES`, `MSP_ATTITUDE`, `MSP_ALTITUDE`, `MSP_RAW_IMU`, `MSP_RC`, `MSP_RAW_GPS`, `MSP_COMP_GPS`, `MSP_SONAR`, `MSP2_INAV_AIR_SPEED`, `MSP2_INAV_TEMPERATURES`, `MSP2_INAV_DEBUG` (значения «живые»: синусоиды, батарея) |
 | Настройки | 677 реальных настроек INAV 9.1.0 из `settings.yaml` (типы, min/max, lookup-таблицы, секции профилей) + протокол `MSP2_COMMON_SETTING_INFO` (0x1007), `MSP2_COMMON_SETTING` (0x1003), `MSP2_COMMON_SET_SETTING` (0x1004) |
 | Конфигурация | `MSP_FEATURE`, `MSP2_INAV_MISC`, `MSP2_INAV_BATTERY_CONFIG`, `MSP2_INAV_MIXER`, `MSP2_CF_SERIAL_CONFIG`, `MSP_RX_CONFIG`, `MSP_RX_MAP`, `MSP_RC_DEADBAND`, `MSP2_INAV_RATE_PROFILE`, `MSP_MODE_RANGES` (40), `MSP_ADJUSTMENT_RANGES` (20), `MSP_SENSOR_ALIGNMENT`, `MSP_ADVANCED_CONFIG`, `MSP_VTX_CONFIG`, `MSP_BOARD_ALIGNMENT`, `MSP_CURRENT_METER_CONFIG`, `MSP_LOOP_TIME`, `MSP_INAV_PID` — и их SET-варианты |
+| PID / тюнинг | `MSP2_PID` (11 банков) + `MSP2_SET_PID`, `MSP2_INAV_RATE_DYNAMICS`, `MSP2_INAV_EZ_TUNE`, `MSP_SENSOR_CONFIG`, `MSP2_INAV_SERVO_MIXER` — вкладка PID Tuning |
+| OSD | `MSP2_INAV_OSD_LAYOUTS` (4 раскладки × 165 элементов), `MSP2_INAV_OSD_ALARMS`, `MSP2_INAV_OSD_PREFERENCES`, `MSP2_INAV_CUSTOM_OSD_ELEMENTS`, `MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED` — вкладка OSD открывается и сохраняет позиции |
+| GPS | `MSP_RAW_GPS`, `MSP_COMP_GPS`, `MSP_GPSSTATISTICS`, `MSP2_ADSB_VEHICLE_LIST` — вкладка GPS |
 | Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c` |
-| «Флеш» | `MSP_EEPROM_WRITE` пишет конфигурацию в `inav_eeprom.json`; после перезагрузки (`MSP_SET_REBOOT` — линк рвётся) она поднимается обратно |
+| CLI | «сырой» CLI-порт (`#`, эхо, приглашение `# `, TAB-автодополнение, CTRL-D/CTRL-L): **62 команды `cmdTable[]` прошивки** — `help`, `version`, `status`, `tasks`, `get`, `set`, `dump`, `diff`, `defaults`, `save`, `exit`, `feature`, `serial`, `aux`, `adjrange`, `map`, `mmix`, `smix`, `servo`, `motor`, `pid`, `wp`, `resource`, `batch`…; `save`/`exit`/`defaults` печатают «Rebooting» и рвут линк |
+| «Флеш» | `MSP_EEPROM_WRITE` и CLI `save` пишут конфигурацию в `inav_eeprom.json`; после перезагрузки (`MSP_SET_REBOOT` — линк рвётся) она поднимается обратно |
 
 Неизвестные коды MSP отвечают кадром-ошибкой (как прошивка), так что
 непокрытые вкладки не роняют конфигуратор.
@@ -74,8 +78,8 @@ inavemu --tcp 127.0.0.1:5761
 ### Проверки
 
 ```bash
-python3 -m pytest tests -q   # 41 проверка: кодек, настройки, обработчики (~2 сек)
-python3 tests/smoke_test.py  # 51 сквозная проверка «Configurator по TCP» (~2 сек)
+python3 -m pytest tests -q   # 78 проверок: кодек, настройки, обработчики, CLI (~3 сек)
+python3 tests/smoke_test.py  # 69 сквозных проверок «Configurator + CLI по TCP» (~3 сек)
 ```
 
 ## Данные: откуда 677 настроек
@@ -103,9 +107,10 @@ python3 tools/gen_data_inav.py /path/to/inav-9.1.0 \
 inavemu/
 ├── inavemu/
 │   ├── msp.py            # кодек MSP v1/v2
-│   ├── server.py         # TCP-порт FC + веб-монитор
+│   ├── server.py         # TCP-порт FC + веб-монитор (+ режим CLI)
 │   ├── fc.py             # состояние и обработчики MSP
 │   ├── settings.py       # база настроек + протокол настроек MSP
+│   ├── cli.py            # CLI: команды cmdTable[] прошивки
 │   └── data/inav_data.json
 ├── tools/
 │   ├── gen_data_inav.py  # генератор данных из исходников INAV
@@ -113,8 +118,9 @@ inavemu/
 └── tests/                # pytest + smoke_test.py
 ```
 
-Планируемое (фазы 2–3): полный CLI (`get`/`set`/`dump`/`diff`/`save`),
-навигация и миссии (`MSP_WP`, Mission Control), OSD, failsafe, логические условия.
+Планируемое (фаза 3): навигация и миссии (`MSP_SET_WP`, Mission Control,
+полноценные `wp`/`geozone`/`safehome`), failsafe, логические условия,
+программирование (logic conditions / gvar), blackbox-файлы.
 
 ## Лицензия
 
