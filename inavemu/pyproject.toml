@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inavemu"
+version = "0.1.0"
+description = "Виртуальный полётный контроллер INAV (MSP + настройки): INAV Configurator подключается как к настоящему FC"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+
+[project.scripts]
+inavemu = "inavemu.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["inavemu*"]
+
+[tool.setuptools.package-data]
+inavemu = ["data/*.json"]
