@@ -54,7 +54,10 @@ class CliEngine:
         self.out.append(text)
 
     def _error(self, cmd: str, message: str):
-        self._w(f"###ERROR IN {cmd}: {message}")
+        # cliPrintErrorLinef(): текст ошибки заканчивается «###» (cliPrintErrorVa в cli.c).
+        # Именно по этому признаку Configurator отличает отказ от обычного вывода —
+        # например, «###ERROR IN cli: UNKNOWN COMMAND###» в его собственных тестах.
+        self._w(f"###ERROR IN {cmd}: {message}###")
 
     def _hash(self, text: str):
         self._w(f"# {text}")
@@ -225,9 +228,12 @@ class CliEngine:
 
     # ------------------------------------------------------------ get / set
     def cmd_get(self, args=""):
-        if not args:
-            self._error("get", "INVALID NAME: ")
-            return
+        """`get` [строка] — cliGet(): подстрока ищется без учёта регистра (strcasestr).
+
+        Без аргументов совпадают все настройки (пустая подстрока есть в любом имени) —
+        прошивка печатает всю таблицу. После значения идут: строка профиля
+        (`cliProfile()`/`cliRateProfile()` с пустым аргументом), границы и заводское значение.
+        """
         needle = args.strip().lower()
         matches = [s for s in self.fc.settings_list if needle in s["name"].lower()]
         if not matches:
@@ -237,39 +243,58 @@ class CliEngine:
             if i:
                 self._w()
             self._w(f"{s['name']} = {self.fc.format_setting(s)}")
-            if s["mode"] == "MODE_LOOKUP" and s.get("values"):
-                self._w("Allowed values: " + ", ".join(s["values"]))
-            elif s["mode"] == "MODE_DIRECT":
-                self._w(f"Allowed range: {s['min']} - {s['max']}")
-            elif s["mode"] == "MODE_STRING":
-                lo, hi = self.fc.setting_lengths(s)
-                self._w(f"String length: {lo} - {hi}")
+            if s.get("section") == "PROFILE_VALUE":
+                self._w(f"profile {self.fc.current_profile}")
+            elif s.get("section") == "PROFILE_RATE_VALUE":
+                self._w(f"rateprofile {self.fc.current_rate_profile}")
+            for line in self.fc.setting_range_lines(s):
+                self._w(line)
             dv = self.fc.default_display(s)
             # cliPrintVarDefault(): «Default value» печатается, только если значение не заводское
             if dv is not None and str(dv) != str(self.fc.format_setting(s)):
                 self._w(f"Default value: {dv}")
 
     def cmd_set(self, args=""):
-        if args.strip() in ("", "*"):
+        """`set` [имя = значение] — cliSet() из cli.c 4.5.4.
+
+        * без аргументов и с `*` — вся таблица; с `*` у числовых настроек ещё и границы
+          (`printValuePointer(..., full=true)`);
+        * имя ищется без учёта регистра, но целиком (`cliGetSettingIndex`: strncasecmp +
+          совпадение длины), поэтому `set GYRO_LPF1_TYPE = PT1` работает, а `set gyro = 1` нет;
+        * значение числовой настройки разбирается как `atoi()` — десятичное, остаток строки
+          игнорируется; значение «списка» — только его имя (числа не принимаются);
+        * успех печатается как `<имя> set to <значение>`, отказ — `INVALID VALUE` и границы.
+        """
+        stripped = args.strip()
+        if stripped in ("", "*"):
+            full = stripped == "*"
             self._w("Current settings: ")
             for s in self.fc.settings_list:
-                self._w(f"{s['name']} = {self.fc.format_setting(s)}")
+                line = f"{s['name']} = {self.fc.format_setting(s)}"
+                if full and s["mode"] == "MODE_DIRECT":
+                    line += f" {s['min']} {s['max']}"
+                self._w(line)
             return
         if "=" not in args:
             self._error("set", f"INVALID NAME: {args}")
             return
         name, _, raw_value = args.partition("=")
         name = name.strip()
-        raw_value = raw_value.strip()
-        s = self.fc.settings_by_name.get(name)
-        if s is None:
-            self._error("set", f"INVALID NAME: {name}")
+        entry = self.fc.find_setting(name)
+        if entry is None:
+            # ERROR_INVALID_NAME печатает всю строку команды, а не только имя
+            self._error("set", f"INVALID NAME: {args}")
             return
-        ok, err = self.fc.set_setting(name, raw_value)
-        if not ok:
+        ok, err = self.fc.set_setting(entry["name"], raw_value.strip())
+        if ok:
+            self._w(f"{entry['name']} set to {self.fc.format_setting(entry)}")
+            return
+        if err:
             self._error("set", err)
-            return
-        # прошивка на успешный set ничего не печатает
+        self._error("set", "INVALID VALUE")
+        for line in self.fc.setting_range_lines(entry):
+            self._w(line)
+
 
     # ------------------------------------------------------- dump / diff
     def _dump_header(self):

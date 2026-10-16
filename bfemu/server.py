@@ -31,7 +31,7 @@ from .tx_page import TX_PAGE as _TX_PAGE
 from . import __build__ as _BUILD, __tx_page__ as _TX_PAGE_VERSION
 from . import pages as _pages
 from .failsafe_page import failsafe_page as _failsafe_page
-from .msp import FROM_FC, MspParser, encode_v1, encode_v2
+from .msp import ERROR_REPLY, FROM_FC, ErrorReply, MspParser, encode_v1, encode_v2
 
 STX = 0x02
 ETX = 0x03
@@ -152,10 +152,15 @@ class Session:
             payload = b""
         if payload is None:
             return b""
+        # Отказ обработчика (MSP_RESULT_ERROR) уходит кадром с «!» — так же, как это
+        # делает msp_serial.c. Configurator читает этот признак как `unsupported`.
+        error = isinstance(payload, ErrorReply)
+        if error:
+            payload = payload.payload
         if req.version == 2:
-            resp = encode_v2(req.code, payload)
+            resp = encode_v2(req.code, payload, direction=ERROR_REPLY if error else FROM_FC)
         else:
-            resp = encode_v1(req.code & 0xFF, payload, direction=FROM_FC)
+            resp = encode_v1(req.code & 0xFF, payload, direction=ERROR_REPLY if error else FROM_FC)
         self.fc.note_msp(req.code, _code_name(req.code), len(req.payload), len(payload))
         if self.verbose and req.code not in (101, 150, 110, 130, 105, 102, 108, 109, 104, 106, 107):
             name = _code_name(req.code)

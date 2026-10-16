@@ -65,6 +65,7 @@ class Request:
     code: int
     payload: bytes
     flag: int = 0
+    direction: int = 0   # третий байт кадра: «<» запрос, «>» ответ, «!» отказ (ERROR_REPLY)
 
 
 JUMBO_FRAME_SIZE_LIMIT = 255   # msp_serial.c: больше — «джамбо»-кадр с длиной u16
@@ -89,6 +90,21 @@ def encode_v2(code: int, payload: bytes = b"", flag: int = 0, direction: int = F
     header = bytes([flag & 0xFF, code & 0xFF, (code >> 8) & 0xFF, len(payload) & 0xFF, (len(payload) >> 8) & 0xFF])
     crc = crc8_dvb_s2(header + bytes(payload))
     return bytes([BEGIN, PROTO_V2, direction]) + header + bytes(payload) + bytes([crc])
+
+
+class ErrorReply:
+    """Ответ-ошибка MSP (MSP_RESULT_ERROR): третий байт кадра — «!» вместо «>».
+
+    Так прошивка отвечает на команду, которую поняла, но выполнить отказалась
+    (msp_serial.c: `packet->result == MSP_RESULT_ERROR ? '!' : '>'`). Для Configurator
+    это единственный признак отказа: он читает его как `unsupported` и, например,
+    MSP2_CLI_SETTING после отказа не считает запись применённой.
+    """
+
+    __slots__ = ("payload",)
+
+    def __init__(self, payload: bytes = b""):
+        self.payload = payload
 
 
 class MspParser:
@@ -143,7 +159,7 @@ class MspParser:
                 del buf[:total]
                 if crc_xor(frame[3 : 7 + length]) != crc:
                     return "retry"
-                return Request(version=1, code=code, payload=payload)
+                return Request(version=1, code=code, payload=payload, direction=frame[2])
             total = 5 + length + 1
             if len(buf) < total:
                 return None
@@ -154,7 +170,7 @@ class MspParser:
             del buf[:total]
             if crc_xor(frame[3 : 5 + length]) != crc:
                 return "retry"  # кадр битый — прошивка его молча отбрасывает
-            return Request(version=1, code=code, payload=payload)
+            return Request(version=1, code=code, payload=payload, direction=frame[2])
         if proto == PROTO_V2:
             if len(buf) < 8:
                 return None
@@ -170,7 +186,7 @@ class MspParser:
             del buf[:total]
             if crc8_dvb_s2(frame[3 : 8 + length]) != crc:
                 return "retry"
-            return Request(version=2, code=code, payload=payload, flag=flag)
+            return Request(version=2, code=code, payload=payload, flag=flag, direction=frame[2])
         del buf[0]
         return "retry"
 

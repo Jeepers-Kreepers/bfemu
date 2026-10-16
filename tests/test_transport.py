@@ -13,7 +13,7 @@ import struct
 import threading
 import time
 
-from bfemu.fc import MSP_REBOOT, MSP_STATUS, MSP2_CLI_COMMAND
+from bfemu.fc import MSP_REBOOT, MSP_STATUS, MSP2_CLI_COMMAND, MSP2_CLI_SETTING, MSP2_CLI_SETTING_INFO
 from bfemu.msp import MspParser, encode_v1, encode_v2
 from bfemu.server import TcpServer
 
@@ -72,6 +72,30 @@ def recv_frames(conn: socket.socket, code: int, timeout: float = 5.0, want: int 
             if request.code == code:
                 out.append(request.payload)
     return out
+
+
+def one_frame(conn: socket.socket, code: int, timeout: float = 5.0):
+    """Один ответ MSP с нужным кодом: (третий байт кадра, payload).
+
+    Третий байт — «>» для обычного ответа и «!» для отказа (MSP_RESULT_ERROR,
+    msp_serial.c). Хелпер `recv_frames` этот байт теряет, потому что им пользуются
+    тесты, где отказов быть не должно.
+    """
+    parser = MspParser()
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        conn.settimeout(max(0.05, deadline - time.monotonic()))
+        try:
+            data = conn.recv(65536)
+        except TimeoutError:
+            break
+        if not data:
+            break
+        parser.feed(data)
+        for request in parser:
+            if request.code == code:
+                return chr(request.direction), request.payload
+    raise AssertionError(f"нет ответа на MSP {code:#06x}")
 
 
 def cli_page(conn: socket.socket, payload: bytes):
@@ -159,3 +183,32 @@ def test_cli_paging_buffer_is_per_connection(fc):
     assert same_total == total, "номер страницы относится к буферу своего соединения"
     assert second == full[CLI_WINDOW : 2 * CLI_WINDOW]
     assert fc.cli_output() == "", "общего буфера вывода на FC больше нет"
+
+
+def test_refused_setting_write_is_an_error_frame(fc):
+    """MSP2_CLI_SETTING отвечает отказом кадром «!» — как MSP_RESULT_ERROR в msp.c мастера.
+
+    Раньше эмулятор на отказ отдавал пустой успешный ответ, а Configurator считает пустое
+    эхо удачной записью: недопустимое значение выглядело применённым (useMspSetting.ts
+    бросает исключение только на `unsupported`, то есть на кадр-отказ).
+    """
+    with running_server(fc, boot_delay=0.0) as (_, port):
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as conn:
+            conn.sendall(encode_v2(MSP2_CLI_SETTING, b"gyro_lpf1_static_hz = 320"))
+            assert one_frame(conn, MSP2_CLI_SETTING) == (">", b"gyro_lpf1_static_hz = 320")
+
+            for request, note in [
+                (b"gyro_lpf1_static_hz = 999999", "значение вне диапазона"),
+                (b"gyro_lpf1_type = 1", "номер вместо имени списка"),
+                (b"no_such_setting = 1", "неизвестная настройка"),
+                (b"no_such_setting", "чтение неизвестной настройки"),
+            ]:
+                conn.sendall(encode_v2(MSP2_CLI_SETTING, request))
+                assert one_frame(conn, MSP2_CLI_SETTING) == ("!", b""), note
+
+            conn.sendall(encode_v2(MSP2_CLI_SETTING_INFO, b"gyro_lpf1_static_hz\x00\x00\x00"))
+            direction, payload = one_frame(conn, MSP2_CLI_SETTING_INFO)
+            assert direction == ">" and b"max=1000" in payload
+            conn.sendall(encode_v2(MSP2_CLI_SETTING_INFO, b"no_such_setting"))
+            assert one_frame(conn, MSP2_CLI_SETTING_INFO) == ("!", b"")
+    assert fc.settings["gyro_lpf1_static_hz"] == 320, "отказы не меняют значение"

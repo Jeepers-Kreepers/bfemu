@@ -50,6 +50,7 @@ class Client:
         self.parser = MspParser()
         self.pending: list = []
         self.raw = bytearray()
+        self.last_direction = ""   # третий байт последнего ответа: «>» ответ, «!» отказ
 
     def close(self):
         try:
@@ -61,7 +62,11 @@ class Client:
         self.sock.sendall(data)
 
     def request(self, code: int, payload: bytes = b"", version: int = 1) -> bytes:
-        """Отправляет MSP-запрос и ждёт ответ того же протокола."""
+        """Отправляет MSP-запрос и ждёт ответ того же протокола.
+
+        Третий байт ответа запоминается в `last_direction`: «>» — обычный ответ,
+        «!» — MSP_RESULT_ERROR (отказ, msp_serial.c).
+        """
         frame = encode_v1(code, payload) if version == 1 else encode_v2(code, payload)
         self.sock.sendall(frame)
         deadline = time.time() + 3
@@ -75,6 +80,7 @@ class Client:
             self.parser.feed(data)
             for req in self.parser:
                 if req.code == code:
+                    self.last_direction = chr(req.direction) if req.direction else ""
                     return req.payload
         raise TimeoutError(f"нет ответа на MSP {code}")
 
@@ -367,7 +373,14 @@ def main():
     check("min=0" in body and "max=1000" in body, f"MSP2_CLI_SETTING_INFO: {body.replace(chr(10), ' ')}")
 
     bad = cli.request(0x3010, b"gyro_lpf1_static_hz = 999999", version=2)
-    check(bad == b"", "некорректное значение => пустой ответ (FC отказал)")
+    check(bad == b"" and cli.last_direction == "!",
+          "некорректное значение => кадр-отказ «!» без тела (MSP_RESULT_ERROR, как в msp.c)")
+    bad = cli.request(0x3010, b"no_such_setting = 1", version=2)
+    check(bad == b"" and cli.last_direction == "!",
+          "неизвестная настройка => тоже отказ, а не пустой успешный ответ")
+    resp = cli.request(0x3010, b"gyro_lpf1_static_hz", version=2)
+    check(resp == b"gyro_lpf1_static_hz = 320" and cli.last_direction == ">",
+          "успешное чтение после отказов отвечает как обычно")
 
     print("4. Пейджинг длинного вывода (dump)")
     out = cli_over_msp(cli, "dump")
@@ -2034,7 +2047,7 @@ global.setInterval = () => 1;
           "CLI: 'beacon' по умолчанию — RX_LOST и RX_SET выключены (DEFAULT_DSHOT_BEACON_OFF_FLAGS)")
     check(cli_over_msp(c454, "beacon -RX_LOST").strip() == "Disabled RX_LOST",
           "CLI: 'beacon -RX_LOST' выключает пищалку по потере связи")
-    check(cli_over_msp(c454, "beacon GYRO_CALIBRATED").strip().endswith("INVALID NAME: GYRO_CALIBRATED"),
+    check(cli_over_msp(c454, "beacon GYRO_CALIBRATED").strip().endswith("INVALID NAME: GYRO_CALIBRATED###"),
           "CLI: 'beacon' принимает только RX_LOST/RX_SET — остальные имена не проходят")
     cli_over_msp(c454, "beacon RX_SET")          # включили RX_SET — остался только RX_LOST
     beacon_flags = int.from_bytes(c454.request(184)[5:9], "little")
@@ -2050,9 +2063,9 @@ global.setInterval = () => 1;
           "CLI: 'vtx' без аргументов — 10 нулевых слотов, как printVtx()")
     check(cli_over_msp(c454, "vtx 0 4 1 2 1 1500 1700").strip() == "vtx 0 4 1 2 1 1500 1700",
           "CLI: 'vtx <слот> <aux> <band> <channel> <power> <нач> <кон>' пишет и печатает слот")
-    check(cli_over_msp(c454, "vtx 1 4").strip().endswith("INVALID ARGUMENT COUNT"),
+    check(cli_over_msp(c454, "vtx 1 4").strip().endswith("INVALID ARGUMENT COUNT###"),
           "CLI: меньше шести валидных аргументов — слот обнулён и INVALID ARGUMENT COUNT")
-    check(cli_over_msp(c454, "vtx 12 0 0 0 0 900 900").strip().endswith("INDEX NOT BETWEEN 0 AND 9"),
+    check(cli_over_msp(c454, "vtx 12 0 0 0 0 900 900").strip().endswith("INDEX NOT BETWEEN 0 AND 9###"),
           "CLI: индекс вне 0…9 — ошибка диапазона индекса")
     check("vtx 0 4 1 2 1 1500 1700" in cli_over_msp(c454, "diff all"),
           "CLI: 'diff all' показывает настроенный слот `vtx`")

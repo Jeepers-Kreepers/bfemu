@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 import time
+
 from .fc_constants import (
     ARMING_DISABLED_ARM_SWITCH,
     ARMING_DISABLED_FAILSAFE,
@@ -41,6 +42,7 @@ from .fc_constants import (
     TEXT_PILOT_NAME,
     TEXT_RATE_PROFILE_NAME,
 )
+from .msp import ErrorReply
 
 
 class IdentityMixin:
@@ -605,32 +607,51 @@ class IdentityMixin:
         w.u8(0)
 
     # --- CLI поверх MSP
+    # Эти три команды (MSP2_CLI_SETTING 0x3010, MSP2_CLI_SETTING_INFO 0x3011,
+    # MSP2_CLI_COMMAND 0x3012) появились в прошивке позже 4.5.4 — эмулятор отвечает
+    # по мастерам, потому что новых вкладок Configurator без них не бывает.
     def _h_cli_setting(self, w, r):
-        request = r.rest().decode("latin-1", "replace").split("\x00")[0].strip()
+        """`<имя>` — чтение, `<имя> = <значение>` — запись; ответ всегда «<имя> = <значение>».
+
+        Отказ (нет такой настройки, значение не принято) в мастере — MSP_RESULT_ERROR:
+        клиент по нему понимает, что запись не применена. Пустой успешный ответ, который
+        эмулятор отдавал раньше, Configurator считает удачной записью («пустое эхо —
+        это успех»), из-за чего отказ выглядел как применённое значение.
+        """
+        request = r.rest().decode("latin-1", "replace").split("\x00")[0]
         if not request:
-            return
-        name, _, value = request.partition("=")
-        name = name.strip()
-        if value.strip():
-            ok, _err = self.set_setting(name, value.strip())
-            if not ok:
-                # прошивка возвращает пустой ответ => Configurator считает, что FC отказал
-                return
-        entry = self.settings_by_name.get(name)
+            return ErrorReply()          # msp.c: пустой запрос — MSP_RESULT_ERROR
+        eq = request.find("=")
+        if eq < 0:
+            # чтение: имя — вся строка целиком (cliGetSettingByName → cliGetSettingIndex
+            # сравнивает strncasecmp с длиной строки, лишние пробелы сломают поиск)
+            name, value = request, None
+        else:
+            # cliSetSettingByName(): пробелы срезаются только перед «=» и в самом значении
+            name, value = request[:eq].rstrip(" "), request[eq + 1 :].strip(" ")
+        entry = self.find_setting(name)
         if entry is None:
-            return
-        w.raw(f"{name} = {self.format_setting(entry)}".encode())
+            return ErrorReply()
+        if value is not None:
+            ok, _err = self.set_setting(entry["name"], value, strict=True)
+            if not ok:
+                return ErrorReply()
+        w.raw(f"{entry['name']} = {self.format_setting(entry)}".encode())
+        return None
 
     def _h_cli_setting_info(self, w, r):
+        """`<имя>\\0<смещение u16>` → `<полная длина u16><окно>`; неизвестное имя — отказ."""
         raw = r.data
+        if not raw or len(raw) > 128:       # msp.c: len == 0 || len > 128
+            return ErrorReply()
         if b"\x00" in raw:
             name, rest = raw.split(b"\x00", 1)
             offset = int.from_bytes(rest[:2], "little") if len(rest) >= 2 else 0
         else:
             name, offset = raw, 0
-        entry = self.settings_by_name.get(name.decode("latin-1", "replace").strip())
+        entry = self.find_setting(name.decode("latin-1", "replace").strip())
         if entry is None:
-            return
+            return ErrorReply()
         lines = [f"pgn={entry['pg']}", f"type={entry['type']}"]
         if entry["mode"] == "MODE_LOOKUP" and entry.get("values"):
             lines.append("values=" + ",".join(entry["values"]))
@@ -640,9 +661,12 @@ class IdentityMixin:
         block = ("\n".join(lines)).encode()
         window = block[offset : offset + 480]
         w.u16(len(block)).raw(window)
+        return None
 
     def _h_cli_command(self, w, r):
         raw = r.data
+        if not raw or len(raw) > 128:       # msp.c: len == 0 || len > 128
+            return ErrorReply()
         if b"\x00" in raw:
             cmdline, rest = raw.split(b"\x00", 1)
             offset = int.from_bytes(rest[:2], "little")

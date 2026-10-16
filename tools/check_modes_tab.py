@@ -469,7 +469,7 @@ def main() -> int:
         check(cli2.cli("battery_profile").strip() == "battery_profile 0"
               and cli2.cli("battery_profile 2").strip() == "battery_profile 2"
               and cli2.cli("battery_profile 9").strip()
-              == "###ERROR IN battery_profile: BATTERY PROFILE OUTSIDE OF [0..2]"
+              == "###ERROR IN battery_profile: BATTERY PROFILE OUTSIDE OF [0..2]###"
               and cli2.cli("battery_profile").strip() == "battery_profile 2",
               "CLI: 'battery_profile' печатает активный профиль, переключает и ругается на границу (мастер BF)")
 
