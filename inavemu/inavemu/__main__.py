@@ -6,6 +6,7 @@ import sys
 
 from .fc import InavFC
 from .server import FCServer, MonitorServer
+from .single_instance import InstanceLock
 
 
 def main(argv=None):
@@ -37,10 +38,28 @@ def main(argv=None):
     except ValueError:
         sys.exit(f"неверный адрес --tcp {args.tcp!r}, ожидается HOST:PORT")
 
+    # Запуск двух и более виртуальных контроллеров запрещён.
+    lock = InstanceLock()
+    if not lock.acquire():
+        sys.exit(
+            "[!] Виртуальный контроллер INAV уже запущен — второй экземпляр "
+            "запрещён.\n"
+            "    Закройте работающий inavemu (или освободите lock-файл "
+            f"{lock.path}) и повторите запуск."
+        )
+
     fc = InavFC(fc_version=args.fc_version, api_version=args.api_version,
                 board=args.board, target=args.target, eeprom_path=args.eeprom)
     server = FCServer(fc, host=host, port=port)
-    server.start()
+    try:
+        server.start()
+    except OSError as exc:
+        lock.release()
+        sys.exit(
+            f"[!] Не удалось занять {host}:{port} ({exc.strerror}).\n"
+            "    Порт занят другим приложением (или уже запущен виртуальный "
+            "FC). Смените --tcp или освободите порт."
+        )
     print(f"[FC] INAV {fc.fc_version} / MSP API {args.api_version} / "
           f"настроек в базе: {len(fc.store.settings)}")
 
@@ -61,6 +80,7 @@ def main(argv=None):
         server.stop()
         if monitor:
             monitor.stop()
+        lock.release()
 
 
 if __name__ == "__main__":

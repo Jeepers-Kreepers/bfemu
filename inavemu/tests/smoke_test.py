@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from inavemu import msp  # noqa: E402
 from inavemu.fc import (  # noqa: E402
-    MSP2_CF_SERIAL_CONFIG, MSP2_COMMON_SETTING, MSP2_COMMON_SETTING_INFO,
+    MSP2_CF_SERIAL_CONFIG, MSP2_COMMON_SET_SETTING, MSP2_COMMON_SETTING,
+    MSP2_COMMON_SETTING_INFO,
     MSP2_INAV_ANALOG, MSP2_INAV_BATTERY_CONFIG, MSP2_INAV_DEBUG, MSP2_INAV_MISC,
     MSP2_INAV_MIXER, MSP2_INAV_RATE_PROFILE, MSP2_INAV_SET_MISC,
     MSP2_INAV_TEMPERATURES, MSP2_INAV_AIR_SPEED, MSP2_INAV_STATUS,
@@ -269,6 +270,7 @@ def main():
 
         # --- сохранение + перезагрузка: линк рвётся, конфигурация живёт ---
         c.request(MSP_SET_FEATURE, struct.pack("<I", 0x40))
+        c.request(MSP2_COMMON_SET_SETTING, b"applied_defaults\x00\x05")
         c.sock.sendall(msp.encode_v2(MSP_EEPROM_WRITE, b""))
         time.sleep(0.2)
         c.sock.sendall(msp.encode_v2(MSP_SET_REBOOT, b""))
@@ -280,6 +282,8 @@ def main():
         check(feat == struct.pack("<I", 0x40), f"features пережили перезагрузку: {feat.hex()}")
         api = c2.request(MSP_API_VERSION).payload
         check(api[1] == 2, "второе подключение: MSP API")
+        ad = c2.request(MSP2_COMMON_SETTING, b"applied_defaults\x00").payload
+        check(ad == b"\x05", "applied_defaults пережил перезагрузку (диалог не вернётся)")
         c2.close()
         c.close()
         server.stop()
