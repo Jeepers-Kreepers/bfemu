@@ -97,6 +97,7 @@ MSP_DEBUG = 254
 MSP2_COMMON_SETTING = 0x1003
 MSP2_COMMON_SET_SETTING = 0x1004
 MSP2_COMMON_MOTOR_MIXER = 0x1005
+MSP2_COMMON_SET_MOTOR_MIXER = 0x1006
 MSP2_COMMON_SETTING_INFO = 0x1007
 MSP2_CF_SERIAL_CONFIG = 0x1009
 MSP2_SET_CF_SERIAL_CONFIG = 0x100A
@@ -125,7 +126,9 @@ MSP2_INAV_EZ_TUNE = 0x2070
 MSP2_INAV_EZ_TUNE_SET = 0x2071
 MSP2_ADSB_VEHICLE_LIST = 0x2090
 MSP2_INAV_CUSTOM_OSD_ELEMENTS = 0x2100
+MSP2_INAV_CUSTOM_OSD_ELEMENT = 0x2101
 MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS = 0x2102
+MSP2_INAV_SELECT_BATTERY_PROFILE = 0x2018
 MSP2_INAV_OSD_LAYOUTS = 0x2012
 MSP2_INAV_OSD_SET_LAYOUT_ITEM = 0x2013
 MSP2_INAV_OSD_ALARMS = 0x2014
@@ -291,6 +294,7 @@ class InavFC:
         self.sensor_config = {"accelerometer": 0, "barometer": 0, "magnetometer": 0,
                               "pitot": 0, "rangefinder": 0, "opflow": 0}
         self.servo_mix = []      # строки smix: 6 байт каждая
+        self.motor_mix = []      # строки mmix: 9 байт каждая
         self.osd_layouts = [
             [0x2000 | ((y & 0x3F) << 6) | (x & 0x3F) for y, x in
              [(2, 2), (2, 10), (2, 18), (1, 12), (2, 22), (1, 1), (1, 2), (1, 4)]
@@ -503,7 +507,9 @@ class InavFC:
             MSP_SET_BLACKBOX_CONFIG: self._ack,
             MSP2_BLACKBOX_CONFIG: self._msp_blackbox_config,
             MSP2_SET_BLACKBOX_CONFIG: self._ack,
-            MSP2_COMMON_MOTOR_MIXER: lambda p: b"",
+            MSP2_COMMON_MOTOR_MIXER: self._msp2_motor_mixer,
+            MSP2_COMMON_SET_MOTOR_MIXER: self._msp2_set_motor_mixer,
+            MSP2_INAV_SELECT_BATTERY_PROFILE: self._msp2_select_battery_profile,
             MSP2_PID: self._msp2_pid,
             MSP2_SET_PID: self._msp2_set_pid,
             MSP_SET_RESET_CURR_PID: self._ack,
@@ -523,7 +529,8 @@ class InavFC:
             MSP2_INAV_OSD_SET_ALARMS: self._msp2_osd_set_alarms,
             MSP2_INAV_OSD_PREFERENCES: self._msp2_osd_preferences,
             MSP2_INAV_OSD_SET_PREFERENCES: self._msp2_osd_set_preferences,
-            MSP2_INAV_CUSTOM_OSD_ELEMENTS: lambda p: b"",
+            MSP2_INAV_CUSTOM_OSD_ELEMENTS: self._msp2_custom_osd_elements,
+            MSP2_INAV_CUSTOM_OSD_ELEMENT: self._msp2_custom_osd_element,
             MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS: self._ack,
             MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED: lambda p: b"\x00" * 8,
             MSP_WP_GETINFO: self._msp_wp_getinfo,
@@ -1060,6 +1067,27 @@ class InavFC:
     def _msp2_servo_mixer(self, _p):
         return b"".join(bytes(row) for row in self.servo_mix)
 
+    def _msp2_motor_mixer(self, _p):
+        return b"".join(bytes(row) for row in self.motor_mix)
+
+    def _msp2_set_motor_mixer(self, p):
+        # строки по 9 байт: индекс + 4×i16 (throttle, roll, pitch, yaw)
+        if len(p) < 9:
+            raise MSPError("MOTOR_MIXER: короткий payload")
+        idx = p[0]
+        row = list(p[:9])
+        while len(self.motor_mix) <= idx:
+            self.motor_mix.append([0] * 9)
+        if idx < len(self.motor_mix):
+            self.motor_mix[idx] = row
+        return b""
+
+    def _msp2_select_battery_profile(self, p):
+        if p:
+            self.battery_profile = p[0] & 0x0F
+            self._log(f"battery_profile = {self.battery_profile}")
+        return b""
+
     def _msp2_set_servo_mixer(self, p):
         if len(p) % 6:
             raise MSPError("SERVO_MIXER: неверная длина")
@@ -1141,6 +1169,16 @@ class InavFC:
                 "adsb_warning_style"]
         self.osd_preferences.update(dict(zip(keys, p[:10])))
         return b""
+
+    def _msp2_custom_osd_elements(self, _p):
+        # (count, textSize, parts) — важно НЕ пустой payload: конфигуратор
+        # при нулевой длине делает return прямо из processData и не вызывает
+        # колбэки — цепочка загрузки OSD зависает (пустая вкладка).
+        return bytes([0, 0, 0])
+
+    def _msp2_custom_osd_element(self, p):
+        # visibility: u8 type + u16 value (текст и части нулевые)
+        return u8(0) + u16(0)
 
     def _msp_wp_getinfo(self, _p):
         return u8(0) + u8(self.wp_max) + u8(0) + u8(self.wp_count)

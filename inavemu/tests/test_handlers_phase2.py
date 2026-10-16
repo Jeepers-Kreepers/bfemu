@@ -5,11 +5,13 @@ import pytest
 
 from inavemu import msp
 from inavemu.fc import (
-    MSP2_ADSB_VEHICLE_LIST, MSP2_INAV_CUSTOM_OSD_ELEMENTS,
+    MSP2_ADSB_VEHICLE_LIST, MSP2_COMMON_MOTOR_MIXER, MSP2_COMMON_SET_MOTOR_MIXER,
+    MSP2_INAV_CUSTOM_OSD_ELEMENT, MSP2_INAV_CUSTOM_OSD_ELEMENTS,
     MSP2_INAV_EZ_TUNE, MSP2_INAV_EZ_TUNE_SET, MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED,
     MSP2_INAV_OSD_ALARMS, MSP2_INAV_OSD_LAYOUTS, MSP2_INAV_OSD_PREFERENCES,
     MSP2_INAV_OSD_SET_ALARMS, MSP2_INAV_OSD_SET_LAYOUT_ITEM, MSP2_INAV_OSD_SET_PREFERENCES,
-    MSP2_INAV_RATE_DYNAMICS, MSP2_INAV_SERVO_MIXER, MSP2_INAV_SET_RATE_DYNAMICS,
+    MSP2_INAV_RATE_DYNAMICS, MSP2_INAV_SELECT_BATTERY_PROFILE, MSP2_INAV_SERVO_MIXER,
+    MSP2_INAV_SET_RATE_DYNAMICS,
     MSP2_PID, MSP2_SET_PID, MSP_GPSSTATISTICS, MSP_SENSOR_CONFIG,
     MSP_SET_RESET_CURR_PID, MSP_SET_WP, MSP_WP, MSP_WP_GETINFO,
     MSPError, InavFC,
@@ -115,8 +117,21 @@ def test_osd_preferences_roundtrip(fc):
 
 
 def test_custom_osd_and_logic_mask(fc):
-    assert ask(fc, MSP2_INAV_CUSTOM_OSD_ELEMENTS) == b""
+    # не пустой payload: пустой ответ заставляет конфигуратор пропустить
+    # колбэки (return из processData) и повесить цепочку загрузки OSD
+    assert ask(fc, MSP2_INAV_CUSTOM_OSD_ELEMENTS) == bytes([0, 0, 0])
+    element = ask(fc, MSP2_INAV_CUSTOM_OSD_ELEMENT, bytes([0]))
+    assert len(element) == 3  # visibility: u8 + u16
     assert ask(fc, MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED) == b"\x00" * 8
+
+
+def test_select_battery_profile_and_motor_mixer(fc):
+    assert ask(fc, MSP2_INAV_SELECT_BATTERY_PROFILE, bytes([2])) == b""
+    assert fc.battery_profile == 2
+    row = bytes([0]) + struct.pack("<hhhh", 1000, -100, 100, 50)
+    assert ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, row) == b""
+    mm = ask(fc, MSP2_COMMON_MOTOR_MIXER)
+    assert mm[:9] == row
 
 
 def test_waypoint_stub(fc):

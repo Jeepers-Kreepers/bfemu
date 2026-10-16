@@ -54,12 +54,34 @@ class FCServer:
             threading.Thread(target=self._client_loop,
                              args=(conn, addr), daemon=True).start()
 
+    @staticmethod
+    def _drop_link(conn: socket.socket):
+        """Грациозный разрыв: сначала FIN (SHUT_WR), дочитываем входящие
+        и только потом close(). Немедленный close() при непрочитанном буфере
+        даёт RST — и ответ, ещё не прочитанный клиентом, теряется
+        (конфигуратор висит в ожидании колбэка)."""
+        try:
+            conn.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        conn.settimeout(0.25)
+        try:
+            while conn.recv(4096):
+                pass
+        except OSError:
+            pass
+        try:
+            conn.close()
+        except OSError:
+            pass
+
     def _client_loop(self, conn: socket.socket, addr):
         print(f"[TCP] подключился {addr[0]}:{addr[1]}")
         from .cli import CliSession
         parser = msp.Parser()
         cli = CliSession(self.fc)
         in_cli = False
+        dropped = False
         conn.settimeout(1.0)
         try:
             while not self._stop.is_set():
@@ -75,7 +97,8 @@ class FCServer:
                         conn.sendall(out)
                     if cli.reboot_requested:
                         self.fc.save_eeprom()
-                        conn.close()
+                        self._drop_link(conn)
+                        dropped = True
                         print("[TCP] линк разорван (перезагрузка FC)")
                         return
                     continue
@@ -91,7 +114,9 @@ class FCServer:
                                 conn.sendall(out)
                             if cli.reboot_requested:
                                 self.fc.save_eeprom()
-                                conn.close()
+                                self._drop_link(conn)
+                                dropped = True
+                                print("[TCP] линк разорван (перезагрузка FC)")
                                 return
                         break
                     for req in parser.feed(bytes([byte])):
@@ -102,16 +127,18 @@ class FCServer:
                     if self.fc.reboot_requested:
                         # как настоящий FC: после перезагрузки линк рвётся
                         self.fc.reboot_requested = False
-                        conn.close()
+                        self._drop_link(conn)
+                        dropped = True
                         print("[TCP] линк разорван (перезагрузка FC)")
                         return
         except OSError:
             pass
         finally:
-            try:
-                conn.close()
-            except OSError:
-                pass
+            if not dropped:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
         print(f"[TCP] {addr[0]}:{addr[1]} отключился")
 
     def _dispatch(self, req: msp.Request) -> bytes | None:
