@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from bfemu.msp import FROM_FC, MspParser, crc8_dvb_s2, crc_xor, encode_v1, encode_v2
+from bfemu.msp import ERROR_REPLY, FROM_FC, TO_V1, ErrorReply, MspParser, crc8_dvb_s2, crc_xor, encode_v1, encode_v2
 
 
 def frame_v1(code: int, payload: bytes = b"") -> bytes:
@@ -47,6 +47,31 @@ def test_jumbo_frame_v1():
     assert len(requests) == 1
     assert requests[0].code == 7
     assert requests[0].payload == payload
+    assert requests[0].direction == ord("<"), "джамбо-кадр тоже помнит направление"
+
+
+def test_direction_is_third_byte_of_frame():
+    """Направление кадра («<» запрос, «>» ответ, «!» отказ) читается из байта 2.
+
+    Только по нему Configurator отличает отказ FC (`unsupported`, MSP_RESULT_ERROR)
+    от пустого успешного ответа, поэтому парсер обязан его сохранять для всех
+    разновидностей кадра: v1, v2 и «джамбо».
+    """
+    assert parse_all(frame_v1(1))[0].direction == TO_V1
+    assert parse_all(frame_v1(1).replace(b"$M<", b"$M!", 1))[0].direction == ERROR_REPLY
+    assert parse_all(frame_v2(0x3010))[0].direction == TO_V1
+    assert parse_all(frame_v2(0x3010).replace(b"$X<", b"$X!", 1))[0].direction == ERROR_REPLY
+
+
+def test_error_reply_frame_is_encoded_with_bang():
+    """`ErrorReply` возвращает кадр-отказ с третьим байтом «!» (msp_serial.c)."""
+    reply = ErrorReply()
+    assert reply.payload == b""
+    assert encode_v1(1, reply.payload, direction=ERROR_REPLY).startswith(b"$M!")
+    assert encode_v2(0x3010, reply.payload, direction=ERROR_REPLY).startswith(b"$X!")
+    # обычные ответы по умолчанию идут с «>» (v2) и «<» (v1 — это формат запросов)
+    assert encode_v2(0x3010).startswith(b"$X>")
+    assert encode_v1(1, direction=FROM_FC).startswith(b"$M>")
 
 
 def test_resync_after_garbage():
@@ -93,3 +118,9 @@ def test_crc_values_match_firmware():
     assert crc8_dvb_s2(b"") == 0
     assert crc8_dvb_s2(b"\x00") == 0
     assert crc8_dvb_s2(b"\x01") == 0xD5
+
+
+def test_error_frame_round_trip():
+    """Кадр-отказ без тела, разобранный парсером, даёт пустой payload и direction '!'."""
+    requests = parse_all(encode_v2(0x3010, b"", direction=ERROR_REPLY))
+    assert [(r.code, r.payload, r.direction) for r in requests] == [(0x3010, b"", ERROR_REPLY)]

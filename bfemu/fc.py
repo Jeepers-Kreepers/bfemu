@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import bb_scenarios
 from .cli import CliEngine
-from .msp import Reader, Writer
+from .msp import ErrorReply, Reader, Writer
 from .fc_constants import *
 from .fc_modes import ModesMixin
 from .fc_state import StateMixin
@@ -369,7 +369,11 @@ class VirtualFC(
         return b""
 
     def handle(self, code: int, payload: bytes, version: int):
-        """Возвращает payload ответа (bytes) или None, если ответа нет."""
+        """Возвращает payload ответа (bytes), None (ответа нет) или ErrorReply.
+
+        ErrorReply означает MSP_RESULT_ERROR: обработчик понял команду, но отказался её
+        выполнить (например, MSP2_CLI_SETTING с недопустимым значением).
+        """
         if self.acc_calibration_until and time.time() >= self.acc_calibration_until:
             self.acc_calibration_until = 0.0
             self.acc_calibrated = True
@@ -403,7 +407,11 @@ class VirtualFC(
             self.writes_log.append(f"неизвестный код 0x{code:04x} (MSP{'2' if code > 255 else '1'})")
             return b""  # отвечаем пустым payload, чтобы Configurator не ждал таймаут
         w = Writer()
-        handler(w, Reader(payload))
+        refusal = handler(w, Reader(payload))
+        if isinstance(refusal, ErrorReply):
+            # Обработчик отказал: кадр отправляется с «!» вместо «>» и без тела,
+            # как `return MSP_RESULT_ERROR` в msp.c прошивки.
+            return refusal
         response = w.bytes()
 
         # 2) Чтение: если вкладка раньше что-то записала, отдаём записанное — но только для

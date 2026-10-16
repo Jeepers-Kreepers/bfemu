@@ -287,12 +287,18 @@ class StateMixin:
             return ["Allowed values: OFF, ON"]
         return [f"Allowed range: {entry['min']} - {entry['max']}"]
 
-    def set_setting(self, name: str, raw: str):
+    def set_setting(self, name: str, raw: str, strict: bool = False):
         """`set` как cliSet(): (получилось, текст дополнительной ошибки).
 
         Второй элемент нужен только MODE_STRING («STRING MUST BE 1-N CHARACTERS OR
         '-' FOR EMPTY»); при любом другом отказе прошивка печатает `INVALID VALUE` и
         границы настройки — это делает вызывающий (cli.py::cmd_set).
+
+        `strict=True` — разбор как cliSetSettingByName() из cli_settings.c: так значение
+        приходит в MSP2_CLI_SETTING. Там строка обязана израсходоваться целиком
+        (`*endptr != '\0'` — отказ), беззнаковому типу нельзя отрицательное, а пустое
+        значение не принимается вовсе. В CLI (`set`) прошивка разбирает то же значение
+        как atoi() и на хвост строки не смотрит — поэтому там strict=False.
         """
         entry = self.find_setting(name)
         if entry is None:
@@ -322,12 +328,43 @@ class StateMixin:
                 return False, None
             self.settings[name] = value
             return True, None
-        value = self._atoi(raw)
+        if strict:
+            value = self._strtoint_strict(entry, raw)
+            if value is None:
+                return False, None
+        else:
+            value = self._atoi(raw)
         lo, hi = entry["min"], entry["max"]
+        if entry["type"] == "int32":
+            # cliSetSettingByName(): у INT32 границы симметричны (d32Max и -d32Max),
+            # поэтому -2147483648 прошивка не примет, хотя в таблице это её min.
+            lo = -hi
         if not (lo <= value <= hi):
             return False, None
         self.settings[name] = value
         return True, None
+
+    def _strtoint_strict(self, entry, raw: str):
+        """То же значение, но разобранное как strtoul()/strtoll() с требованием конца строки."""
+        if not raw:
+            return None                    # cliSetSettingByName(): valEnd == valStr
+        unsigned = entry["type"].startswith("u")
+        i = 0
+        while i < len(raw) and raw[i].isspace():
+            i += 1
+        sign = 1
+        if i < len(raw) and raw[i] in "+-":
+            if raw[i] == "-":
+                if unsigned:
+                    return None            # прошивка проверяет '-' до strtoull()
+                sign = -1
+            i += 1
+        start = i
+        while i < len(raw) and raw[i].isdigit():
+            i += 1
+        if i == start or i != len(raw):
+            return None                    # endptr == raw или *endptr != '\0'
+        return sign * int(raw[start:i])
 
     @staticmethod
     def _atoi(text: str) -> int:
