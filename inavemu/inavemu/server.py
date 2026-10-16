@@ -141,15 +141,23 @@ class FCServer:
                     pass
         print(f"[TCP] {addr[0]}:{addr[1]} отключился")
 
+    # опрашиваются конфигуратором фоново — в логе не нужны
+    _POLL_CODES = {0x2000, 0x2002, 113, 151}
+
     def _dispatch(self, req: msp.Request) -> bytes | None:
         try:
             payload = self.fc.handle(req)
         except MSPError as exc:
             self.fc._log(f"MSP 0x{req.code:04X}: {exc}")
+            if req.code not in self._POLL_CODES:
+                print(f"[MSP] 0x{req.code:04X} -> ошибка", flush=True)
             return msp.encode(req, b"", error=True)
         except Exception as exc:  # noqa: BLE001 — не ронять линк из-за бага обработчика
             self.fc._log(f"MSP 0x{req.code:04X}: внутренняя ошибка {exc!r}")
+            print(f"[MSP] 0x{req.code:04X} -> ВНУТРЕННЯЯ ОШИБКА {exc!r}", flush=True)
             return msp.encode(req, b"", error=True)
+        if req.code not in self._POLL_CODES:
+            print(f"[MSP] 0x{req.code:04X} ok ({len(payload)} байт)", flush=True)
         return msp.encode(req, payload)
 
     # ------------------------------------------------------------------
