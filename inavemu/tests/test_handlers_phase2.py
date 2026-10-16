@@ -8,10 +8,11 @@ from inavemu.fc import (
     MSP2_ADSB_VEHICLE_LIST, MSP2_COMMON_MOTOR_MIXER, MSP2_COMMON_SET_MOTOR_MIXER,
     MSP2_INAV_CUSTOM_OSD_ELEMENT, MSP2_INAV_CUSTOM_OSD_ELEMENTS,
     MSP2_INAV_EZ_TUNE, MSP2_INAV_EZ_TUNE_SET, MSP2_INAV_LOGIC_CONDITIONS_CONFIGURED,
+    MSP2_INAV_MIXER,
     MSP2_INAV_OSD_ALARMS, MSP2_INAV_OSD_LAYOUTS, MSP2_INAV_OSD_PREFERENCES,
     MSP2_INAV_OSD_SET_ALARMS, MSP2_INAV_OSD_SET_LAYOUT_ITEM, MSP2_INAV_OSD_SET_PREFERENCES,
     MSP2_INAV_RATE_DYNAMICS, MSP2_INAV_SELECT_BATTERY_PROFILE, MSP2_INAV_SERVO_MIXER,
-    MSP2_INAV_SET_RATE_DYNAMICS,
+    MSP2_INAV_SET_MIXER, MSP2_INAV_SET_RATE_DYNAMICS, MSP2_INAV_SET_SERVO_MIXER,
     MSP2_PID, MSP2_SET_PID, MSP_GPSSTATISTICS, MSP_SENSOR_CONFIG,
     MSP_SET_RESET_CURR_PID, MSP_SET_WP, MSP_WP, MSP_WP_GETINFO,
     MSPError, InavFC,
@@ -63,8 +64,36 @@ def test_sensor_config(fc):
     assert len(sc) == 6
 
 
+def test_set_mixer_format(fc):
+    # crunch конфигуратора: 5×u8 + u16 + 2 заглушки; прошивка требует ровно 9 байт
+    p = struct.pack("<bBBbbhBB", -1, 0, 1, 2, 1, 14, 0, 0)
+    assert ask(fc, MSP2_INAV_SET_MIXER, p) == b""
+    assert fc.mixer["yaw_motor_direction"] == -1
+    assert fc.mixer["platform_type"] == 2
+    assert fc.mixer["has_flaps"] == 1
+    assert fc.mixer["applied_mixer_preset"] == 14
+    mix = ask(fc, MSP2_INAV_MIXER)
+    assert mix[7] == 12 and mix[8] == 18  # ёмкости не «съедаются» заглушками SET
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_INAV_SET_MIXER, p[:8])  # не 9 байт
+
+
 def test_servo_mixer_empty(fc):
-    assert ask(fc, MSP2_INAV_SERVO_MIXER) == b""
+    # прошивка всегда отдаёт оба mixer-профиля: 2 × MAX_SERVO_RULES строк по 6 байт
+    data = ask(fc, MSP2_INAV_SERVO_MIXER)
+    assert data == b"\x00" * (6 * 36 * 2)
+
+
+def test_servo_mixer_roundtrip(fc):
+    row = bytes([3, 2, 0x10, 0x27, 5, 7])  # target, input, rate=10000, speed, condition
+    assert ask(fc, MSP2_INAV_SET_SERVO_MIXER, bytes([1]) + row) == b""  # idx=1, 7 байт
+    data = ask(fc, MSP2_INAV_SERVO_MIXER)
+    assert data[6:12] == row  # слот 1
+    assert data[0:6] == b"\x00" * 6  # слот 0 пуст
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_INAV_SET_SERVO_MIXER, b"\x00" * 6)  # не 7 байт
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_INAV_SET_SERVO_MIXER, bytes([36]) + row)  # idx >= 36
 
 
 def test_adsb_empty(fc):
@@ -128,10 +157,15 @@ def test_custom_osd_and_logic_mask(fc):
 def test_select_battery_profile_and_motor_mixer(fc):
     assert ask(fc, MSP2_INAV_SELECT_BATTERY_PROFILE, bytes([2])) == b""
     assert fc.battery_profile == 2
-    row = bytes([0]) + struct.pack("<hhhh", 1000, -100, 100, 50)
+    row = bytes([0]) + struct.pack("<HHHH", 3000, 1900, 2100, 2050)  # idx + 4×u16
     assert ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, row) == b""
     mm = ask(fc, MSP2_COMMON_MOTOR_MIXER)
-    assert mm[:9] == row
+    # GET: оба профиля × 12 строк по 8 байт (без индекса)
+    assert mm == row[1:9] + b"\x00" * (8 * 12 - 8) + b"\x00" * (8 * 12)
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, b"\x00" * 8)  # не 9 байт
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, bytes([12]) + row[1:9])  # idx >= 12
 
 
 def test_waypoint_stub(fc):

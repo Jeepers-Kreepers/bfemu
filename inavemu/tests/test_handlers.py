@@ -136,7 +136,9 @@ def test_battery_config_layout(fc):
 def test_mixer_layout(fc):
     mix = ask(fc, MSP2_INAV_MIXER)
     assert len(mix) == 9
-    assert mix[7] == 4  # motors
+    # прошивка отдаёт константы ёмкости generic-таргета, не фактические счётчики
+    assert mix[7] == 12  # MAX_SUPPORTED_MOTORS
+    assert mix[8] == 18  # MAX_SUPPORTED_SERVOS
 
 
 def test_serial_config_layout(fc):
