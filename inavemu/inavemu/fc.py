@@ -45,6 +45,12 @@ MSP_SONAR = 58
 MSP_RX_MAP = 64
 MSP_SET_RX_MAP = 65
 MSP_SET_REBOOT = 68
+MSP_CALIBRATION_DATA = 14
+MSP_SET_CALIBRATION_DATA = 15
+MSP_LED_COLORS = 46
+MSP_SET_LED_COLORS = 47
+MSP_LED_STRIP_CONFIG = 48
+MSP_SET_LED_STRIP_CONFIG = 49
 MSP_DATAFLASH_SUMMARY = 70
 MSP_DATAFLASH_READ = 71
 MSP_DATAFLASH_ERASE = 72
@@ -55,6 +61,16 @@ MSP_SET_FAILSAFE_CONFIG = 76
 MSP_SDCARD_SUMMARY = 79
 MSP_BLACKBOX_CONFIG = 80
 MSP_SET_BLACKBOX_CONFIG = 81
+MSP_OSD_CHAR_WRITE = 87
+MSP_FILTER_CONFIG = 92
+MSP_SET_FILTER_CONFIG = 93
+MSP_PID_ADVANCED = 94
+MSP_SET_PID_ADVANCED = 95
+MSP_LED_STRIP_MODECOLOR = 127
+MSP_SET_RAW_RC = 200
+MSP_SET_RAW_GPS = 201
+MSP_SET_RC_TUNING = 204
+MSP_SET_LED_STRIP_MODECOLOR = 221
 MSP_VTX_CONFIG = 88
 MSP_SET_VTX_CONFIG = 89
 MSP_ADVANCED_CONFIG = 90
@@ -97,6 +113,7 @@ MSP_DEBUGMSG = 253
 MSP_DEBUG = 254
 MSP2_COMMON_SETTING = 0x1003
 MSP2_COMMON_SET_SETTING = 0x1004
+MSP2_COMMON_PG_LIST = 0x1008
 MSP2_COMMON_MOTOR_MIXER = 0x1005
 MSP2_COMMON_SET_MOTOR_MIXER = 0x1006
 MSP2_COMMON_SETTING_INFO = 0x1007
@@ -111,6 +128,11 @@ MSP2_INAV_BATTERY_CONFIG = 0x2005
 MSP2_INAV_SET_BATTERY_CONFIG = 0x2006
 MSP2_INAV_RATE_PROFILE = 0x2007
 MSP2_INAV_SET_RATE_PROFILE = 0x2008
+MSP2_INAV_OUTPUT_MAPPING = 0x200A
+MSP2_INAV_MC_BRAKING = 0x200B
+MSP2_INAV_SET_MC_BRAKING = 0x200C
+MSP2_INAV_TIMER_OUTPUT_MODE = 0x200E
+MSP2_INAV_SET_TIMER_OUTPUT_MODE = 0x200F
 MSP2_INAV_AIR_SPEED = 0x2009
 MSP2_INAV_MIXER = 0x2010
 MSP2_INAV_SET_MIXER = 0x2011
@@ -148,8 +170,16 @@ MSP2_INAV_PROGRAMMING_PID_STATUS = 0x202A
 MSP2_INAV_SAFEHOME = 0x2038
 MSP2_INAV_SET_SAFEHOME = 0x2039
 MSP2_INAV_LOGIC_CONDITIONS_SINGLE = 0x203B
+MSP2_INAV_OPFLOW_CALIBRATION = 0x2032
+MSP2_INAV_LED_STRIP_CONFIG_EX = 0x2048
+MSP2_INAV_SET_LED_STRIP_CONFIG_EX = 0x2049
+MSP2_INAV_GPS_UBLOX_COMMAND = 0x2050
 MSP2_INAV_FW_APPROACH = 0x204A
 MSP2_INAV_SET_FW_APPROACH = 0x204B
+MSP2_INAV_SELECT_MIXER_PROFILE = 0x2080
+MSP2_INAV_OUTPUT_MAPPING_EXT2 = 0x210D
+MSP2_INAV_SERVO_CONFIG = 0x2200
+MSP2_INAV_SET_SERVO_CONFIG = 0x2201
 MSP2_INAV_GEOZONE = 0x2210
 MSP2_INAV_SET_GEOZONE = 0x2211
 MSP2_INAV_GEOZONE_VERTEX = 0x2212
@@ -390,6 +420,58 @@ class InavFC:
         self.flash_sectors = 4096
         self.flash_total = 16 * 1024 * 1024
         self.flash_used = 0
+        # --- фаза 3b: LED, фильтры, навигация, калибровки, выходы ---
+        self.mixer_profile = 0
+        self.reversible = {"deadband_low": 0, "deadband_high": 0, "neutral": 0}
+        self.filter_config = {
+            "gyro_main_lpf_hz": 40, "dterm_lpf_hz": 100, "yaw_lpf_hz": 100,
+            "acc_notch_hz": 0, "acc_notch_cutoff": 1,
+        }
+        self.pid_advanced = {"axis_acc_rp": 0, "axis_acc_yaw": 0}
+        self.nav_poshold = {
+            "user_control_mode": 0, "max_auto_speed": 300,
+            "max_auto_climb_rate": 300, "max_manual_speed": 400,
+            "max_manual_climb_rate": 200, "max_bank_angle": 30,
+            "althold_throttle_type": 0, "hover_throttle": 1500,
+        }
+        self.rth_land = {
+            "min_rth_distance": 200, "climb_first": 1, "climb_ignore_emerg": 0,
+            "tail_first": 0, "allow_landing": 1, "alt_control_mode": 0,
+            "abort_threshold": 500, "rth_altitude": 1000,
+            "land_minalt_vspd": 200, "land_maxalt_vspd": 100,
+            "land_slowdown_minalt": 500, "land_slowdown_maxalt": 2000,
+            "emerg_descent_rate": 500,
+        }
+        self.fw_config = {
+            "cruise_throttle": 1500, "min_throttle": 1200, "max_throttle": 1800,
+            "max_bank_angle": 35, "max_climb_angle": 20, "max_dive_angle": 15,
+            "pitch_to_throttle": 10, "loiter_radius": 2000,
+        }
+        self.mc_braking = {
+            "speed_threshold": 0, "disengage_speed": 0, "timeout": 0,
+            "boost_factor": 0, "boost_timeout": 0, "boost_speed_threshold": 0,
+            "boost_disengage_speed": 0, "bank_angle": 0,
+        }
+        self.calibration = {
+            "acc_flags": 0x3F,  # все 6 положений откалиброваны
+            "acc_zero": [0, 0, 0], "acc_gain": [0, 0, 0],
+            "mag_zero": [0, 0, 0], "opflow_scale": 0, "mag_gain": [0, 0, 0],
+        }
+        self.led_colors = [(0, 0, 0)] * 16            # h u16, s, v
+        self.leds = [bytes(5) for _ in range(128)]    # сырые ledConfig_t
+        self.led_mode_colors = [
+            (mode, direction, 0)
+            for mode in range(7) for direction in range(6)
+        ] + [(7, j, 0) for j in range(9)]   # + special colors
+        self.servo_config = [
+            {"min": 1000, "max": 2000, "middle": 1500, "rate": 100}
+            for _ in range(18)
+        ]
+        self.timer_modes = [0] * 8
+        self.output_mapping = [  # timer id, usageFlags, pin label (0=none)
+            (i + 1, 1 << (2 if i < 4 else 3), 0) for i in range(8)
+        ]
+        self.output_mapping[-1] = (8, 1 << 24, 1)     # LED-выход
 
         # режимы (mode ranges / adjustment ranges)
         self.mode_ranges = [
@@ -452,6 +534,28 @@ class InavFC:
                                                self.failsafe_extra)
                 self.blackbox.update(data.get("blackbox", {}))
                 self.flash_used = data.get("flash_used", self.flash_used)
+                self.mixer_profile = data.get("mixer_profile", self.mixer_profile)
+                self.reversible.update(data.get("reversible", {}))
+                self.filter_config.update(data.get("filter_config", {}))
+                self.pid_advanced.update(data.get("pid_advanced", {}))
+                self.nav_poshold.update(data.get("nav_poshold", {}))
+                self.rth_land.update(data.get("rth_land", {}))
+                self.fw_config.update(data.get("fw_config", {}))
+                self.mc_braking.update(data.get("mc_braking", {}))
+                self.calibration.update(data.get("calibration", {}))
+                self.led_colors = [tuple(c) for c in
+                                   data.get("led_colors", self.led_colors)]
+                self.leds = [bytes(5) if not isinstance(x, str) else
+                             bytes.fromhex(x) for x in
+                             data.get("leds_hex", [b.hex() for b in self.leds])]
+                self.led_mode_colors = [tuple(c) for c in
+                                        data.get("led_mode_colors",
+                                                 self.led_mode_colors)]
+                self.servo_config = data.get("servo_config", self.servo_config)
+                self.timer_modes = data.get("timer_modes", self.timer_modes)
+                self.output_mapping = [tuple(t) for t in
+                                       data.get("output_mapping",
+                                                self.output_mapping)]
                 for name, val in (data.get("settings") or {}).items():
                     self.store.set(name, val)
             except Exception as exc:  # noqa: BLE001
@@ -485,6 +589,21 @@ class InavFC:
             "failsafe_extra": self.failsafe_extra,
             "blackbox": self.blackbox,
             "flash_used": self.flash_used,
+            "mixer_profile": self.mixer_profile,
+            "reversible": self.reversible,
+            "filter_config": self.filter_config,
+            "pid_advanced": self.pid_advanced,
+            "nav_poshold": self.nav_poshold,
+            "rth_land": self.rth_land,
+            "fw_config": self.fw_config,
+            "mc_braking": self.mc_braking,
+            "calibration": self.calibration,
+            "led_colors": [list(c) for c in self.led_colors],
+            "leds_hex": [b.hex() for b in self.leds],
+            "led_mode_colors": [list(c) for c in self.led_mode_colors],
+            "servo_config": self.servo_config,
+            "timer_modes": self.timer_modes,
+            "output_mapping": [list(t) for t in self.output_mapping],
             "settings": self.store.values,
         }
         self.eeprom_path.write_text(json.dumps(data, ensure_ascii=False, indent=1),
@@ -612,6 +731,45 @@ class InavFC:
             MSP_SET_FAILSAFE_CONFIG: self._msp_set_failsafe_config,
             MSP_DATAFLASH_READ: self._msp_dataflash_read,
             MSP_DATAFLASH_ERASE: self._msp_dataflash_erase,
+            # --- фаза 3b: остатки вкладок ---
+            MSP_3D: self._msp_3d,
+            MSP_SET_3D: self._msp_set_3d,
+            MSP_FILTER_CONFIG: self._msp_filter_config,
+            MSP_SET_FILTER_CONFIG: self._msp_set_filter_config,
+            MSP_PID_ADVANCED: self._msp_pid_advanced,
+            MSP_SET_PID_ADVANCED: self._msp_set_pid_advanced,
+            MSP_NAV_POSHOLD: self._msp_nav_poshold,
+            MSP_SET_NAV_POSHOLD: self._msp_set_nav_poshold,
+            MSP_RTH_AND_LAND_CONFIG: self._msp_rth_and_land,
+            MSP_SET_RTH_AND_LAND_CONFIG: self._msp_set_rth_and_land,
+            MSP_FW_CONFIG: self._msp_fw_config,
+            MSP_SET_FW_CONFIG: self._msp_set_fw_config,
+            MSP_CALIBRATION_DATA: self._msp_calibration_data,
+            MSP_SET_CALIBRATION_DATA: self._msp_set_calibration_data,
+            MSP2_INAV_OPFLOW_CALIBRATION: self._ack,
+            MSP_LED_COLORS: self._msp_led_colors,
+            MSP_SET_LED_COLORS: self._msp_set_led_colors,
+            MSP_LED_STRIP_CONFIG: self._msp_led_strip_config,
+            MSP_SET_LED_STRIP_CONFIG: self._msp_set_led_strip_config,
+            MSP2_INAV_LED_STRIP_CONFIG_EX: self._msp2_led_strip_config_ex,
+            MSP2_INAV_SET_LED_STRIP_CONFIG_EX: self._msp2_set_led_strip_config_ex,
+            MSP_LED_STRIP_MODECOLOR: self._msp_led_mode_colors,
+            MSP_SET_LED_STRIP_MODECOLOR: self._msp_set_led_mode_colors,
+            MSP_OSD_CHAR_WRITE: self._msp_osd_char_write,
+            MSP2_INAV_SERVO_CONFIG: self._msp2_servo_config,
+            MSP2_INAV_SET_SERVO_CONFIG: self._msp2_set_servo_config,
+            MSP2_INAV_OUTPUT_MAPPING: lambda p: b"".join(u8(m[1] & 0xFF) for m in self.output_mapping),
+            MSP2_INAV_OUTPUT_MAPPING_EXT2: self._msp2_output_mapping_ext2,
+            MSP2_INAV_MC_BRAKING: self._msp2_mc_braking,
+            MSP2_INAV_SET_MC_BRAKING: self._msp2_set_mc_braking,
+            MSP2_INAV_TIMER_OUTPUT_MODE: self._msp2_timer_output_mode,
+            MSP2_INAV_SET_TIMER_OUTPUT_MODE: self._msp2_set_timer_output_mode,
+            MSP2_INAV_SELECT_MIXER_PROFILE: self._msp2_select_mixer_profile,
+            MSP2_INAV_GPS_UBLOX_COMMAND: self._msp2_gps_ublox_command,
+            MSP2_COMMON_PG_LIST: self._msp2_pg_list,
+            MSP_SET_RAW_RC: self._msp_set_raw_rc,
+            MSP_SET_RAW_GPS: self._msp_set_raw_gps,
+            MSP_SET_RC_TUNING: self._msp_set_rc_tuning,
             MSP2_COMMON_MOTOR_MIXER: self._msp2_motor_mixer,
             MSP2_COMMON_SET_MOTOR_MIXER: self._msp2_set_motor_mixer,
             MSP2_INAV_SELECT_BATTERY_PROFILE: self._msp2_select_battery_profile,
@@ -1684,4 +1842,335 @@ class InavFC:
             "d": int.from_bytes(p[16:18], "little"),
             "ff": int.from_bytes(p[18:20], "little"),
         }
+        return b""
+
+    # ================================================================
+    # фаза 3b: LED, фильтры, навигация, калибровки, выходы
+    # ================================================================
+
+    def _msp_3d(self, _p):
+        r = self.reversible
+        return u16(r["deadband_low"]) + u16(r["deadband_high"]) + u16(r["neutral"])
+
+    def _msp_set_3d(self, p):
+        if len(p) != 6:
+            raise MSPError("SET_3D: ожидается 6 байт")
+        self.reversible.update({
+            "deadband_low": int.from_bytes(p[0:2], "little"),
+            "deadband_high": int.from_bytes(p[2:4], "little"),
+            "neutral": int.from_bytes(p[4:6], "little"),
+        })
+        return b""
+
+    def _msp_filter_config(self, _p):
+        f = self.filter_config
+        return (u8(f["gyro_main_lpf_hz"]) + u16(f["dterm_lpf_hz"])
+                + u16(f["yaw_lpf_hz"]) + u16(0) + u16(1) + u16(0) + u16(1)
+                + u16(0) + u16(1) + u16(f["acc_notch_hz"])
+                + u16(f["acc_notch_cutoff"]) + u16(0))
+
+    def _msp_set_filter_config(self, p):
+        if len(p) < 23:
+            raise MSPError("SET_FILTER_CONFIG: ожидается 23 байта")
+        self.filter_config.update({
+            "gyro_main_lpf_hz": p[0],
+            "dterm_lpf_hz": min(int.from_bytes(p[1:3], "little"), 500),
+            "yaw_lpf_hz": min(int.from_bytes(p[3:5], "little"), 255),
+            "acc_notch_hz": min(int.from_bytes(p[17:19], "little"), 255),
+            "acc_notch_cutoff": max(1, min(int.from_bytes(p[19:21], "little"), 255)),
+        })
+        return b""
+
+    def _msp_pid_advanced(self, _p):
+        return (u16(0) + u16(0) + u16(0) + u8(0) + u8(0) + u8(0) + u8(0)
+                + u16(0) + u8(0)
+                + u16(self.pid_advanced["axis_acc_rp"])
+                + u16(self.pid_advanced["axis_acc_yaw"]))
+
+    def _msp_set_pid_advanced(self, p):
+        if len(p) != 17:
+            raise MSPError("SET_PID_ADVANCED: ожидается 17 байт")
+        self.pid_advanced.update({
+            "axis_acc_rp": int.from_bytes(p[13:15], "little"),
+            "axis_acc_yaw": int.from_bytes(p[15:17], "little"),
+        })
+        return b""
+
+    def _msp_nav_poshold(self, _p):
+        n = self.nav_poshold
+        return (u8(n["user_control_mode"]) + u16(n["max_auto_speed"])
+                + u16(n["max_auto_climb_rate"]) + u16(n["max_manual_speed"])
+                + u16(n["max_manual_climb_rate"]) + u8(n["max_bank_angle"])
+                + u8(n["althold_throttle_type"]) + u16(n["hover_throttle"]))
+
+    def _msp_set_nav_poshold(self, p):
+        if len(p) != 13:
+            raise MSPError("SET_NAV_POSHOLD: ожидается 13 байт")
+        self.nav_poshold.update({
+            "user_control_mode": p[0],
+            "max_auto_speed": int.from_bytes(p[1:3], "little"),
+            "max_auto_climb_rate": int.from_bytes(p[3:5], "little"),
+            "max_manual_speed": int.from_bytes(p[5:7], "little"),
+            "max_manual_climb_rate": int.from_bytes(p[7:9], "little"),
+            "max_bank_angle": p[9], "althold_throttle_type": p[10],
+            "hover_throttle": int.from_bytes(p[11:13], "little"),
+        })
+        return b""
+
+    def _msp_rth_and_land(self, _p):
+        r = self.rth_land
+        return (u16(r["min_rth_distance"]) + u8(r["climb_first"])
+                + u8(r["climb_ignore_emerg"]) + u8(r["tail_first"])
+                + u8(r["allow_landing"]) + u8(r["alt_control_mode"])
+                + u16(r["abort_threshold"]) + u16(r["rth_altitude"])
+                + u16(r["land_minalt_vspd"]) + u16(r["land_maxalt_vspd"])
+                + u16(r["land_slowdown_minalt"]) + u16(r["land_slowdown_maxalt"])
+                + u16(r["emerg_descent_rate"]))
+
+    def _msp_set_rth_and_land(self, p):
+        if len(p) != 21:
+            raise MSPError("SET_RTH_AND_LAND_CONFIG: ожидается 21 байт")
+        keys = ["min_rth_distance", "climb_first", "climb_ignore_emerg",
+                "tail_first", "allow_landing", "alt_control_mode",
+                "abort_threshold", "rth_altitude", "land_minalt_vspd",
+                "land_maxalt_vspd", "land_slowdown_minalt",
+                "land_slowdown_maxalt", "emerg_descent_rate"]
+        sizes = [2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]
+        off = 0
+        for key, size in zip(keys, sizes):
+            raw = p[off:off + size]
+            self.rth_land[key] = int.from_bytes(raw, "little")
+            off += size
+        return b""
+
+    def _msp_fw_config(self, _p):
+        f = self.fw_config
+        return (u16(f["cruise_throttle"]) + u16(f["min_throttle"])
+                + u16(f["max_throttle"]) + u8(f["max_bank_angle"])
+                + u8(f["max_climb_angle"]) + u8(f["max_dive_angle"])
+                + u8(f["pitch_to_throttle"]) + u16(f["loiter_radius"]))
+
+    def _msp_set_fw_config(self, p):
+        if len(p) != 12:
+            raise MSPError("SET_FW_CONFIG: ожидается 12 байт")
+        self.fw_config.update({
+            "cruise_throttle": int.from_bytes(p[0:2], "little"),
+            "min_throttle": int.from_bytes(p[2:4], "little"),
+            "max_throttle": int.from_bytes(p[4:6], "little"),
+            "max_bank_angle": p[6], "max_climb_angle": p[7],
+            "max_dive_angle": p[8], "pitch_to_throttle": p[9],
+            "loiter_radius": int.from_bytes(p[10:12], "little"),
+        })
+        return b""
+
+    def _msp_calibration_data(self, _p):
+        c = self.calibration
+        return (u8(c["acc_flags"])
+                + b"".join(u16(v) for v in c["acc_zero"])
+                + b"".join(u16(v) for v in c["acc_gain"])
+                + b"".join(u16(v) for v in c["mag_zero"])
+                + u16(c["opflow_scale"]))
+
+    def _msp_set_calibration_data(self, p):
+        if len(p) < 18:
+            raise MSPError("SET_CALIBRATION_DATA: минимум 18 байт")
+        vals = [int.from_bytes(p[i:i + 2], "little") for i in range(0, 18, 2)]
+        self.calibration["acc_zero"] = vals[0:3]
+        self.calibration["acc_gain"] = vals[3:6]
+        self.calibration["mag_zero"] = vals[6:9]
+        if len(p) >= 20:
+            self.calibration["opflow_scale"] = int.from_bytes(p[18:20], "little")
+        return b""
+
+    # --- LED strip ---
+    def _msp_led_colors(self, _p):
+        return b"".join(u16(h) + u8(s) + u8(v) for h, s, v in self.led_colors)
+
+    def _msp_set_led_colors(self, p):
+        if len(p) != 16 * 4:
+            raise MSPError("SET_LED_COLORS: ожидается 64 байта")
+        self.led_colors = [
+            (int.from_bytes(p[i:i + 2], "little"), p[i + 2], p[i + 3])
+            for i in range(0, 64, 4)
+        ]
+        return b""
+
+    def _msp_led_strip_config(self, _p):
+        # легаси: один u32 на LED
+        return b"".join(u32(int.from_bytes(led[:4], "little")) for led in self.leds)
+
+    def _msp_set_led_strip_config(self, p):
+        if len(p) != 5:
+            raise MSPError("SET_LED_STRIP_CONFIG: ожидается 5 байт")
+        idx = p[0]
+        if idx >= len(self.leds):
+            raise MSPError("SET_LED_STRIP_CONFIG: индекс вне диапазона")
+        self.leds[idx] = bytes(p[1:5]) + b"\x00"
+        return b""
+
+    def _msp2_led_strip_config_ex(self, _p):
+        return b"".join(self.leds)
+
+    def _msp2_set_led_strip_config_ex(self, p):
+        if len(p) != 6:
+            raise MSPError("SET_LED_STRIP_CONFIG_EX: ожидается 6 байт")
+        idx = p[0]
+        if idx >= len(self.leds):
+            raise MSPError("SET_LED_STRIP_CONFIG_EX: индекс вне диапазона")
+        self.leds[idx] = bytes(p[1:6])
+        return b""
+
+    def _msp_led_mode_colors(self, _p):
+        out = b""
+        for mode, direction, color in self.led_mode_colors:
+            out += u8(mode) + u8(direction) + u8(color)
+        return out
+
+    def _msp_set_led_mode_colors(self, p):
+        if len(p) != 3:
+            raise MSPError("SET_LED_STRIP_MODECOLOR: ожидается 3 байта")
+        mode, direction, color = p[0], p[1], p[2]
+        for i, (m, d, _c) in enumerate(self.led_mode_colors):
+            if m == mode and d == direction:
+                self.led_mode_colors[i] = (m, d, color)
+                return b""
+        raise MSPError("SET_LED_STRIP_MODECOLOR: неверные индексы")
+
+    def _msp_osd_char_write(self, p):
+        # запись символа шрифта OSD: как в прошивке — >= 55 байт
+        if len(p) < 55:
+            raise MSPError("OSD_CHAR_WRITE: минимум 55 байт")
+        return b""
+
+    # --- servos / outputs ---
+    def _msp2_servo_config(self, _p):
+        return b"".join(u16(s["min"]) + u16(s["max"]) + u16(s["middle"])
+                        + u8(s["rate"]) for s in self.servo_config)
+
+    def _msp2_set_servo_config(self, p):
+        if len(p) != 8:
+            raise MSPError("SET_SERVO_CONFIG: ожидается 8 байт")
+        idx = p[0]
+        if idx >= len(self.servo_config):
+            raise MSPError("SET_SERVO_CONFIG: индекс вне диапазона")
+        self.servo_config[idx] = {
+            "min": int.from_bytes(p[1:3], "little"),
+            "max": int.from_bytes(p[3:5], "little"),
+            "middle": int.from_bytes(p[5:7], "little"),
+            "rate": p[7],
+        }
+        return b""
+
+    def _msp2_output_mapping_ext2(self, _p):
+        return b"".join(u8(tid) + u32(flags) + u8(label)
+                        for tid, flags, label in self.output_mapping)
+
+    def _msp2_mc_braking(self, _p):
+        m = self.mc_braking
+        return (u16(m["speed_threshold"]) + u16(m["disengage_speed"])
+                + u16(m["timeout"]) + u8(m["boost_factor"])
+                + u16(m["boost_timeout"]) + u16(m["boost_speed_threshold"])
+                + u16(m["boost_disengage_speed"]) + u8(m["bank_angle"]))
+
+    def _msp2_set_mc_braking(self, p):
+        if len(p) != 14:
+            raise MSPError("SET_MC_BRAKING: ожидается 14 байт")
+        self.mc_braking.update({
+            "speed_threshold": int.from_bytes(p[0:2], "little"),
+            "disengage_speed": int.from_bytes(p[2:4], "little"),
+            "timeout": int.from_bytes(p[4:6], "little"),
+            "boost_factor": p[6],
+            "boost_timeout": int.from_bytes(p[7:9], "little"),
+            "boost_speed_threshold": int.from_bytes(p[9:11], "little"),
+            "boost_disengage_speed": int.from_bytes(p[11:13], "little"),
+            "bank_angle": p[13],
+        })
+        return b""
+
+    def _msp2_timer_output_mode(self, p):
+        if len(p) == 0:
+            return b"".join(u8(i) + u8(m)
+                            for i, m in enumerate(self.timer_modes))
+        if len(p) == 1 and p[0] < len(self.timer_modes):
+            return u8(p[0]) + u8(self.timer_modes[p[0]])
+        raise MSPError("TIMER_OUTPUT_MODE: неверный запрос")
+
+    def _msp2_set_timer_output_mode(self, p):
+        if len(p) != 2:
+            raise MSPError("SET_TIMER_OUTPUT_MODE: ожидается 2 байта")
+        if p[0] >= len(self.timer_modes):
+            raise MSPError("SET_TIMER_OUTPUT_MODE: таймер вне диапазона")
+        self.timer_modes[p[0]] = p[1]
+        return b""
+
+    def _msp2_select_mixer_profile(self, p):
+        if len(p) < 1:
+            raise MSPError("SELECT_MIXER_PROFILE: нет индекса")
+        self.mixer_profile = p[0]
+        self.save_eeprom()
+        self._log(f"mixer profile: {p[0]}")
+        return b""
+
+    def _msp2_gps_ublox_command(self, p):
+        # как в прошивке: >= 8 байт и GPS работает в режиме UBLOX
+        if len(p) < 8 or self.store.get("gps_provider") != 0:
+            raise MSPError("GPS_UBLOX_COMMAND: не UBLOX или короткий пакет")
+        return b""
+
+    def _msp2_pg_list(self, p):
+        # [first u16?] -> записи [pg_id][start][end] по индексам настроек;
+        # с параметром — только этот PG (как в прошивке: last = first)
+        if len(p) >= 2:
+            first = last = int.from_bytes(p[:2], "little")
+        else:
+            first, last = 0, 0xFFFF
+        groups = {}
+        for s in self.store.settings:
+            pg = s.get("pg")
+            if pg is None:
+                continue
+            idx = s["index"]
+            lo, hi = groups.get(pg, (idx, idx))
+            groups[pg] = (min(lo, idx), max(hi, idx))
+        out = b""
+        for pg in sorted(groups):
+            if first <= pg <= last:
+                lo, hi = groups[pg]
+                out += u16(pg) + u16(lo) + u16(hi)
+        return out
+
+    def _msp_set_raw_rc(self, p):
+        if len(p) == 0 or len(p) % 2 or len(p) > 36:
+            raise MSPError("SET_RAW_RC: 1..18 каналов по u16")
+        count = min(len(p) // 2, len(self.rc_channels))
+        for i in range(count):
+            self.rc_channels[i] = int.from_bytes(p[2 * i:2 * i + 2], "little")
+        return b""
+
+    def _msp_set_raw_gps(self, p):
+        if len(p) != 14:
+            raise MSPError("SET_RAW_GPS: ожидается 14 байт")
+        self.gps.update({
+            "fix": p[0], "sats": p[1],
+            "lat": int.from_bytes(p[2:6], "little"),
+            "lon": int.from_bytes(p[6:10], "little"),
+            "alt": int.from_bytes(p[10:12], "little"),
+            "speed": int.from_bytes(p[12:14], "little"),
+        })
+        return b""
+
+    def _msp_set_rc_tuning(self, p):
+        if len(p) not in (10, 11):
+            raise MSPError("SET_RC_TUNING: ожидается 10 или 11 байт")
+        r = self.rate_profile
+        r["rc_expo"] = p[1]
+        r["roll_rate"] = p[2] * 10
+        r["pitch_rate"] = p[3] * 10
+        r["yaw_rate"] = p[4] * 10
+        r["dyn_pid"] = p[5]
+        r["throttle_mid"] = p[6]
+        r["throttle_expo"] = p[7]
+        r["pa_breakpoint"] = int.from_bytes(p[8:10], "little")
+        if len(p) == 11:
+            r["yaw_expo"] = p[10]
         return b""
