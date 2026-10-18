@@ -41,7 +41,7 @@
 - `betaflight-cli-kurs-zoo-with-laboratory-works-and-inav-9-1-0-full-course.csv` — полная объединённая копия (исходная Betaflight-версия + полные INAV-материалы).
 - `soderzhanie-kursa-inav-link-patch.csv` — патч для отдельной ссылки из содержания Betaflight на курс INAV.
 
-Предыдущие частичные CSV имена сохранены как промежуточные файлы; не использовать их вместо `inav-9-1-0-zoo-full-course.csv`. В import-ready CSV ссылки из оглавления преобразованы в Zoo-пути `/index.php/pilotazh/obuchenie-kursy/cli-v-inav/item/<alias>.html`; HTML-файлы сохраняют относительные ссылки для локального чтения.
+Предыдущие частичные CSV имена сохранены как промежуточные файлы; не использовать их вместо `inav-9-1-0-zoo-full-course.csv`. В import-ready CSV ссылки на записи Zoo ведут по маршруту `/index.php/pilotazh/obuchenie-kursy/cli-%D0%B2-inav/item/<alias>.html`, который использует кириллическую `в` из опубликованного адреса курса. Якорные ссылки внутри каждой статьи остаются локальными (`#inav-section-…`, `#toc`). HTML-файлы сохраняют ссылки для локального чтения.
 
 ## Технические ограничения
 
