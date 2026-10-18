@@ -92,13 +92,18 @@ def test_fw_config_roundtrip(fc):
 
 def test_calibration_roundtrip(fc):
     raw = ask(fc, MSP_CALIBRATION_DATA)
-    assert len(raw) == 21
+    assert len(raw) == 27, "JS читает magGain до байта 26 — нужно 27 байт"
     assert raw[0] == 0x3F  # все оси откалиброваны
-    # SET: 6×u16 acc + 3×u16 mag + u16 opflow — без байта флагов
-    body = struct.pack("<HHHHHHHHH", 1, 2, 3, 400, 500, 600,
-                       -10 & 0xFFFF, 20, 30) + struct.pack("<H", 512)
+    # SET: 6×u16 acc + 3×u16 mag + u16 opflow + 3×u16 magGain — 26 байт
+    body = (struct.pack("<HHHHHHHHH", 1, 2, 3, 400, 500, 600,
+                        -10 & 0xFFFF, 20, 30)
+            + struct.pack("<H", 512) + struct.pack("<HHH", 1100, 1200, 1300))
+    assert len(body) == 26
     assert ask(fc, MSP_SET_CALIBRATION_DATA, body) == b""
     assert ask(fc, MSP_CALIBRATION_DATA) == bytes([0x3F]) + body
+    # как в JS: чтение по фиксированным смещениям до байта 25
+    reply = ask(fc, MSP_CALIBRATION_DATA)
+    struct.unpack_from("<hhhhhhhhhhh", reply, 1)  # 11×i16 не падает
     with pytest.raises(MSPError):
         ask(fc, MSP_SET_CALIBRATION_DATA, body[:17])
 

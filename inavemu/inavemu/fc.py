@@ -348,8 +348,9 @@ class InavFC:
         self.ez_tune = {"enabled": 0, "filter_hz": 120, "axis_ratio": 80,
                         "response": 40, "damping": 40, "stability": 40,
                         "aggressiveness": 40, "rate": 40, "expo": 20, "snappiness": 40}
-        self.sensor_config = {"accelerometer": 0, "barometer": 0, "magnetometer": 0,
-                              "pitot": 0, "rangefinder": 0, "opflow": 0}
+        self.sensor_keys = ("acc_hardware", "baro_hardware", "mag_hardware",
+                            "pitot_hardware", "rangefinder_hardware",
+                            "opflow_hardware")
         self.servo_mix = [[0] * 6 for _ in range(MAX_SERVO_RULES)]   # 6 байт/строка
         self.motor_mix = [[0] * 8 for _ in range(MAX_SUPPORTED_MOTORS)]  # 8 байт/строка
         # Раскладка OSD: layout 0 — заводская из pgResetFn_osdLayoutsConfig
@@ -454,8 +455,9 @@ class InavFC:
         }
         self.calibration = {
             "acc_flags": 0x3F,  # все 6 положений откалиброваны
-            "acc_zero": [0, 0, 0], "acc_gain": [0, 0, 0],
-            "mag_zero": [0, 0, 0], "opflow_scale": 0, "mag_gain": [0, 0, 0],
+            "acc_zero": [0, 0, 0], "acc_gain": [4096, 4096, 4096],
+            "mag_zero": [0, 0, 0], "opflow_scale": 0,
+            "mag_gain": [1024, 1024, 1024],
         }
         self.led_colors = [(0, 0, 0)] * 16            # h u16, s, v
         self.leds = [bytes(5) for _ in range(128)]    # сырые ledConfig_t
@@ -491,7 +493,25 @@ class InavFC:
         self.servos = [1500] * 8
         self.gps = {"fix": 1, "sats": 12, "lat": 55755830, "lon": 37617380,
                     "alt": 160, "speed": 0, "course": 0, "hdop": 110}
+        fresh = not (self.eeprom_path and self.eeprom_path.exists())
         self._load_eeprom()
+        self._boot_sensor_detect(fresh)
+
+    def _boot_sensor_detect(self, fresh: bool):
+        """Сымитированная загрузка сенсоров (sensors/initialisation.c).
+        Пока *_hardware == AUTODETECT(1), прошивка выписывает найденный чип
+        в конфиг; стенд оснащён полным набором: pitot/rangefinder/opflow
+        комплектуются при создании свежего EEPROM."""
+        if fresh:
+            for name, chip in (("pitot_hardware", 4),     # PITOT_VIRTUAL
+                               ("rangefinder_hardware", 3),  # RANGEFINDER_MSP
+                               ("opflow_hardware", 2)):      # OPFLOW_MSP
+                self.store.set(name, chip)
+        for name, chip in (("acc_hardware", 2),    # ACC_MPU6000
+                           ("baro_hardware", 3),   # BARO_MS5611
+                           ("mag_hardware", 2)):   # MAG_HMC5883
+            if self.store.get(name) == 1:          # AUTODETECT
+                self.store.set(name, chip)
 
     # ------------------------------------------------------------------
     # «flashdata» / eeprom
@@ -1385,16 +1405,15 @@ class InavFC:
         return b""
 
     def _msp_sensor_config(self, _p):
-        s = self.sensor_config
-        return bytes([s["accelerometer"], s["barometer"], s["magnetometer"],
-                      s["pitot"], s["rangefinder"], s["opflow"]])
+        # 6 байт: acc, baro, mag, pitot, rangefinder, opflow — это значения
+        # настроек *_hardware (автодетекция выписывает туда чип при старте)
+        return bytes(self.store.get(k) for k in self.sensor_keys)
 
     def _msp_set_sensor_config(self, p):
         if len(p) < 6:
             raise MSPError("SENSOR_CONFIG: короткий payload")
-        self.sensor_config.update({
-            "accelerometer": p[0], "barometer": p[1], "magnetometer": p[2],
-            "pitot": p[3], "rangefinder": p[4], "opflow": p[5]})
+        for key, val in zip(self.sensor_keys, p[:6]):
+            self.store.set(key, val)
         return b""
 
     def _msp2_servo_mixer(self, _p):
@@ -1964,12 +1983,15 @@ class InavFC:
         return b""
 
     def _msp_calibration_data(self, _p):
+        # 27 байт: flags + accZero×3 + accGain×3 + magZero×3 + opflow + magGain×3
+        # (JS читает magGain до байта 26 — меньше 27 роняет разбор)
         c = self.calibration
         return (u8(c["acc_flags"])
                 + b"".join(u16(v) for v in c["acc_zero"])
                 + b"".join(u16(v) for v in c["acc_gain"])
                 + b"".join(u16(v) for v in c["mag_zero"])
-                + u16(c["opflow_scale"]))
+                + u16(c["opflow_scale"])
+                + b"".join(u16(v) for v in c["mag_gain"]))
 
     def _msp_set_calibration_data(self, p):
         if len(p) < 18:
@@ -1980,6 +2002,10 @@ class InavFC:
         self.calibration["mag_zero"] = vals[6:9]
         if len(p) >= 20:
             self.calibration["opflow_scale"] = int.from_bytes(p[18:20], "little")
+        if len(p) >= 26:  # magGain×3 (как шлёт Configurator — 26 байт)
+            self.calibration["mag_gain"] = [
+                int.from_bytes(p[i:i + 2], "little") for i in range(20, 26, 2)
+            ]
         return b""
 
     # --- LED strip ---

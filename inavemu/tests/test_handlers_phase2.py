@@ -14,6 +14,7 @@ from inavemu.fc import (
     MSP2_INAV_RATE_DYNAMICS, MSP2_INAV_SELECT_BATTERY_PROFILE, MSP2_INAV_SERVO_MIXER,
     MSP2_INAV_SET_MIXER, MSP2_INAV_SET_RATE_DYNAMICS, MSP2_INAV_SET_SERVO_MIXER,
     MSP2_PID, MSP2_SET_PID, MSP_GPSSTATISTICS, MSP_SENSOR_CONFIG,
+    MSP_SET_SENSOR_CONFIG,
     MSP_SET_RESET_CURR_PID, MSP_SET_WP, MSP_WP, MSP_WP_GETINFO,
     MSPError, InavFC,
     OSD_ITEM_COUNT, OSD_LAYOUT_COUNT,
@@ -62,6 +63,17 @@ def test_ez_tune(fc):
 def test_sensor_config(fc):
     sc = ask(fc, MSP_SENSOR_CONFIG)
     assert len(sc) == 6
+    # стенд оснащён: кнопки калибровки магнитометра/опфлоу не блокируются
+    assert sc[0] != 0 and sc[1] != 0 and sc[2] != 0
+    assert sc[3] != 0 and sc[4] != 0 and sc[5] != 0
+    # GET читает настройки *_hardware (автодетекция выписала чипы)
+    assert sc[0] == 2      # ACC_MPU6000
+    assert sc[1] == 3      # BARO_MS5611
+    assert sc[2] == 2      # MAG_HMC5883
+    # SET пишет сквозняком в настройки
+    ask(fc, MSP_SET_SENSOR_CONFIG, bytes([5, 6, 7, 2, 3, 1]))
+    assert ask(fc, MSP_SENSOR_CONFIG) == bytes([5, 6, 7, 2, 3, 1])
+    assert fc.store.get("mag_hardware") == 7
 
 
 def test_set_mixer_format(fc):
