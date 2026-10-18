@@ -284,17 +284,24 @@ class InavFC:
             "capacity": 2200, "capacity_warning": 1100,
             "capacity_critical": 500, "capacity_unit": 0,
         }
-        # serial-порты: identifier, functions(mask), msp/sensors/telemetry/peripherals baud
+        # serial-порты: identifier, functions(mask), msp/sensors/telemetry/peripherals baud.
+        # Состав и порядок — как serialPortIdentifiers[] прошивки (io/serial.c):
+        # VCP, UART1..UART8, SOFTSERIAL1/2 — максимальный набор портов INAV.
+        # baud-индексы по pgResetFn_serialConfig: 115200/115200/AUTO/115200.
         fn = {f["name"]: f["bit"] for f in self.store.serial.get("functions", [])}
+
+        def _port(pid, func):
+            return {"id": pid, "functions": func,
+                    "msp": 8, "sensors": 8, "telemetry": 0, "peripherals": 8}
+
         self.serial_ports = [
-            {"id": 0, "functions": 1 << fn.get("MSP", 0),
-             "msp": 8, "sensors": 1, "telemetry": 1, "peripherals": 1},
-            {"id": 1, "functions": 1 << fn.get("GPS", 1),
-             "msp": 1, "sensors": 8, "telemetry": 1, "peripherals": 1},
-            {"id": 2, "functions": 1 << fn.get("RX_SERIAL", 6),
-             "msp": 1, "sensors": 1, "telemetry": 1, "peripherals": 1},
-            {"id": 20, "functions": 1 << fn.get("MSP", 0),
-             "msp": 8, "sensors": 1, "telemetry": 1, "peripherals": 1},
+            _port(20, 1 << fn.get("MSP", 0)),        # USB VCP — MSP
+            _port(0, 1 << fn.get("MSP", 0)),         # UART1 — MSP
+            _port(1, 1 << fn.get("GPS", 1)),         # UART2 — GPS
+            _port(2, 1 << fn.get("RX_SERIAL", 6)),   # UART3 — RC-приёмник
+            _port(3, 0), _port(4, 0), _port(5, 0),   # UART4..UART6
+            _port(6, 0), _port(7, 0),                # UART7, UART8
+            _port(30, 0), _port(31, 0),              # SOFTSERIAL1/2
         ]
         self.rx_config = {
             "serialrx_provider": 2, "maxcheck": 1900, "midrc": 1500,
@@ -525,7 +532,13 @@ class InavFC:
                 self.craft_name = data.get("craft_name", self.craft_name)
                 self.misc.update(data.get("misc", {}))
                 self.battery_config.update(data.get("battery_config", {}))
-                self.serial_ports = data.get("serial_ports", self.serial_ports)
+                saved_ports = {p["id"]: p for p in data.get("serial_ports", [])}
+                # набор портов железа фиксирован (как у прошивки): сохранённое
+                # обновляет функции/скорости, но не удаляет и не добавляет порты
+                self.serial_ports = [
+                    {**saved_ports[p["id"]]} if p["id"] in saved_ports else p
+                    for p in self.serial_ports
+                ]
                 self.rx_config.update(data.get("rx_config", {}))
                 self.rx_map = data.get("rx_map", self.rx_map)
                 self.rc_deadband.update(data.get("rc_deadband", {}))
@@ -1092,13 +1105,17 @@ class InavFC:
     def _msp2_set_serial_config(self, p):
         if len(p) % 9 != 0:
             raise MSPError("SERIAL_CONFIG: неверная длина")
-        ports = []
+        # Семантика прошивки (fc_msp.c MSP2_COMMON_SET_SERIAL_CONFIG):
+        # порты железа фиксированы — запись идёт по identifier в существующий
+        # порт, неизвестный identifier даёт ошибку, отсутствующие не трогаются.
         for i in range(0, len(p), 9):
             pid, funcs = struct.unpack_from("<BI", p, i)
-            ports.append({"id": pid, "functions": funcs,
-                          "msp": p[i + 5], "sensors": p[i + 6],
-                          "telemetry": p[i + 7], "peripherals": p[i + 8]})
-        self.serial_ports = ports
+            target = next((x for x in self.serial_ports if x["id"] == pid), None)
+            if target is None:
+                raise MSPError(f"SERIAL_CONFIG: нет порта {pid}")
+            target["functions"] = funcs
+            target["msp"], target["sensors"] = p[i + 5], p[i + 6]
+            target["telemetry"], target["peripherals"] = p[i + 7], p[i + 8]
         return b""
 
     def _msp_rx_config(self, _p):

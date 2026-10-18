@@ -155,18 +155,19 @@ def test_preset_mini_quad_7_full_flow(fc):
     # ── мастер: Receiver → configureInputs (data-setting serialrx_provider) ──
     js_set_setting(fc, "serialrx_provider", "SPEK1024")
     # wizardSaveFramework: receiverPort → serialPortHelper.set + saveSerialPorts
-    ports = []
-    for ident in range(8):
-        mask = 0x0004 if ident == 1 else 0  # функция RX_SERIAL на порту 1
-        ports.append(bytes([ident]) + struct.pack("<I", mask) +
-                     bytes([1, 5, 0, 0]))
-    ask(fc, MSP2_SET_CF_SERIAL_CONFIG, b"".join(ports))
-    assert len(ask(fc, MSP2_CF_SERIAL_CONFIG)) == 8 * 9
+    # crunch шлёт ВСЕ порты (как FC.SERIAL_CONFIG.ports после загрузки)
+    raw = ask(fc, MSP2_CF_SERIAL_CONFIG)
+    ports = [bytearray(raw[i:i + 9]) for i in range(0, len(raw), 9)]
+    for rec in ports:
+        rec[1:5] = struct.pack("<I", 0)          # сброс функций
+    next(r for r in ports if r[0] == 1)[1:5] = struct.pack("<I", 1 << 6)  # UART2=RX_SERIAL
+    ask(fc, MSP2_SET_CF_SERIAL_CONFIG, b"".join(bytes(r) for r in ports))
+    assert len(ask(fc, MSP2_CF_SERIAL_CONFIG)) == 11 * 9
 
     # ── мастер: GPS → gpsPort (features GPS + serial + pitot) + gpsProtocol ──
     feat_mask = struct.unpack("<I", features)[0] | (1 << gps_bit)
-    ports[2] = bytes([2]) + struct.pack("<I", 0x1000) + bytes([4, 5, 0, 0])
-    ask(fc, MSP2_SET_CF_SERIAL_CONFIG, b"".join(ports))
+    next(r for r in ports if r[0] == 2)[1:5] = struct.pack("<I", 1 << 1)  # UART3=GPS
+    ask(fc, MSP2_SET_CF_SERIAL_CONFIG, b"".join(bytes(r) for r in ports))
     ask(fc, MSP_SET_FEATURE, struct.pack("<I", feat_mask))
     js_set_setting(fc, "pitot_hardware", "VIRTUAL")
     js_set_setting(fc, "gps_provider", "UBLOX")

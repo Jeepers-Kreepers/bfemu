@@ -8,7 +8,8 @@ import pytest
 
 from inavemu import msp
 from inavemu.fc import (
-    MSP2_CF_SERIAL_CONFIG, MSP2_COMMON_SETTING, MSP2_COMMON_SETTING_INFO,
+    MSP2_CF_SERIAL_CONFIG, MSP2_SET_CF_SERIAL_CONFIG,
+    MSP2_COMMON_SETTING, MSP2_COMMON_SETTING_INFO,
     MSP2_INAV_ANALOG, MSP2_INAV_BATTERY_CONFIG, MSP2_INAV_MISC, MSP2_INAV_MIXER,
     MSP2_INAV_RATE_PROFILE, MSP2_INAV_STATUS, MSP_ACTIVEBOXES, MSP_ADVANCED_CONFIG,
     MSP_API_VERSION, MSP_BOARD_INFO, MSP_BOARD_ALIGNMENT, MSP_BOXIDS,
@@ -144,10 +145,47 @@ def test_mixer_layout(fc):
 def test_serial_config_layout(fc):
     ports = ask(fc, MSP2_CF_SERIAL_CONFIG)
     assert len(ports) == len(fc.serial_ports) * 9
-    ident = ports[0]
-    assert ident == 0  # UART1
+    ids = [ports[i] for i in range(0, len(ports), 9)]
+    # VCP первым, как serialPortIdentifiers[] прошивки; восемь UART обязательно
+    assert ids[0] == 20
+    assert set(ids) == {20, 0, 1, 2, 3, 4, 5, 6, 7, 30, 31}
+    assert all(u in ids for u in range(8)), "нужно минимум восемь UART"
     funcs = struct.unpack_from("<I", ports, 1)[0]
-    assert funcs & 1  # MSP
+    assert funcs & 1  # MSP на VCP
+    # baud-дефолты прошивки: 115200/115200/AUTO/115200
+    assert ports[5:9] == bytes([8, 8, 0, 8])
+
+
+def test_serial_config_set_updates_by_identifier(fc):
+    # запись по identifier: отсутствующие порты не трогаются
+    before = ask(fc, MSP2_CF_SERIAL_CONFIG)
+    rec = bytes([3]) + struct.pack("<I", 1 << 1) + bytes([4, 5, 6, 7])  # UART4 = GPS
+    assert ask(fc, MSP2_SET_CF_SERIAL_CONFIG, rec) == b""
+    after = ask(fc, MSP2_CF_SERIAL_CONFIG)
+    assert len(after) == len(before) == 11 * 9
+    off = [after[i] for i in range(0, len(after), 9)].index(3) * 9
+    assert struct.unpack_from("<I", after, off + 1)[0] == 1 << 1
+    assert after[off + 5:off + 9] == bytes([4, 5, 6, 7])
+    assert after[:off] == before[:off]  # остальные не изменились
+
+
+def test_serial_config_set_unknown_id_is_error(fc):
+    bad = bytes([77]) + struct.pack("<I", 1) + bytes([8, 8, 0, 8])
+    with pytest.raises(MSPError):
+        ask(fc, MSP2_SET_CF_SERIAL_CONFIG, bad)
+
+
+def test_serial_ports_fixed_across_eeprom(fc, tmp_path):
+    # старый EEPROM с 4 портами не «отрезает» порты железа
+    fc.eeprom_path = tmp_path / "eeprom.json"
+    fc.serial_ports = [dict(p) for p in fc.serial_ports[:4]]
+    fc.save_eeprom()
+    fc2 = InavFC(eeprom_path=fc.eeprom_path)
+    assert len(fc2.serial_ports) == 11
+    saved = {p["id"] for p in fc.serial_ports}
+    assert all(fc2.serial_ports[i]["functions"] ==
+               next(p for p in fc.serial_ports if p["id"] == fc2.serial_ports[i]["id"])["functions"]
+               for i in range(11) if fc2.serial_ports[i]["id"] in saved)
 
 
 def test_rx_config_layout(fc):
