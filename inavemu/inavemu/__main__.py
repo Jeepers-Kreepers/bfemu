@@ -16,10 +16,12 @@ def main(argv=None):
     )
     ap.add_argument("--tcp", default="127.0.0.1:5761",
                     help="адрес MSP-порта (по умолчанию 127.0.0.1:5761)")
-    ap.add_argument("--http", type=int, default=None,
-                    help="порт веб-монитора (без флага — не поднимать)")
-    ap.add_argument("--http-host", default="127.0.0.1",
-                    help="адрес веб-монитора (по умолчанию 127.0.0.1)")
+    ap.add_argument("--http", type=int, default=8080,
+                    help="порт веб-интерфейса (0 — не поднимать; "
+                         "по умолчанию 8080)")
+    ap.add_argument("--http-host", default="0.0.0.0",
+                    help="адрес веб-интерфейса (по умолчанию 0.0.0.0; "
+                         "127.0.0.1 — только с этой машины)")
     ap.add_argument("--fc-version", default="9.1.0",
                     help="версия прошивки для MSP_FC_VERSION (9.0.0–9.x: её проверяет "
                          "Configurator; по умолчанию 9.1.0)")
@@ -64,12 +66,26 @@ def main(argv=None):
           f"настроек в базе: {len(fc.store.settings)}")
 
     monitor = None
-    if args.http is not None:
-        monitor = MonitorServer(server, host=args.http_host, port=args.http)
-        monitor.start()
+    if args.http:
+        try:
+            monitor = MonitorServer(server, host=args.http_host, port=args.http)
+            monitor.start()
+        except OSError as exc:
+            lock.release()
+            server.stop()
+            sys.exit(
+                f"[!] Не удалось занять веб-порт {args.http_host}:{args.http} "
+                f"({exc.strerror}).\n"
+                "    Смените --http или укажите --http 0, чтобы запуститься "
+                "без веб-интерфейса."
+            )
 
     print(f"Для подключения: INAV Configurator → тип соединения TCP → "
-          f"IP:Port {host}:{port} (без «tcp://») → Подключиться  (Ctrl+C — выход)")
+          f"IP:Port {host}:{port} (без «tcp://») → Подключиться")
+    if monitor:
+        print(f"Веб-интерфейс (оборудование, монитор): "
+              f"http://127.0.0.1:{monitor.port}/")
+    print("(Ctrl+C — выход)")
     try:
         while True:
             import time

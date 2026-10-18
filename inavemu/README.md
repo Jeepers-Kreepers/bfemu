@@ -48,6 +48,7 @@ Outputs, Advanced Tuning и остальные).
 |---|---|
 | запустить и подключить Configurator | этот README, «Быстрый старт» |
 | обработчики MSP и состояние FC | [`inavemu/fc.py`](inavemu/fc.py) |
+| веб-интерфейс: оборудование и монитор | [`inavemu/pages.py`](inavemu/pages.py), [`inavemu/server.py`](inavemu/server.py) |
 | база настроек | [`inavemu/settings.py`](inavemu/settings.py), [`inavemu/data/inav_data.json`](inavemu/data/inav_data.json) |
 | перегенерация данных из исходников INAV | [`tools/gen_data_inav.py`](tools/gen_data_inav.py) |
 | проверки | `tests/` (pytest + сквозной smoke) |
@@ -56,9 +57,13 @@ Outputs, Advanced Tuning и остальные).
 
 ```bash
 cd inavemu
-python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088   # TCP для Configurator + веб-монитор
-python3 tools/demo_session.py                         # «клиент-Configurator» в терминале
+python3 -m inavemu                        # TCP 5761 для Configurator + веб 8080
+python3 tools/demo_session.py             # «клиент-Configurator» в терминале
 ```
+
+Веб-интерфейс поднимается по умолчанию на `http://127.0.0.1:8080/`
+(`--http PORT` — другой порт, `--http 0` — без веба, `--http-host` — адрес,
+по умолчанию `0.0.0.0`):
 
 Подключение из INAV Configurator (настольное приложение):
 
@@ -73,6 +78,26 @@ python3 tools/demo_session.py                         # «клиент-Configura
 **Запуск двух и более виртуальных контроллеров запрещён:** второй экземпляр
 `inavemu` (даже с другим `--tcp`) завершается с ошибкой `виртуальный контроллер
 INAV уже запущен`. Блокировка снимается автоматически при завершении процесса.
+
+### Веб-интерфейс: оборудование
+
+Страница **«Оборудование»** (`/equipment`) в браузере подключает и отключает
+датчики виртуального FC — как оборудование на настоящем контроллере:
+
+* **Гироскоп, Акселерометр, Магнитометр, Барометр, GPS, Оптический поток,
+  Сонар, Скорость (pitot)** — восемь тумблеров; по умолчанию всё подключено;
+* индикаторы в INAV Configurator (Gyro · Accel · Mag · Baro · GPS · Flow ·
+  Sonar · Speed) следят за этим состоянием: подключено — горит, отключено —
+  погашено; такая же полоска индикаторов нарисована и на самой странице;
+* кнопки калибровки магнитометра/оптического потока и выбор датчиков во
+  вкладке Configuration подчиняются тем же переключателям (через
+  `MSP_SENSOR_CONFIG` и настройки `*_hardware`);
+* «отключённые» датчики ведут себя как на настоящем FC: GPS без фикса,
+  сонар и pitot показывают ноль;
+* переключателям можно командовать и напрямую: `GET /api/state`,
+  `POST /api/equipment` с JSON вида `{"mag": false, "gps": true}`.
+
+Страница **«Монитор»** (`/`) — состояние FC и журнал запросов.
 
 Нужен доступ с другой машины — откройте адрес явно:
 
@@ -119,10 +144,12 @@ python3 tools/gen_data_inav.py /path/to/inav-9.1.0 \
 inavemu/
 ├── inavemu/
 │   ├── msp.py            # кодек MSP v1/v2
-│   ├── server.py         # TCP-порт FC + веб-монитор (+ режим CLI)
-│   ├── fc.py             # состояние и обработчики MSP
+│   ├── server.py         # TCP-порт FC + веб-интерфейс (+ режим CLI)
+│   ├── pages.py          # страницы веб-интерфейса: Монитор, Оборудование
+│   ├── fc.py             # состояние и обработчики MSP (в т.ч. оборудование)
 │   ├── settings.py       # база настроек + протокол настроек MSP
 │   ├── cli.py            # CLI: команды cmdTable[] прошивки
+│   ├── single_instance.py
 │   └── data/inav_data.json
 ├── tools/
 │   ├── gen_data_inav.py  # генератор данных из исходников INAV

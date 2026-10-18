@@ -206,6 +206,29 @@ MAX_MIXER_PROFILE_COUNT = 2
 MODE_ACTIVATION_CONDITION_COUNT = 40  # rc_modes.h
 ADJUSTMENT_RANGE_COUNT = 20           # rc_adjustments.h
 
+# Чем «оснащён» виртуальный стенд (enum'ы сенсоров INAV, sensors/*.h):
+# при *_hardware == AUTODETECT прошивка выписывает найденный чип — это наши «чипы».
+DETECTED_CHIPS = {
+    "acc_hardware": 2,           # ACC_MPU6000
+    "baro_hardware": 3,          # BARO_MS5611
+    "mag_hardware": 2,           # MAG_HMC5883
+    "pitot_hardware": 4,         # PITOT_VIRTUAL
+    "rangefinder_hardware": 3,   # RANGEFINDER_MSP
+    "opflow_hardware": 2,        # OPFLOW_MSP
+}
+
+# Виртуальное оборудование ↔ настройки *_hardware (веб-страница /equipment).
+# gyro и gps настройки не имеют — это отдельные «железные» линии (gyro_on/gps_on).
+EQ_SETTING = {
+    "acc": "acc_hardware",
+    "mag": "mag_hardware",
+    "baro": "baro_hardware",
+    "pitot": "pitot_hardware",
+    "sonar": "rangefinder_hardware",
+    "opflow": "opflow_hardware",
+}
+EQ_KEYS = ("gyro", "acc", "mag", "baro", "gps", "opflow", "sonar", "pitot")
+
 
 class MSPError(Exception):
     """Запрос неизвестен или некорректен → ответ-ошибка MSP."""
@@ -358,6 +381,11 @@ class InavFC:
         self.sensor_keys = ("acc_hardware", "baro_hardware", "mag_hardware",
                             "pitot_hardware", "rangefinder_hardware",
                             "opflow_hardware")
+        # виртуальное оборудование (веб-страница /equipment): gyro и gps —
+        # «железные» линии без настройки; остальные датчики связаны с
+        # настройками *_hardware (0 = отключён)
+        self.gyro_on = True
+        self.gps_on = True
         self.servo_mix = [[0] * 6 for _ in range(MAX_SERVO_RULES)]   # 6 байт/строка
         self.motor_mix = [[0] * 8 for _ in range(MAX_SUPPORTED_MOTORS)]  # 8 байт/строка
         # Раскладка OSD: layout 0 — заводская из pgResetFn_osdLayoutsConfig
@@ -510,15 +538,45 @@ class InavFC:
         в конфиг; стенд оснащён полным набором: pitot/rangefinder/opflow
         комплектуются при создании свежего EEPROM."""
         if fresh:
-            for name, chip in (("pitot_hardware", 4),     # PITOT_VIRTUAL
-                               ("rangefinder_hardware", 3),  # RANGEFINDER_MSP
-                               ("opflow_hardware", 2)):      # OPFLOW_MSP
-                self.store.set(name, chip)
-        for name, chip in (("acc_hardware", 2),    # ACC_MPU6000
-                           ("baro_hardware", 3),   # BARO_MS5611
-                           ("mag_hardware", 2)):   # MAG_HMC5883
+            for name in ("pitot_hardware", "rangefinder_hardware",
+                         "opflow_hardware"):
+                self.store.set(name, DETECTED_CHIPS[name])
+        for name in ("acc_hardware", "baro_hardware", "mag_hardware"):
             if self.store.get(name) == 1:          # AUTODETECT
-                self.store.set(name, chip)
+                self.store.set(name, DETECTED_CHIPS[name])
+        self._last_chip = {name: val for name, val in DETECTED_CHIPS.items()}
+
+    # ------------------------------------------------------------------
+    # виртуальное оборудование (веб-интерфейс)
+    # ------------------------------------------------------------------
+    def get_equipment(self) -> dict:
+        """Какое оборудование «подключено» к виртуальному FC.
+        gyro/gps — флаги; остальные датчики следуют настройкам *_hardware."""
+        eq = {"gyro": self.gyro_on, "gps": self.gps_on}
+        for name, key in EQ_SETTING.items():
+            eq[name] = self.store.get(key) != 0
+        return eq
+
+    def set_equipment(self, name: str, on: bool):
+        """Подключить/отключить оборудование. Для датчиков с настройкой
+        *_hardware значение пишется и туда: вкладки Configurator
+        (калибровка, конфигурация) видят то же состояние."""
+        if name not in EQ_SETTING and name not in ("gyro", "gps"):
+            raise MSPError(f"оборудование: неизвестное имя {name!r}")
+        if name in ("gyro", "gps"):
+            if name == "gyro":
+                self.gyro_on = bool(on)
+            else:
+                self.gps_on = bool(on)
+            return
+        key = EQ_SETTING[name]
+        cur = self.store.get(key)
+        if on:
+            self.store.set(key, self._last_chip.get(key, DETECTED_CHIPS[key]))
+        else:
+            if cur:
+                self._last_chip[key] = cur
+            self.store.set(key, 0)
 
     # ------------------------------------------------------------------
     # «flashdata» / eeprom
@@ -568,6 +626,8 @@ class InavFC:
                 self.blackbox.update(data.get("blackbox", {}))
                 self.flash_used = data.get("flash_used", self.flash_used)
                 self.mixer_profile = data.get("mixer_profile", self.mixer_profile)
+                self.gyro_on = data.get("gyro_on", self.gyro_on)
+                self.gps_on = data.get("gps_on", self.gps_on)
                 self.reversible.update(data.get("reversible", {}))
                 self.filter_config.update(data.get("filter_config", {}))
                 self.pid_advanced.update(data.get("pid_advanced", {}))
@@ -623,6 +683,7 @@ class InavFC:
             "blackbox": self.blackbox,
             "flash_used": self.flash_used,
             "mixer_profile": self.mixer_profile,
+            "gyro_on": self.gyro_on, "gps_on": self.gps_on,
             "reversible": self.reversible,
             "filter_config": self.filter_config,
             "pid_advanced": self.pid_advanced,
@@ -691,9 +752,9 @@ class InavFC:
             MSP2_INAV_ANALOG: self._msp2_inav_analog,
             MSP2_INAV_DEBUG: lambda p: b"\x00" * 32,
             MSP2_INAV_TEMPERATURES: self._msp2_inav_temperatures,
-            MSP2_INAV_AIR_SPEED: lambda p: i32(0),
+            MSP2_INAV_AIR_SPEED: self._msp2_air_speed,
             MSP2_INAV_OPTICAL_FLOW: lambda p: u8(0) + u8(0) + i16(0) + i16(0) + i16(0) + u8(0),
-            MSP_SONAR: lambda p: i32(0),
+            MSP_SONAR: self._msp_sonar,
             MSP_RAW_IMU: self._msp_raw_imu,
             MSP_ATTITUDE: self._msp_attitude,
             MSP_ALTITUDE: self._msp_altitude,
@@ -919,8 +980,12 @@ class InavFC:
                 + b"\x00" * 8 + u8(self.mixer_profile))
 
     def _msp_sensor_status(self, _p):
-        # healthy, gyro, acc, mag, baro, gps, rangefinder, pitot, opflow
-        return bytes([1, 0, 0, 0, 0, 0, 0, 0, 0])
+        # 9 байт: healthy, gyro, acc, mag, baro, gps, rangefinder(sonar),
+        # pitot(speed), opflow(flow). 0 = нет, 1 = ок — как hardwareSensorStatus_e
+        # и sensor_status_update_icon в конфигураторе (1 «горит», 0 гаснет)
+        eq = self.get_equipment()
+        return bytes([1, eq["gyro"], eq["acc"], eq["mag"], eq["baro"],
+                      eq["gps"], eq["sonar"], eq["pitot"], eq["opflow"]])
 
     def _msp_dataflash_summary(self, _p):
         # flashfs: ready + sectors + totalSize + usedSize
@@ -971,12 +1036,30 @@ class InavFC:
         return i32(int(alt)) + u16(0) + i32(int(alt))
 
     def _msp_raw_gps(self, _p):
+        # GPS «отключён» — как у FC без приёмника: нет фикса и координат
+        if not self.gps_on:
+            return (u8(0) + u8(0) + i32(0) + i32(0)
+                    + i16(0) + u16(0) + u16(0) + u16(9999))
         g = self.gps
         return (u8(g["fix"]) + u8(g["sats"]) + i32(g["lat"]) + i32(g["lon"])
                 + i16(g["alt"]) + u16(g["speed"]) + u16(g["course"]) + u16(g["hdop"]))
 
     def _msp_comp_gps(self, _p):
+        if not self.gps_on:
+            return u16(0) + u16(0) + u8(0)
         return u16(120) + u16(90) + u8(1)
+
+    def _msp_sonar(self, _p):
+        # «подключённый» сонар показывает живую высоту над землёй (~150 см)
+        if not self.get_equipment()["sonar"]:
+            return i32(0)
+        return i32(150 + int(5 * math.sin(self._phase() * 0.7)))
+
+    def _msp2_air_speed(self, _p):
+        # «подключённый» pitot — лёгкое дрожание потока
+        if not self.get_equipment()["pitot"]:
+            return i32(0)
+        return i32(max(0, int(25 + 15 * math.sin(self._phase() * 0.5))))
 
     def _msp2_inav_analog(self, _p):
         # биты: 0 full, 1 capacity thresholds, 2-3 state, 4-7 cells

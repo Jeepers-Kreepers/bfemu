@@ -12,7 +12,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import msp
-from .fc import MSPError, InavFC
+from .fc import EQ_KEYS, MSPError, InavFC
 
 
 class FCServer:
@@ -179,6 +179,7 @@ class FCServer:
             "clients": self.clients,
             "requests": self.requests,
             "settings": len(fc.store.settings),
+            "equipment": fc.get_equipment(),
             "log": fc.log[-30:],
         }
 
@@ -188,31 +189,59 @@ def make_http_handler(server: FCServer):
         def log_message(self, *args):  # не спамить в stderr
             pass
 
-        def do_GET(self):
-            if self.path.startswith("/api/state"):
-                body = json.dumps(server.state_json(), ensure_ascii=False).encode()
-                ctype = "application/json"
-            else:
-                state = server.state_json()
-                rows = "".join(
-                    f"<tr><td>{k}</td><td>{v}</td></tr>"
-                    for k, v in state.items() if k != "log"
-                )
-                log_html = "<br>".join(state["log"])
-                body = (
-                    "<!doctype html><html><head><meta charset='utf-8'>"
-                    "<title>inavemu</title>"
-                    "<meta http-equiv='refresh' content='2'></head><body>"
-                    "<h1>inavemu — виртуальный FC INAV</h1>"
-                    f"<table border=1 cellpadding=6>{rows}</table>"
-                    f"<h3>Журнал</h3><div>{log_html}</div></body></html>"
-                ).encode()
-                ctype = "text/html; charset=utf-8"
-            self.send_response(200)
+        def _send(self, body: bytes, ctype: str, code: int = 200):
+            self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def _send_json(self, obj, code: int = 200):
+            self._send(json.dumps(obj, ensure_ascii=False).encode(),
+                       "application/json", code)
+
+        def _page(self, kind: str):
+            from . import pages
+            nav = pages.nav_html(kind, tcp=f"{server.host}:{server.port}")
+            style = pages.NAV_STYLE
+            html = (pages.monitor_page(nav, style) if kind == "monitor"
+                    else pages.equipment_page(nav, style))
+            self._send(html.encode(), "text/html; charset=utf-8")
+
+        def do_GET(self):
+            path = self.path.split("?", 1)[0]
+            if path == "/api/state":
+                self._send_json(server.state_json())
+            elif path == "/api/equipment":
+                self._send_json({"equipment": server.fc.get_equipment()})
+            elif path in ("/", "/index.html"):
+                self._page("monitor")
+            elif path == "/equipment":
+                self._page("equipment")
+            else:
+                self._send(b"not found", "text/plain", 404)
+
+        def do_POST(self):
+            path = self.path.split("?", 1)[0]
+            if path != "/api/equipment":
+                self._send(b"not found", "text/plain", 404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                if not isinstance(payload, dict) or not payload:
+                    raise ValueError("ожидался JSON-объект вида {\"mag\": true}")
+                for name, on in payload.items():
+                    if name not in EQ_KEYS:
+                        raise ValueError(f"неизвестное оборудование {name!r}")
+                    if not isinstance(on, bool):
+                        raise ValueError(f"{name}: ожидается true/false")
+                for name, on in payload.items():
+                    server.fc.set_equipment(name, on)
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            self._send_json({"equipment": server.fc.get_equipment()})
 
     return Handler
 
