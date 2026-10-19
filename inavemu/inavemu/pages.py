@@ -68,11 +68,29 @@ NAV_STYLE = """
  .log{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px 15px;
   font:12.5px/1.65 ui-monospace,Consolas,monospace;color:#adbac7;white-space:pre-wrap}
  .warn{color:#e3b341}
+ .step{display:flex;align-items:center;gap:12px;margin:8px 0 4px}
+ .step button{width:38px;height:38px;border-radius:10px;border:1px solid #30363d;
+  background:#21262d;color:#e6edf3;font-size:20px;font-weight:700;cursor:pointer}
+ .step button:hover{border-color:#58a6ff}
+ .step .num{font-size:27px;font-weight:700;min-width:46px;text-align:center}
+ .step .lbl{color:#8b949e;font-size:13px}
+ .quick{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0 2px}
+ .quick button{background:#21262d;border:1px solid #30363d;border-radius:7px;
+  padding:4px 11px;color:#e6edf3;font-size:12.5px;cursor:pointer}
+ .quick button:hover{border-color:#58a6ff}
+ .quick button.on{background:#1f6feb;border-color:#1f6feb;color:#fff}
+ .chips{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 4px}
+ .chip{min-width:52px;text-align:center;background:#161b22;border:1px solid #30363d;
+  border-radius:8px;padding:7px 8px;color:#484f58;font-size:12px;transition:color .2s,border-color .2s}
+ .chip b{display:block;font-size:13px;margin-bottom:2px}
+ .chip.on{color:#7ee787;border-color:#2ea043}
+ .chip .val{font:11px/1.3 ui-monospace,Consolas,monospace;color:#8b949e}
 """
 
 
 def nav_html(active: str, tcp: str = "", http_port: int = 0) -> str:
-    items = (("monitor", "/", "Монитор"), ("equipment", "/equipment", "Оборудование"))
+    items = (("monitor", "/", "Монитор"), ("equipment", "/equipment", "Оборудование"),
+             ("outputs", "/outputs", "Моторы и сервы"))
     links = "".join(
         f'<a href="{href}" class="{"on" if key == active else ""}">{label}</a>'
         for key, href, label in items
@@ -250,4 +268,123 @@ def equipment_page(nav: str, style: str) -> str:
  <div class="grid">{cards}</div>
 </div>
 {_EQ_JS}
+</body></html>"""
+
+
+_OUT_JS = """
+<script>
+const $ = (id) => document.getElementById(id);
+let st = {motors: 0, servos: 0, motor_values: [], servo_values: []};
+
+function render(){
+  $('mnum').textContent = st.motors;
+  $('mnum2').textContent = st.motors;
+  $('snum').textContent = st.servos;
+  $('snum2').textContent = st.servos;
+  for (let i = 1; i <= 12; i++){
+    const chip = $('m' + i);
+    const on = i <= st.motors;
+    chip.classList.toggle('on', on);
+    chip.querySelector('.val').textContent =
+      on ? (st.motor_values[i - 1] ?? '—') : 'нет';
+  }
+  for (let i = 1; i <= 18; i++){
+    const chip = $('s' + i);
+    const on = i <= st.servos;
+    chip.classList.toggle('on', on);
+    chip.querySelector('.val').textContent =
+      on ? (st.servo_values[i - 1] ?? '—') : 'нет';
+  }
+  for (const b of document.querySelectorAll('.quick [data-k]')){
+    b.classList.toggle('on', +b.dataset.k === st[b.dataset.kind]);
+  }
+}
+
+function load(){
+  fetch('/api/state').then(r => r.json()).then(js => {
+    st = js.outputs || st;
+    render();
+  }).catch(() => {});
+}
+
+function setCount(kind, val){
+  fetch('/api/outputs', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({[kind]: val}),
+  }).then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(js => {
+    st = js.outputs || st;
+    render();
+  }).catch(() => load());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  $('mminus').addEventListener('click', () => setCount('motors', st.motors - 1));
+  $('mplus').addEventListener('click', () => setCount('motors', st.motors + 1));
+  $('sminus').addEventListener('click', () => setCount('servos', st.servos - 1));
+  $('splus').addEventListener('click', () => setCount('servos', st.servos + 1));
+  for (const b of document.querySelectorAll('.quick [data-k]')){
+    b.addEventListener('click', () => setCount(b.dataset.kind, +b.dataset.k));
+  }
+  load();
+  setInterval(load, 1000);
+});
+</script>
+"""
+
+
+def outputs_page(nav: str, style: str) -> str:
+    motor_chips = "".join(
+        f'<div class="chip" id="m{i}"><b>M{i}</b><span class="val">—</span></div>'
+        for i in range(1, 13)
+    )
+    servo_chips = "".join(
+        f'<div class="chip" id="s{i}"><b>S{i}</b><span class="val">—</span></div>'
+        for i in range(1, 19)
+    )
+    motor_quick = "".join(
+        f'<button data-k="{k}" data-kind="motors">{k}</button>'
+        for k in (1, 2, 4, 6, 8, 12)
+    )
+    servo_quick = "".join(
+        f'<button data-k="{k}" data-kind="servos">{k}</button>'
+        for k in (0, 2, 3, 4, 6, 8, 18)
+    )
+    return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>inavemu — Моторы и сервы</title><style>{style}</style></head>
+<body>{nav}
+<div class="wrap">
+ <h1>Моторы и сервоприводы</h1>
+ <p class="hint">Счётчики задают, сколько моторов и серв «подключено» к
+ виртуальному FC. Это mixer-правила: во вкладке Outputs конфигуратора
+ появляется столько слайдеров моторов и ярких полос серв, сколько
+ подключено. Тест моторов (слайдеры Outputs) работает: значения
+ возвращаются в MSP_MOTOR.</p>
+
+ <h2>Моторы: <span id="mnum">0</span> из 12</h2>
+ <div class="step">
+  <button id="mminus" aria-label="меньше моторов">−</button>
+  <div class="num" id="mnum2"></div>
+  <button id="mplus" aria-label="больше моторов">+</button>
+  <span class="lbl">от 1 до 12 · быстро:</span>
+  <div class="quick">{motor_quick}</div>
+ </div>
+ <div class="chips">{motor_chips}</div>
+
+ <h2>Сервоприводы: <span id="snum">0</span> из 18</h2>
+ <div class="step">
+  <button id="sminus" aria-label="меньше серв">−</button>
+  <div class="num" id="snum2"></div>
+  <button id="splus" aria-label="больше серв">+</button>
+  <span class="lbl">от 0 до 18 · быстро:</span>
+  <div class="quick">{servo_quick}</div>
+ </div>
+ <div class="chips">{servo_chips}</div>
+</div>
+{_OUT_JS}
 </body></html>"""

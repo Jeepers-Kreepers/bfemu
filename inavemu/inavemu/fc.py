@@ -386,8 +386,14 @@ class InavFC:
         # настройками *_hardware (0 = отключён)
         self.gyro_on = True
         self.gps_on = True
-        self.servo_mix = [[0] * 6 for _ in range(MAX_SERVO_RULES)]   # 6 байт/строка
-        self.motor_mix = [[0] * 8 for _ in range(MAX_SUPPORTED_MOTORS)]  # 8 байт/строка
+        # mixer-правила генерируются из числа «подключённых» выходов
+        # (веб-интерфейс /outputs): моторы 1..12, сервы 0..18
+        self.motors_connected = 4
+        self.servos_connected = 0
+        self.motor_mix: list = []   # 12 строк по 8 байт (4×u16 в кодировке прошивки)
+        self.servo_mix: list = []   # 36 строк по 6 байт
+        self.set_motors_connected(self.motors_connected)
+        self.set_servos_connected(self.servos_connected)
         # Раскладка OSD: layout 0 — заводская из pgResetFn_osdLayoutsConfig
         # (io/osd.c; таблица osd_layout_defaults в data/inav_data.json),
         # раскладки 1..3 у прошивки после сброса пустые (всё скрыто).
@@ -525,7 +531,7 @@ class InavFC:
         self.rc_channels = [1500] * 16
         self.rc_channels[0] = 1500
         self.motors = [1000] * 8
-        self.servos = [1500] * 8
+        self.servos = [1500] * MAX_SUPPORTED_SERVOS
         self.gps = {"fix": 1, "sats": 12, "lat": 55755830, "lon": 37617380,
                     "alt": 160, "speed": 0, "course": 0, "hdop": 110}
         fresh = not (self.eeprom_path and self.eeprom_path.exists())
@@ -579,6 +585,66 @@ class InavFC:
             self.store.set(key, 0)
 
     # ------------------------------------------------------------------
+    # моторы и сервоприводы (веб-интерфейс /outputs)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _motor_row_used(row) -> bool:
+        """Правило motor mix «использовано» как в JS: throttle != 0.
+        Кодировка прошивки: (значение + 2) * 1000, пустое правило = 2000;
+        старые нулевые строки тоже считаем пустыми."""
+        thr = row[0] | (row[1] << 8)
+        return thr not in (0, 2000)
+
+    def set_motors_connected(self, count: int):
+        """Подключить N моторов (1..12): N правил motor mix с throttle=1.0.
+        Число настроенных правил — это и есть число моторов в Outputs."""
+        count = int(count)
+        if not 1 <= count <= MAX_SUPPORTED_MOTORS:
+            raise MSPError(f"моторы: ожидается 1..{MAX_SUPPORTED_MOTORS}, "
+                           f"получено {count}")
+        self.motors_connected = count
+        rows = []
+        for i in range(MAX_SUPPORTED_MOTORS):
+            thr = 3000 if i < count else 2000   # (1.0 | 0.0 + 2) * 1000
+            rows.append(list(struct.pack("<HHHH", thr, 2000, 2000, 2000)))
+        self.motor_mix = rows
+
+    def set_servos_connected(self, count: int):
+        """Подключить M серв (0..18): M правил servo mix (target 0..M-1).
+        Серва «подключена», если на её канал есть правило с rate != 0."""
+        count = int(count)
+        if not 0 <= count <= MAX_SUPPORTED_SERVOS:
+            raise MSPError(f"сервы: ожидается 0..{MAX_SUPPORTED_SERVOS}, "
+                           f"получено {count}")
+        self.servos_connected = count
+        rows = []
+        for i in range(MAX_SERVO_RULES):
+            if i < count:
+                # target, input, rate u16, speed, conditionId (255 = -1, без условия)
+                rows.append(list(struct.pack("<BBHBB", i, 0, 100, 0, 255)))
+            else:
+                rows.append([0] * 6)
+        self.servo_mix = rows
+
+    def _recount_motors(self):
+        self.motors_connected = sum(1 for r in self.motor_mix
+                                    if self._motor_row_used(r))
+
+    def _recount_servos(self):
+        targets = {r[0] for r in self.servo_mix if (r[2] | (r[3] << 8)) != 0}
+        self.servos_connected = len(targets)
+
+    def servo_values(self) -> list:
+        """Текущие значения серв (18): «подключённые» слегка живут."""
+        out = []
+        for i in range(MAX_SUPPORTED_SERVOS):
+            val = self.servos[i] if i < len(self.servos) else 1500
+            if i < self.servos_connected:
+                val += int(80 * math.sin(self._phase() * (0.6 + 0.13 * i)))
+            out.append(val)
+        return out
+
+    # ------------------------------------------------------------------
     # «flashdata» / eeprom
     # ------------------------------------------------------------------
     def _load_eeprom(self):
@@ -628,6 +694,18 @@ class InavFC:
                 self.mixer_profile = data.get("mixer_profile", self.mixer_profile)
                 self.gyro_on = data.get("gyro_on", self.gyro_on)
                 self.gps_on = data.get("gps_on", self.gps_on)
+                if "motor_mix" in data:
+                    self.motor_mix = data["motor_mix"]
+                    self._recount_motors()
+                else:
+                    self.set_motors_connected(
+                        data.get("motors_connected", self.motors_connected))
+                if "servo_mix" in data:
+                    self.servo_mix = data["servo_mix"]
+                    self._recount_servos()
+                else:
+                    self.set_servos_connected(
+                        data.get("servos_connected", self.servos_connected))
                 self.reversible.update(data.get("reversible", {}))
                 self.filter_config.update(data.get("filter_config", {}))
                 self.pid_advanced.update(data.get("pid_advanced", {}))
@@ -684,6 +762,9 @@ class InavFC:
             "flash_used": self.flash_used,
             "mixer_profile": self.mixer_profile,
             "gyro_on": self.gyro_on, "gps_on": self.gps_on,
+            "motors_connected": self.motors_connected,
+            "servos_connected": self.servos_connected,
+            "motor_mix": self.motor_mix, "servo_mix": self.servo_mix,
             "reversible": self.reversible,
             "filter_config": self.filter_config,
             "pid_advanced": self.pid_advanced,
@@ -761,8 +842,8 @@ class InavFC:
             MSP_RAW_GPS: self._msp_raw_gps,
             MSP_COMP_GPS: self._msp_comp_gps,
             MSP_RC: lambda p: b"".join(u16(c) for c in self.rc_channels),
-            MSP_MOTOR: lambda p: b"".join(u16(m) for m in self.motors),
-            MSP_SERVO: lambda p: b"".join(u16(s) for s in self.servos),
+            MSP_MOTOR: self._msp_motor,
+            MSP_SERVO: self._msp_servo,
             MSP_STATUS: self._msp_status,
             MSP_STATUS_EX: self._msp_status_ex,
             MSP_FEATURE: lambda p: u32(self.features),
@@ -813,7 +894,7 @@ class InavFC:
             MSP_ACC_TRIM: lambda p: i16(0) + i16(0),
             MSP_ACC_CALIBRATION: self._ack,
             MSP_MAG_CALIBRATION: self._ack,
-            MSP_SET_MOTOR: self._ack,
+            MSP_SET_MOTOR: self._msp_set_motor,
             MSP_SET_RTC: self._ack,
             MSP_RTC: self._msp_rtc,
             MSP_PIDNAMES: lambda p: b"ROLL;PITCH;YAW;ALT;PosH;POSR;NAVR;LEVEL;MAG;VEL;",
@@ -1521,10 +1602,28 @@ class InavFC:
         profile0 = b"".join(bytes(row) for row in self.servo_mix)
         return profile0 + b"\x00" * (6 * MAX_SERVO_RULES)
 
+    def _msp_motor(self, _p):
+        # fc_msp.c MSP_MOTOR: 8 значений (хотя MAX_SUPPORTED_MOTORS = 12)
+        return b"".join(u16(m) for m in self.motors[:8])
+
+    def _msp_servo(self, _p):
+        # fc_msp.c MSP_SERVO: MAX_SUPPORTED_SERVOS = 18 значений
+        return b"".join(u16(v) for v in self.servo_values())
+
+    def _msp_set_motor(self, p):
+        # тест моторов во вкладке Outputs: 8×u16, эхом возвращаются в MSP_MOTOR
+        if len(p) < 2 or len(p) % 2:
+            raise MSPError("SET_MOTOR: ожидаются u16-значения")
+        for i, off in enumerate(range(0, min(len(p), 16), 2)):
+            self.motors[i] = int.from_bytes(p[off:off + 2], "little")
+        return b""
+
     def _msp2_motor_mixer(self, _p):
-        # fc_msp.c MSP2_COMMON_MOTOR_MIXER: оба профиля, строки по 8 байт (4×u16)
+        # fc_msp.c MSP2_COMMON_MOTOR_MIXER: оба профиля, строки по 8 байт (4×u16);
+        # пустое правило = 0.0 в кодировке прошивки, т.е. 2000
         profile0 = b"".join(bytes(row) for row in self.motor_mix)
-        return profile0 + b"\x00" * (8 * MAX_SUPPORTED_MOTORS)
+        empty = struct.pack("<HHHH", 2000, 2000, 2000, 2000)
+        return profile0 + empty * MAX_SUPPORTED_MOTORS
 
     def _msp2_set_motor_mixer(self, p):
         # fc_msp.c MSP2_COMMON_SET_MOTOR_MIXER: ровно 9 байт: idx + 4×u16
@@ -1534,6 +1633,7 @@ class InavFC:
         if idx >= MAX_SUPPORTED_MOTORS:
             raise MSPError("MOTOR_MIXER: индекс вне диапазона")
         self.motor_mix[idx] = list(p[1:9])
+        self._recount_motors()
         return b""
 
     def _msp2_select_battery_profile(self, p):
@@ -1551,6 +1651,7 @@ class InavFC:
         if idx >= MAX_SERVO_RULES:
             raise MSPError("SERVO_MIXER: индекс вне диапазона")
         self.servo_mix[idx] = list(p[1:7])
+        self._recount_servos()
         return b""
 
     def _msp2_adsb_vehicle_list(self, _p):

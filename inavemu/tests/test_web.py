@@ -158,3 +158,87 @@ def test_web_bad_payload_is_400(web):
     assert code == 400
     code, body = _post(web + "/api/equipment", {})
     assert code == 400
+
+
+# ---------------- моторы и сервы ----------------
+
+def test_outputs_counts_drive_mixer_rules(fc):
+    # по умолчанию 4 мотора, серв нет
+    assert fc.motors_connected == 4 and fc.servos_connected == 0
+    mm = ask(fc, 0x1005)   # MSP2_COMMON_MOTOR_MIXER
+    used = [struct.unpack_from("<H", mm, i)[0] == 3000
+            for i in range(0, 96, 8)]
+    assert sum(used) == 4
+    fc.set_motors_connected(7)
+    fc.set_servos_connected(3)
+    mm = ask(fc, 0x1005)
+    assert sum(struct.unpack_from("<H", mm, i)[0] == 3000
+               for i in range(0, 96, 8)) == 7
+    sm = ask(fc, 0x2020)   # MSP2_INAV_SERVO_MIXER
+    targets = [sm[i] for i in range(0, 36 * 6, 6)
+               if struct.unpack_from("<H", sm, i + 2)[0] != 0]
+    assert targets == [0, 1, 2]
+    # профиль 2 — пустые правила в кодировке прошивки (2000), а не нули
+    assert mm[96:104] == struct.pack("<HHHH", 2000, 2000, 2000, 2000)
+
+
+def test_outputs_ranges_are_validated(fc):
+    import pytest as _pytest
+    with _pytest.raises(MSPError):
+        fc.set_motors_connected(0)
+    with _pytest.raises(MSPError):
+        fc.set_motors_connected(13)
+    with _pytest.raises(MSPError):
+        fc.set_servos_connected(-1)
+    with _pytest.raises(MSPError):
+        fc.set_servos_connected(19)
+
+
+def test_motor_values_and_set_motor_echo(fc):
+    assert len(ask(fc, 104)) == 16          # MSP_MOTOR: 8×u16
+    assert len(ask(fc, 103)) == 36          # MSP_SERVO: 18×u16
+    payload = struct.pack("<8H", 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900)
+    assert ask(fc, 214, payload) == b""     # MSP_SET_MOTOR
+    assert ask(fc, 104) == payload          # значения эхом идут в MSP_MOTOR
+    with pytest.raises(MSPError):
+        ask(fc, 214, b"\x01")
+
+
+def test_outputs_persist(fc, tmp_path):
+    fc.eeprom_path = tmp_path / "e.json"
+    fc.set_motors_connected(6)
+    fc.set_servos_connected(2)
+    fc.save_eeprom()
+    fc2 = InavFC(eeprom_path=fc.eeprom_path)
+    assert fc2.motors_connected == 6
+    assert fc2.servos_connected == 2
+
+
+def test_web_outputs_page_and_api(web, fc):
+    code, body = _get(web + "/outputs")
+    assert code == 200
+    for title in ("Моторы", "Сервоприводы", "M12", "S18"):
+        assert title in body
+    code, body = _get(web + "/api/state")
+    st = json.loads(body)
+    assert st["outputs"]["motors"] == 4
+    code, body = _post(web + "/api/outputs", {"motors": 8, "servos": 5})
+    assert code == 200
+    assert body["outputs"]["motors"] == 8
+    assert body["outputs"]["servos"] == 5
+    assert fc.motors_connected == 8 and fc.servos_connected == 5
+    # частичное обновление
+    code, body = _post(web + "/api/outputs", {"servos": 0})
+    assert body["outputs"]["motors"] == 8
+    assert body["outputs"]["servos"] == 0
+
+
+def test_web_outputs_bad_payload_is_400(web):
+    code, body = _post(web + "/api/outputs", {"motors": 13})
+    assert code == 400
+    code, body = _post(web + "/api/outputs", {"motors": True})
+    assert code == 400
+    code, body = _post(web + "/api/outputs", {"warp": 1})
+    assert code == 400
+    code, body = _post(web + "/api/outputs", {})
+    assert code == 400

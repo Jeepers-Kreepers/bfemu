@@ -183,11 +183,14 @@ def test_custom_osd_and_logic_mask(fc):
 def test_select_battery_profile_and_motor_mixer(fc):
     assert ask(fc, MSP2_INAV_SELECT_BATTERY_PROFILE, bytes([2])) == b""
     assert fc.battery_profile == 2
+    fc.set_motors_connected(1)  # один мотор, остальные правила пустые
     row = bytes([0]) + struct.pack("<HHHH", 3000, 1900, 2100, 2050)  # idx + 4×u16
     assert ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, row) == b""
     mm = ask(fc, MSP2_COMMON_MOTOR_MIXER)
-    # GET: оба профиля × 12 строк по 8 байт (без индекса)
-    assert mm == row[1:9] + b"\x00" * (8 * 12 - 8) + b"\x00" * (8 * 12)
+    # GET: оба профиля × 12 строк по 8 байт (без индекса);
+    # пустые правила = 0.0 в кодировке прошивки (2000), а не нули
+    empty = struct.pack("<HHHH", 2000, 2000, 2000, 2000)
+    assert mm == row[1:9] + empty * 11 + empty * 12
     with pytest.raises(MSPError):
         ask(fc, MSP2_COMMON_SET_MOTOR_MIXER, b"\x00" * 8)  # не 9 байт
     with pytest.raises(MSPError):

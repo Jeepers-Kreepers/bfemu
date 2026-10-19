@@ -180,6 +180,12 @@ class FCServer:
             "requests": self.requests,
             "settings": len(fc.store.settings),
             "equipment": fc.get_equipment(),
+            "outputs": {
+                "motors": fc.motors_connected,
+                "servos": fc.servos_connected,
+                "motor_values": list(fc.motors[:8]),
+                "servo_values": fc.servo_values(),
+            },
             "log": fc.log[-30:],
         }
 
@@ -204,9 +210,10 @@ def make_http_handler(server: FCServer):
             from . import pages
             nav = pages.nav_html(kind, tcp=f"{server.host}:{server.port}")
             style = pages.NAV_STYLE
-            html = (pages.monitor_page(nav, style) if kind == "monitor"
-                    else pages.equipment_page(nav, style))
-            self._send(html.encode(), "text/html; charset=utf-8")
+            page = {"monitor": pages.monitor_page,
+                    "equipment": pages.equipment_page,
+                    "outputs": pages.outputs_page}[kind]
+            self._send(page(nav, style).encode(), "text/html; charset=utf-8")
 
         def do_GET(self):
             path = self.path.split("?", 1)[0]
@@ -218,19 +225,51 @@ def make_http_handler(server: FCServer):
                 self._page("monitor")
             elif path == "/equipment":
                 self._page("equipment")
+            elif path == "/outputs":
+                self._page("outputs")
             else:
                 self._send(b"not found", "text/plain", 404)
 
         def do_POST(self):
             path = self.path.split("?", 1)[0]
-            if path != "/api/equipment":
+            if path == "/api/equipment":
+                self._post_equipment()
+            elif path == "/api/outputs":
+                self._post_outputs()
+            else:
                 self._send(b"not found", "text/plain", 404)
-                return
+
+        def _read_json(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length) or b"{}")
+            if not isinstance(payload, dict) or not payload:
+                raise ValueError("ожидался JSON-объект")
+            return payload
+
+        def _post_outputs(self):
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-                payload = json.loads(self.rfile.read(length) or b"{}")
-                if not isinstance(payload, dict) or not payload:
-                    raise ValueError("ожидался JSON-объект вида {\"mag\": true}")
+                payload = self._read_json()
+                for name, val in payload.items():
+                    if name not in ("motors", "servos"):
+                        raise ValueError(f"неизвестное поле {name!r}")
+                    if isinstance(val, bool) or not isinstance(val, int):
+                        raise ValueError(f"{name}: ожидается целое число")
+                for name, val in payload.items():
+                    try:
+                        if name == "motors":
+                            server.fc.set_motors_connected(val)
+                        else:
+                            server.fc.set_servos_connected(val)
+                    except MSPError as exc:
+                        raise ValueError(str(exc))
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            self._send_json({"outputs": server.state_json()["outputs"]})
+
+        def _post_equipment(self):
+            try:
+                payload = self._read_json()
                 for name, on in payload.items():
                     if name not in EQ_KEYS:
                         raise ValueError(f"неизвестное оборудование {name!r}")
