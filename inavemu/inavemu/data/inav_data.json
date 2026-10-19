@@ -1,0 +1,9539 @@
+{
+ "source": {
+  "repo": "iNavFlight/inav",
+  "tag": "9.1.0",
+  "api_version": "2.5.0",
+  "settings_yaml": "src/main/fc/settings.yaml"
+ },
+ "settings": [
+  {
+   "name": "looptime",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 9000,
+   "default": 500
+  },
+  {
+   "name": "gyro_anti_aliasing_lpf_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 250
+  },
+  {
+   "name": "gyro_lulu_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "gyro_lulu_sample_count",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 15,
+   "default": 3
+  },
+  {
+   "name": "gyro_main_lpf_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 500,
+   "default": 60
+  },
+  {
+   "name": "gyro_filter_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "STATIC",
+    "DYNAMIC",
+    "ADAPTIVE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 1
+  },
+  {
+   "name": "gyro_dyn_lpf_min_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 40,
+   "max": 400,
+   "default": 200
+  },
+  {
+   "name": "gyro_dyn_lpf_max_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 40,
+   "max": 1000,
+   "default": 500
+  },
+  {
+   "name": "gyro_dyn_lpf_curve_expo",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 10,
+   "default": 5
+  },
+  {
+   "name": "dynamic_gyro_notch_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "dynamic_gyro_notch_q",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 1000,
+   "default": 120
+  },
+  {
+   "name": "dynamic_gyro_notch_min_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 30,
+   "max": 250,
+   "default": 50
+  },
+  {
+   "name": "dynamic_gyro_notch_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "2D",
+    "3D"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "dynamic_gyro_notch_3d_q",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 1000,
+   "default": 200
+  },
+  {
+   "name": "gyro_to_use",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "setpoint_kalman_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "setpoint_kalman_q",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 1000,
+   "default": 100
+  },
+  {
+   "name": "init_gyro_cal",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "gyro_zero_x",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "gyro_zero_y",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "gyro_zero_z",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "ins_gravity_cmss",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2000,
+   "default": 0.0
+  },
+  {
+   "name": "gyro_adaptive_filter_target",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 6,
+   "default": 3.5
+  },
+  {
+   "name": "gyro_adaptive_filter_min_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 250,
+   "default": 50
+  },
+  {
+   "name": "gyro_adaptive_filter_max_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 505,
+   "default": 150
+  },
+  {
+   "name": "gyro_adaptive_filter_std_lpf_hz",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 2
+  },
+  {
+   "name": "gyro_adaptive_filter_hpf_hz",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 50,
+   "default": 10
+  },
+  {
+   "name": "gyro_adaptive_filter_integrator_threshold_high",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 10,
+   "default": 4
+  },
+  {
+   "name": "gyro_adaptive_filter_integrator_threshold_low",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 10,
+   "pg_name": "PG_GYRO_CONFIG",
+   "mode": 0,
+   "min": -10,
+   "max": 0,
+   "default": -2
+  },
+  {
+   "name": "vbat_adc_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1010,
+   "pg_name": "PG_ADC_CHANNEL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 6,
+   "default": 0
+  },
+  {
+   "name": "rssi_adc_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1010,
+   "pg_name": "PG_ADC_CHANNEL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 6,
+   "default": 0
+  },
+  {
+   "name": "current_adc_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1010,
+   "pg_name": "PG_ADC_CHANNEL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 6,
+   "default": 0
+  },
+  {
+   "name": "airspeed_adc_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1010,
+   "pg_name": "PG_ADC_CHANNEL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 6,
+   "default": 0
+  },
+  {
+   "name": "acc_notch_hz",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "acc_notch_cutoff",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 255,
+   "default": 1
+  },
+  {
+   "name": "acc_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AUTO",
+    "MPU6000",
+    "MPU6500",
+    "MPU9250",
+    "BMI160",
+    "ICM20689",
+    "BMI088",
+    "ICM42605",
+    "BMI270",
+    "LSM6DXX",
+    "ICM45686",
+    "FAKE"
+   ],
+   "min": 0,
+   "max": 12,
+   "default": 1
+  },
+  {
+   "name": "acc_lpf_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 15
+  },
+  {
+   "name": "acc_lpf_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 64,
+   "values": [
+    "PT1",
+    "BIQUAD"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "acc_temp_correction",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": -50,
+   "max": 51,
+   "default": 0
+  },
+  {
+   "name": "acczero_x",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "acczero_y",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "acczero_z",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "accgain_x",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 8192,
+   "default": 4096
+  },
+  {
+   "name": "accgain_y",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 8192,
+   "default": 4096
+  },
+  {
+   "name": "accgain_z",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 35,
+   "pg_name": "PG_ACCELEROMETER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 8192,
+   "default": 4096
+  },
+  {
+   "name": "rangefinder_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1006,
+   "pg_name": "PG_RANGEFINDER_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "SRF10",
+    "VL53L0X",
+    "MSP",
+    "BENEWAKE",
+    "VL53L1X",
+    "US42",
+    "TOF10120_I2C",
+    "FAKE",
+    "TERARANGER_EVO",
+    "USD1_V0",
+    "NRA"
+   ],
+   "min": 0,
+   "max": 11,
+   "default": 0
+  },
+  {
+   "name": "rangefinder_median_filter",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1006,
+   "pg_name": "PG_RANGEFINDER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "opflow_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1012,
+   "pg_name": "PG_OPFLOW_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "CXOF",
+    "MSP",
+    "FAKE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "opflow_scale",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1012,
+   "pg_name": "PG_OPFLOW_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 10.5
+  },
+  {
+   "name": "align_opflow",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1012,
+   "pg_name": "PG_OPFLOW_CONFIG",
+   "mode": 64,
+   "values": [
+    "DEFAULT",
+    "CW0",
+    "CW90",
+    "CW180",
+    "CW270",
+    "CW0FLIP",
+    "CW90FLIP",
+    "CW180FLIP",
+    "CW270FLIP"
+   ],
+   "min": 0,
+   "max": 8,
+   "default": 5
+  },
+  {
+   "name": "align_mag",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 64,
+   "values": [
+    "DEFAULT",
+    "CW0",
+    "CW90",
+    "CW180",
+    "CW270",
+    "CW0FLIP",
+    "CW90FLIP",
+    "CW180FLIP",
+    "CW270FLIP"
+   ],
+   "min": 0,
+   "max": 8,
+   "default": 0
+  },
+  {
+   "name": "mag_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AUTO",
+    "HMC5883",
+    "AK8975",
+    "MAG3110",
+    "AK8963",
+    "IST8310",
+    "QMC5883",
+    "QMC5883P",
+    "MPU9250",
+    "IST8308",
+    "LIS3MDL",
+    "MSP",
+    "RM3100",
+    "VCM5883",
+    "MLX90393",
+    "FAKE"
+   ],
+   "min": 0,
+   "max": 16,
+   "default": 1
+  },
+  {
+   "name": "mag_declination",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -18000,
+   "max": 18000,
+   "default": 0
+  },
+  {
+   "name": "magzero_x",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "magzero_y",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "magzero_z",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "maggain_x",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 1024
+  },
+  {
+   "name": "maggain_y",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 1024
+  },
+  {
+   "name": "maggain_z",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 1024
+  },
+  {
+   "name": "mag_calibration_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": 20,
+   "max": 120,
+   "default": 30
+  },
+  {
+   "name": "mag_to_use",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "align_mag_roll",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "align_mag_pitch",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "align_mag_yaw",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 40,
+   "pg_name": "PG_COMPASS_CONFIG",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "baro_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 38,
+   "pg_name": "PG_BAROMETER_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AUTO",
+    "BMP085",
+    "MS5611",
+    "BMP280",
+    "MS5607",
+    "LPS25H",
+    "SPL06",
+    "BMP388",
+    "DPS310",
+    "B2SMPB",
+    "MSP",
+    "FAKE"
+   ],
+   "min": 0,
+   "max": 12,
+   "default": 1
+  },
+  {
+   "name": "baro_cal_tolerance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 38,
+   "pg_name": "PG_BAROMETER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 150
+  },
+  {
+   "name": "baro_temp_correction",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 38,
+   "pg_name": "PG_BAROMETER_CONFIG",
+   "mode": 0,
+   "min": -50,
+   "max": 51,
+   "default": 0
+  },
+  {
+   "name": "pitot_hardware",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1000,
+   "pg_name": "PG_PITOTMETER_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AUTO",
+    "MS4525",
+    "ADC",
+    "VIRTUAL",
+    "FAKE",
+    "MSP",
+    "DLVR-L10D",
+    "MS5525"
+   ],
+   "min": 0,
+   "max": 8,
+   "default": 0
+  },
+  {
+   "name": "pitot_lpf_milli_hz",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1000,
+   "pg_name": "PG_PITOTMETER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 50000,
+   "default": 3000
+  },
+  {
+   "name": "pitot_scale",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1000,
+   "pg_name": "PG_PITOTMETER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 1.0
+  },
+  {
+   "name": "receiver_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "SERIAL",
+    "MSP",
+    "SIM (SITL)"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "min_check",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1100
+  },
+  {
+   "name": "max_check",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1900
+  },
+  {
+   "name": "rssi_source",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AUTO",
+    "ADC",
+    "CHANNEL",
+    "PROTOCOL",
+    "MSP"
+   ],
+   "min": 0,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "rssi_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 34,
+   "default": 0
+  },
+  {
+   "name": "rssi_min",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 0
+  },
+  {
+   "name": "rssi_max",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 100
+  },
+  {
+   "name": "sbus_sync_interval",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 500,
+   "max": 10000,
+   "default": 3000
+  },
+  {
+   "name": "rc_filter_lpf_hz",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 15,
+   "max": 250,
+   "default": 50
+  },
+  {
+   "name": "rc_filter_auto",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "rc_filter_smoothing_factor",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 100,
+   "default": 30
+  },
+  {
+   "name": "serialrx_provider",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "SPEK1024",
+    "SPEK2048",
+    "SBUS",
+    "SUMD",
+    "IBUS",
+    "JETIEXBUS",
+    "CRSF",
+    "FPORT",
+    "SBUS_FAST",
+    "FPORT2",
+    "SRXL2",
+    "GHST",
+    "MAVLINK",
+    "FBUS",
+    "SBUS2"
+   ],
+   "min": 0,
+   "max": 14,
+   "default": 0
+  },
+  {
+   "name": "serialrx_inverted",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "spektrum_sat_bind",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0
+  },
+  {
+   "name": "srxl2_unit_id",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 15,
+   "default": 1
+  },
+  {
+   "name": "srxl2_baud_fast",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "rx_min_usec",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 750,
+   "max": 2250,
+   "default": 885
+  },
+  {
+   "name": "rx_max_usec",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 750,
+   "max": 2250,
+   "default": 2115
+  },
+  {
+   "name": "serialrx_halfduplex",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 64,
+   "values": [
+    "AUTO",
+    "ON",
+    "OFF"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "msp_override_channels",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 24,
+   "pg_name": "PG_RX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "blackbox_rate_num",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 5,
+   "pg_name": "PG_BLACKBOX_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 65535,
+   "default": 1
+  },
+  {
+   "name": "blackbox_rate_denom",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 5,
+   "pg_name": "PG_BLACKBOX_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 65535,
+   "default": 1
+  },
+  {
+   "name": "blackbox_device",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 5,
+   "pg_name": "PG_BLACKBOX_CONFIG",
+   "mode": 64,
+   "values": [
+    "SERIAL",
+    "SPIFLASH",
+    "SDCARD",
+    "FILE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "sdcard_detect_inverted",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 5,
+   "pg_name": "PG_BLACKBOX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "blackbox_arm_control",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 5,
+   "pg_name": "PG_BLACKBOX_CONFIG",
+   "mode": 0,
+   "min": -1,
+   "max": 60,
+   "default": 0
+  },
+  {
+   "name": "min_command",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 6,
+   "pg_name": "PG_MOTOR_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2000,
+   "default": 1000
+  },
+  {
+   "name": "motor_pwm_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 6,
+   "pg_name": "PG_MOTOR_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 32000,
+   "default": 16000
+  },
+  {
+   "name": "motor_pwm_protocol",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 6,
+   "pg_name": "PG_MOTOR_CONFIG",
+   "mode": 64,
+   "values": [
+    "STANDARD",
+    "ONESHOT125",
+    "MULTISHOT",
+    "BRUSHED",
+    "DSHOT150",
+    "DSHOT300",
+    "DSHOT600"
+   ],
+   "min": 0,
+   "max": 6,
+   "default": 1
+  },
+  {
+   "name": "motor_poles",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 6,
+   "pg_name": "PG_MOTOR_CONFIG",
+   "mode": 0,
+   "min": 4,
+   "max": 255,
+   "default": 14
+  },
+  {
+   "name": "failsafe_delay",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 5
+  },
+  {
+   "name": "failsafe_recovery_delay",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 5
+  },
+  {
+   "name": "failsafe_off_delay",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 200
+  },
+  {
+   "name": "failsafe_throttle_low_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 300,
+   "default": 0
+  },
+  {
+   "name": "failsafe_procedure",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 64,
+   "values": [
+    "LAND",
+    "DROP",
+    "RTH",
+    "NONE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "failsafe_stick_threshold",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 500,
+   "default": 50
+  },
+  {
+   "name": "failsafe_fw_roll_angle",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": -800,
+   "max": 800,
+   "default": -200
+  },
+  {
+   "name": "failsafe_fw_pitch_angle",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": -800,
+   "max": 800,
+   "default": 100
+  },
+  {
+   "name": "failsafe_fw_yaw_rate",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": -1000,
+   "max": 1000,
+   "default": -45
+  },
+  {
+   "name": "failsafe_min_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 0
+  },
+  {
+   "name": "failsafe_min_distance_procedure",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 64,
+   "values": [
+    "LAND",
+    "DROP",
+    "RTH",
+    "NONE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 1
+  },
+  {
+   "name": "failsafe_mission_delay",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": -1,
+   "max": 600,
+   "default": 0
+  },
+  {
+   "name": "failsafe_gps_fix_estimation_delay",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1,
+   "pg_name": "PG_FAILSAFE_CONFIG",
+   "mode": 0,
+   "min": -1,
+   "max": 600,
+   "default": 7
+  },
+  {
+   "name": "failsafe_lights",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1014,
+   "pg_name": "PG_LIGHTS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "failsafe_lights_flash_period",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1014,
+   "pg_name": "PG_LIGHTS_CONFIG",
+   "mode": 0,
+   "min": 40,
+   "max": 65535,
+   "default": 1000
+  },
+  {
+   "name": "failsafe_lights_flash_on_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1014,
+   "pg_name": "PG_LIGHTS_CONFIG",
+   "mode": 0,
+   "min": 20,
+   "max": 65535,
+   "default": 100
+  },
+  {
+   "name": "align_board_roll",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 2,
+   "pg_name": "PG_BOARD_ALIGNMENT",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "align_board_pitch",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 2,
+   "pg_name": "PG_BOARD_ALIGNMENT",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "align_board_yaw",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 2,
+   "pg_name": "PG_BOARD_ALIGNMENT",
+   "mode": 0,
+   "min": -1800,
+   "max": 3600,
+   "default": 0
+  },
+  {
+   "name": "vbat_meter_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "ADC",
+    "ESC",
+    "FAKE",
+    "SMARTPORT"
+   ],
+   "min": 0,
+   "max": 4,
+   "default": 1
+  },
+  {
+   "name": "vbat_scale",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "battery_capacity_unit",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 64,
+   "values": [
+    "MAH",
+    "MWH"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "current_meter_scale",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": -10000,
+   "max": 10000,
+   "default": 0
+  },
+  {
+   "name": "current_meter_offset",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": 0
+  },
+  {
+   "name": "current_meter_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "ADC",
+    "VIRTUAL",
+    "FAKE",
+    "ESC",
+    "SMARTPORT"
+   ],
+   "min": 0,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "bat_voltage_src",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 64,
+   "values": [
+    "RAW",
+    "SAG_COMP"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "cruise_power",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "idle_power",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "rth_energy_margin",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 5
+  },
+  {
+   "name": "thr_comp_weight",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 45,
+   "pg_name": "PG_BATTERY_METERS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "bat_cells",
+   "type": "uint8",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 12,
+   "default": 0
+  },
+  {
+   "name": "vbat_cell_detect_voltage",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 100,
+   "max": 500,
+   "default": 425
+  },
+  {
+   "name": "vbat_max_cell_voltage",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 100,
+   "max": 500,
+   "default": 420
+  },
+  {
+   "name": "vbat_min_cell_voltage",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 100,
+   "max": 500,
+   "default": 330
+  },
+  {
+   "name": "vbat_warning_cell_voltage",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 100,
+   "max": 500,
+   "default": 350
+  },
+  {
+   "name": "battery_capacity",
+   "type": "uint32",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "battery_capacity_warning",
+   "type": "uint32",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "battery_capacity_critical",
+   "type": "uint32",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "use_control_profile",
+   "type": "uint8",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "throttle_scale",
+   "type": "float",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 1.0
+  },
+  {
+   "name": "throttle_idle",
+   "type": "float",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 30,
+   "default": 8
+  },
+  {
+   "name": "turtle_mode_power_factor",
+   "type": "uint8",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 55
+  },
+  {
+   "name": "failsafe_throttle",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1000
+  },
+  {
+   "name": "nav_mc_hover_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1300
+  },
+  {
+   "name": "nav_fw_cruise_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1400
+  },
+  {
+   "name": "nav_fw_min_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1200
+  },
+  {
+   "name": "nav_fw_max_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1700
+  },
+  {
+   "name": "nav_fw_pitch2thr",
+   "type": "uint8",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 10
+  },
+  {
+   "name": "nav_fw_launch_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1700
+  },
+  {
+   "name": "nav_fw_launch_idle_thr",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1000
+  },
+  {
+   "name": "limit_cont_current",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 4000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_current",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 4000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_current_time",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 3000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_current_falldown_time",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 3000,
+   "default": 0
+  },
+  {
+   "name": "limit_cont_power",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 40000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_power",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 40000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_power_time",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 3000,
+   "default": 0
+  },
+  {
+   "name": "limit_burst_power_falldown_time",
+   "type": "uint16",
+   "section": "BATTERY_CONFIG_VALUE",
+   "pg": 11,
+   "pg_name": "PG_BATTERY_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 3000,
+   "default": 0
+  },
+  {
+   "name": "motor_direction_inverted",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "platform_type",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "MULTIROTOR",
+    "AIRPLANE",
+    "HELICOPTER",
+    "TRICOPTER",
+    "ROVER",
+    "BOAT"
+   ],
+   "min": 0,
+   "max": 5,
+   "default": 0
+  },
+  {
+   "name": "has_flaps",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "model_preview_type",
+   "type": "int16",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 0,
+   "min": -1,
+   "max": 32767,
+   "default": -1
+  },
+  {
+   "name": "motorstop_on_low",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "mixer_control_profile_linking",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "mixer_automated_switch",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "mixer_switch_trans_timer",
+   "type": "int16",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 0
+  },
+  {
+   "name": "tailsitter_orientation_offset",
+   "type": "uint8",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "transition_pid_mmix_multiplier_roll",
+   "type": "int16",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 0,
+   "min": -5000,
+   "max": 5000,
+   "default": 1000
+  },
+  {
+   "name": "transition_pid_mmix_multiplier_pitch",
+   "type": "int16",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 0,
+   "min": -5000,
+   "max": 5000,
+   "default": 1000
+  },
+  {
+   "name": "transition_pid_mmix_multiplier_yaw",
+   "type": "int16",
+   "section": "MIXER_CONFIG_VALUE",
+   "pg": 20,
+   "pg_name": "PG_MIXER_PROFILE",
+   "mode": 0,
+   "min": -5000,
+   "max": 5000,
+   "default": 1000
+  },
+  {
+   "name": "3d_deadband_low",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 26,
+   "pg_name": "PG_REVERSIBLE_MOTORS_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1406
+  },
+  {
+   "name": "3d_deadband_high",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 26,
+   "pg_name": "PG_REVERSIBLE_MOTORS_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1514
+  },
+  {
+   "name": "3d_neutral",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 26,
+   "pg_name": "PG_REVERSIBLE_MOTORS_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1460
+  },
+  {
+   "name": "servo_protocol",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 64,
+   "values": [
+    "PWM",
+    "SBUS",
+    "SBUS_PWM"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "servo_center_pulse",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1500
+  },
+  {
+   "name": "servo_pwm_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 498,
+   "default": 50
+  },
+  {
+   "name": "servo_lpf_hz",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 400,
+   "default": 20
+  },
+  {
+   "name": "flaperon_throw_offset",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 450,
+   "default": 200
+  },
+  {
+   "name": "tri_unarmed_servo",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "servo_autotrim_rotation_limit",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 52,
+   "pg_name": "PG_SERVO_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 60,
+   "default": 15
+  },
+  {
+   "name": "thr_mid",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 50
+  },
+  {
+   "name": "thr_expo",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 0
+  },
+  {
+   "name": "apa_pow",
+   "type": "uint16",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 0
+  },
+  {
+   "name": "tpa_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 0
+  },
+  {
+   "name": "tpa_breakpoint",
+   "type": "uint16",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1500
+  },
+  {
+   "name": "tpa_pitch_compensation",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 20,
+   "default": 8
+  },
+  {
+   "name": "tpa_on_yaw",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "fw_tpa_time_constant",
+   "type": "uint16",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 5000,
+   "default": 2000
+  },
+  {
+   "name": "rc_expo",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 70
+  },
+  {
+   "name": "rc_yaw_expo",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 20
+  },
+  {
+   "name": "roll_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 4,
+   "max": 180,
+   "default": 20
+  },
+  {
+   "name": "pitch_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 4,
+   "max": 180,
+   "default": 20
+  },
+  {
+   "name": "yaw_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 1,
+   "max": 180,
+   "default": 20
+  },
+  {
+   "name": "manual_rc_expo",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 35
+  },
+  {
+   "name": "manual_rc_yaw_expo",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 20
+  },
+  {
+   "name": "manual_roll_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 100
+  },
+  {
+   "name": "manual_pitch_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 100
+  },
+  {
+   "name": "manual_yaw_rate",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 100
+  },
+  {
+   "name": "fpv_mix_degrees",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 50,
+   "default": 0
+  },
+  {
+   "name": "rate_dynamics_center_sensitivity",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 25,
+   "max": 175,
+   "default": 100
+  },
+  {
+   "name": "rate_dynamics_end_sensitivity",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 25,
+   "max": 175,
+   "default": 100
+  },
+  {
+   "name": "rate_dynamics_center_correction",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 10,
+   "max": 95,
+   "default": 10
+  },
+  {
+   "name": "rate_dynamics_end_correction",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 10,
+   "max": 95,
+   "default": 10
+  },
+  {
+   "name": "rate_dynamics_center_weight",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 95,
+   "default": 0
+  },
+  {
+   "name": "rate_dynamics_end_weight",
+   "type": "uint8",
+   "section": "CONTROL_VALUE",
+   "pg": 12,
+   "pg_name": "PG_CONTROL_PROFILES",
+   "mode": 0,
+   "min": 0,
+   "max": 95,
+   "default": 0
+  },
+  {
+   "name": "ahrs_dcm_kp",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 2000
+  },
+  {
+   "name": "ahrs_dcm_ki",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 50
+  },
+  {
+   "name": "ahrs_dcm_kp_mag",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 2000
+  },
+  {
+   "name": "ahrs_dcm_ki_mag",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 50
+  },
+  {
+   "name": "small_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 180,
+   "default": 25
+  },
+  {
+   "name": "ahrs_acc_ignore_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 30,
+   "default": 15
+  },
+  {
+   "name": "ahrs_acc_ignore_slope",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 5
+  },
+  {
+   "name": "ahrs_gps_yaw_windcomp",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "ahrs_inertia_comp_method",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 64,
+   "values": [
+    "VELNED",
+    "TURNRATE",
+    "ADAPTIVE"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 2
+  },
+  {
+   "name": "ahrs_gps_yaw_weight",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 22,
+   "pg_name": "PG_IMU_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 500,
+   "default": 100
+  },
+  {
+   "name": "fixed_wing_auto_arm",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 16,
+   "pg_name": "PG_ARMING_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "disarm_always",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 16,
+   "pg_name": "PG_ARMING_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "switch_disarm_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 16,
+   "pg_name": "PG_ARMING_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 250
+  },
+  {
+   "name": "prearm_timeout",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 16,
+   "pg_name": "PG_ARMING_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 10000
+  },
+  {
+   "name": "applied_defaults",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1019,
+   "pg_name": "PG_GENERAL_SETTINGS",
+   "mode": 0,
+   "min": 0,
+   "max": 99,
+   "default": 0
+  },
+  {
+   "name": "ez_enabled",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "ez_filter_hz",
+   "type": "uint16",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 20,
+   "max": 300,
+   "default": 110
+  },
+  {
+   "name": "ez_axis_ratio",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 25,
+   "max": 175,
+   "default": 110
+  },
+  {
+   "name": "ez_response",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_damping",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_stability",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_aggressiveness",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_rate",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_expo",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "ez_snappiness",
+   "type": "uint8",
+   "section": "EZ_TUNE_VALUE",
+   "pg": 1033,
+   "pg_name": "PG_EZ_TUNE",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 0
+  },
+  {
+   "name": "rpm_gyro_filter_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1022,
+   "pg_name": "PG_RPM_FILTER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "rpm_gyro_harmonics",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1022,
+   "pg_name": "PG_RPM_FILTER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 3,
+   "default": 1
+  },
+  {
+   "name": "rpm_gyro_min_hz",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1022,
+   "pg_name": "PG_RPM_FILTER_CONFIG",
+   "mode": 0,
+   "min": 30,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "rpm_gyro_q",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1022,
+   "pg_name": "PG_RPM_FILTER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 3000,
+   "default": 500
+  },
+  {
+   "name": "gps_provider",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "UBLOX",
+    "MSP",
+    "FAKE"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "gps_sbas_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "AUTO",
+    "EGNOS",
+    "WAAS",
+    "MSAS",
+    "GAGAN",
+    "SPAN",
+    "NONE"
+   ],
+   "min": 0,
+   "max": 6,
+   "default": 6
+  },
+  {
+   "name": "gps_dyn_model",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "PEDESTRIAN",
+    "AUTOMOTIVE",
+    "AIR_1G",
+    "AIR_2G",
+    "AIR_4G",
+    "SEA",
+    "MOWER"
+   ],
+   "min": 0,
+   "max": 6,
+   "default": 3
+  },
+  {
+   "name": "gps_auto_config",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "gps_auto_baud",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "gps_auto_baud_max_supported",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "115200",
+    "57600",
+    "38400",
+    "19200",
+    "9600",
+    "230400",
+    "460800",
+    "921600"
+   ],
+   "min": 0,
+   "max": 7,
+   "default": 5
+  },
+  {
+   "name": "gps_ublox_use_galileo",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "gps_ublox_use_beidou",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "gps_ublox_use_glonass",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "gps_min_sats",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 10,
+   "default": 6
+  },
+  {
+   "name": "gps_ublox_nav_hz",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 30,
+   "pg_name": "PG_GPS_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 200,
+   "default": 8
+  },
+  {
+   "name": "deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 32,
+   "default": 2
+  },
+  {
+   "name": "yaw_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 2
+  },
+  {
+   "name": "pos_hold_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 2,
+   "max": 250,
+   "default": 10
+  },
+  {
+   "name": "alt_hold_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 250,
+   "default": 50
+  },
+  {
+   "name": "3d_deadband_throttle",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 50
+  },
+  {
+   "name": "airmode_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 64,
+   "values": [
+    "STICK_CENTER",
+    "THROTTLE_THRESHOLD",
+    "STICK_CENTER_ONCE"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "airmode_throttle_threshold",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 25,
+   "pg_name": "PG_RC_CONTROLS_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 2000,
+   "default": 1150
+  },
+  {
+   "name": "mc_p_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 40
+  },
+  {
+   "name": "mc_i_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 30
+  },
+  {
+   "name": "mc_d_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 23
+  },
+  {
+   "name": "mc_cd_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "mc_p_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 40
+  },
+  {
+   "name": "mc_i_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 30
+  },
+  {
+   "name": "mc_d_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 23
+  },
+  {
+   "name": "mc_cd_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "mc_p_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 85
+  },
+  {
+   "name": "mc_i_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 45
+  },
+  {
+   "name": "mc_d_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "mc_cd_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "mc_p_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 20
+  },
+  {
+   "name": "mc_i_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 15
+  },
+  {
+   "name": "mc_d_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 75
+  },
+  {
+   "name": "fw_p_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "fw_i_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 7
+  },
+  {
+   "name": "fw_d_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "fw_ff_pitch",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 50
+  },
+  {
+   "name": "fw_p_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "fw_i_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 7
+  },
+  {
+   "name": "fw_d_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "fw_ff_roll",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 50
+  },
+  {
+   "name": "fw_p_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 6
+  },
+  {
+   "name": "fw_i_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 10
+  },
+  {
+   "name": "fw_d_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "fw_ff_yaw",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "fw_p_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 20
+  },
+  {
+   "name": "fw_i_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "fw_d_level",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 75
+  },
+  {
+   "name": "max_angle_inclination_rll",
+   "type": "int16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 100,
+   "max": 900,
+   "default": 450
+  },
+  {
+   "name": "max_angle_inclination_pit",
+   "type": "int16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 100,
+   "max": 900,
+   "default": 450
+  },
+  {
+   "name": "dterm_lpf_hz",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 500,
+   "default": 110
+  },
+  {
+   "name": "dterm_lpf_type",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 64,
+   "values": [
+    "PT1",
+    "BIQUAD",
+    "PT2",
+    "PT3",
+    "LULU"
+   ],
+   "min": 0,
+   "max": 4,
+   "default": 2
+  },
+  {
+   "name": "yaw_lpf_hz",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 0
+  },
+  {
+   "name": "fw_reference_airspeed",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 300,
+   "max": 6000,
+   "default": 1500
+  },
+  {
+   "name": "fw_turn_assist_yaw_gain",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "fw_turn_assist_pitch_gain",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "fw_yaw_iterm_freeze_bank_angle",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 90,
+   "default": 0
+  },
+  {
+   "name": "iterm_windup",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 90,
+   "default": 50
+  },
+  {
+   "name": "pid_iterm_limit_percent",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 33
+  },
+  {
+   "name": "rate_accel_limit_roll_pitch",
+   "type": "uint32",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 500000,
+   "default": 0
+  },
+  {
+   "name": "rate_accel_limit_yaw",
+   "type": "uint32",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 500000,
+   "default": 10000
+  },
+  {
+   "name": "heading_hold_rate_limit",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 10,
+   "max": 250,
+   "default": 90
+  },
+  {
+   "name": "nav_mc_pos_z_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 50
+  },
+  {
+   "name": "nav_mc_vel_z_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 100
+  },
+  {
+   "name": "nav_mc_vel_z_i",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 50
+  },
+  {
+   "name": "nav_mc_vel_z_d",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 10
+  },
+  {
+   "name": "nav_mc_pos_xy_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 65
+  },
+  {
+   "name": "nav_mc_vel_xy_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 40
+  },
+  {
+   "name": "nav_mc_vel_xy_i",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 15
+  },
+  {
+   "name": "nav_mc_vel_xy_d",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 100
+  },
+  {
+   "name": "nav_mc_vel_xy_ff",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 40
+  },
+  {
+   "name": "nav_mc_heading_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "nav_mc_vel_xy_dterm_lpf_hz",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 2
+  },
+  {
+   "name": "nav_mc_vel_xy_dterm_attenuation",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 90
+  },
+  {
+   "name": "nav_mc_vel_xy_dterm_attenuation_start",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 10
+  },
+  {
+   "name": "nav_mc_vel_xy_dterm_attenuation_end",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 60
+  },
+  {
+   "name": "nav_fw_pos_z_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 30
+  },
+  {
+   "name": "nav_fw_pos_z_i",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "nav_fw_pos_z_d",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 10
+  },
+  {
+   "name": "nav_fw_pos_z_ff",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 30
+  },
+  {
+   "name": "nav_fw_alt_control_response",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 5,
+   "max": 100,
+   "default": 40
+  },
+  {
+   "name": "nav_fw_alt_use_position",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_pos_xy_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 75
+  },
+  {
+   "name": "nav_fw_pos_xy_i",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "nav_fw_pos_xy_d",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 8
+  },
+  {
+   "name": "nav_fw_heading_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 60
+  },
+  {
+   "name": "nav_fw_pos_hdg_p",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 30
+  },
+  {
+   "name": "nav_fw_pos_hdg_i",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 2
+  },
+  {
+   "name": "nav_fw_pos_hdg_d",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_pos_hdg_pidsum_limit",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 100,
+   "max": 1000,
+   "default": 350
+  },
+  {
+   "name": "mc_iterm_relax",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "RP",
+    "RPY"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "mc_iterm_relax_cutoff",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 100,
+   "default": 15
+  },
+  {
+   "name": "d_boost_min",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 0.5
+  },
+  {
+   "name": "d_boost_max",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 3,
+   "default": 1.25
+  },
+  {
+   "name": "d_boost_max_at_acceleration",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1000,
+   "max": 16000,
+   "default": 7500
+  },
+  {
+   "name": "d_boost_gyro_delta_lpf_hz",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 10,
+   "max": 250,
+   "default": 80
+  },
+  {
+   "name": "antigravity_gain",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 20,
+   "default": 1
+  },
+  {
+   "name": "antigravity_accelerator",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 20,
+   "default": 1
+  },
+  {
+   "name": "antigravity_cutoff_lpf_hz",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 30,
+   "default": 15
+  },
+  {
+   "name": "pid_type",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "PID",
+    "PIFF",
+    "AUTO"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 3
+  },
+  {
+   "name": "mc_cd_lpf_hz",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 30
+  },
+  {
+   "name": "fw_level_pitch_trim",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": -10,
+   "max": 10,
+   "default": 0
+  },
+  {
+   "name": "smith_predictor_strength",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 0.5
+  },
+  {
+   "name": "smith_predictor_delay",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 8,
+   "default": 0
+  },
+  {
+   "name": "smith_predictor_lpf_hz",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 1,
+   "max": 500,
+   "default": 50
+  },
+  {
+   "name": "fw_level_pitch_gain",
+   "type": "float",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 0,
+   "max": 20,
+   "default": 5
+  },
+  {
+   "name": "fw_iterm_lock_time_max_ms",
+   "type": "uint16",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 100,
+   "max": 1000,
+   "default": 500
+  },
+  {
+   "name": "fw_iterm_lock_rate_threshold",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 10,
+   "max": 100,
+   "default": 40
+  },
+  {
+   "name": "fw_iterm_lock_engage_threshold",
+   "type": "uint8",
+   "section": "PROFILE_VALUE",
+   "pg": 14,
+   "pg_name": "PG_PID_PROFILE",
+   "mode": 0,
+   "min": 5,
+   "max": 25,
+   "default": 10
+  },
+  {
+   "name": "fw_autotune_min_stick",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1008,
+   "pg_name": "PG_PID_AUTOTUNE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 50
+  },
+  {
+   "name": "fw_autotune_rate_adjustment",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1008,
+   "pg_name": "PG_PID_AUTOTUNE_CONFIG",
+   "mode": 64,
+   "values": [
+    "FIXED",
+    "LIMIT",
+    "AUTO"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 2
+  },
+  {
+   "name": "fw_autotune_max_rate_deflection",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1008,
+   "pg_name": "PG_PID_AUTOTUNE_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 100,
+   "default": 90
+  },
+  {
+   "name": "inav_auto_mag_decl",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "inav_gravity_cal_tolerance",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 5
+  },
+  {
+   "name": "inav_allow_dead_reckoning",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "inav_allow_gps_fix_estimation",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "inav_reset_altitude",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "NEVER",
+    "FIRST_ARM",
+    "EACH_ARM"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "inav_reset_home",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "NEVER",
+    "FIRST_ARM",
+    "EACH_ARM"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "inav_max_surface_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 200
+  },
+  {
+   "name": "inav_w_z_surface_p",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 3.5
+  },
+  {
+   "name": "inav_w_z_surface_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 6.1
+  },
+  {
+   "name": "inav_w_xy_flow_p",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 1.0
+  },
+  {
+   "name": "inav_w_xy_flow_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 2.0
+  },
+  {
+   "name": "inav_w_z_baro_p",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.35
+  },
+  {
+   "name": "inav_w_z_baro_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.35
+  },
+  {
+   "name": "inav_w_z_gps_p",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.35
+  },
+  {
+   "name": "inav_w_z_gps_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.35
+  },
+  {
+   "name": "inav_w_xy_gps_p",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 1.0
+  },
+  {
+   "name": "inav_w_xy_gps_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 2.0
+  },
+  {
+   "name": "inav_w_z_res_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.5
+  },
+  {
+   "name": "inav_w_xy_res_v",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0.5
+  },
+  {
+   "name": "inav_w_acc_bias",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 0.01
+  },
+  {
+   "name": "inav_max_eph_epv",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 9999,
+   "default": 1000
+  },
+  {
+   "name": "inav_baro_epv",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 9999,
+   "default": 100
+  },
+  {
+   "name": "inav_default_alt_sensor",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1001,
+   "pg_name": "PG_POSITION_ESTIMATION_CONFIG",
+   "mode": 64,
+   "values": [
+    "GPS",
+    "BARO",
+    "GPS_ONLY",
+    "BARO_ONLY"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "nav_disarm_on_landing",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "nav_land_detect_sensitivity",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 15,
+   "default": 5
+  },
+  {
+   "name": "nav_landing_bump_detection",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_mc_inverted_crash_detection",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 15,
+   "default": 0
+  },
+  {
+   "name": "nav_mc_althold_throttle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "STICK",
+    "MID_STICK",
+    "HOVER"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "nav_extra_arming_safety",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "ON",
+    "ALLOW_BYPASS"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "nav_user_control_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "ATTI",
+    "CRUISE"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_position_timeout",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 5
+  },
+  {
+   "name": "nav_wp_load_on_boot",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_wp_radius",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 10000,
+   "default": 100
+  },
+  {
+   "name": "nav_wp_enforce_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2000,
+   "default": 0
+  },
+  {
+   "name": "nav_wp_max_safe_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1500,
+   "default": 100
+  },
+  {
+   "name": "nav_wp_mission_restart",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "START",
+    "RESUME",
+    "SWITCH"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "nav_wp_multi_mission_index",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 9,
+   "default": 1
+  },
+  {
+   "name": "nav_fw_wp_tracking_accuracy",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_wp_tracking_max_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 30,
+   "max": 80,
+   "default": 60
+  },
+  {
+   "name": "nav_fw_wp_turn_smoothing",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON",
+    "ON-CUT"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "nav_auto_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 500
+  },
+  {
+   "name": "nav_min_ground_speed",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 6,
+   "max": 50,
+   "default": 7
+  },
+  {
+   "name": "nav_max_auto_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 1000
+  },
+  {
+   "name": "nav_manual_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 750
+  },
+  {
+   "name": "nav_land_minalt_vspd",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 500,
+   "default": 50
+  },
+  {
+   "name": "nav_land_maxalt_vspd",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 2000,
+   "default": 200
+  },
+  {
+   "name": "nav_land_slowdown_minalt",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 1000,
+   "default": 500
+  },
+  {
+   "name": "nav_land_slowdown_maxalt",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 500,
+   "max": 4000,
+   "default": 2000
+  },
+  {
+   "name": "nav_emerg_landing_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 2000,
+   "default": 500
+  },
+  {
+   "name": "nav_min_rth_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5000,
+   "default": 500
+  },
+  {
+   "name": "nav_overrides_motor_stop",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF_ALWAYS",
+    "OFF",
+    "AUTO_ONLY",
+    "ALL_NAV"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 3
+  },
+  {
+   "name": "nav_fw_soaring_motor_stop",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_soaring_pitch_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 15,
+   "default": 5
+  },
+  {
+   "name": "nav_rth_climb_first",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON",
+    "ON_FW_SPIRAL"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "nav_rth_climb_first_stage_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "AT_LEAST",
+    "EXTRA"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_climb_first_stage_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_climb_ignore_emerg",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_tail_first",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_allow_landing",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "NEVER",
+    "ALWAYS",
+    "FS_ONLY"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "nav_rth_fs_landing_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1800,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_alt_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "CURRENT",
+    "EXTRA",
+    "FIXED",
+    "MAX",
+    "AT_LEAST"
+   ],
+   "min": 0,
+   "max": 4,
+   "default": 4
+  },
+  {
+   "name": "nav_rth_alt_control_override",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_abort_threshold",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 50000
+  },
+  {
+   "name": "nav_max_terrain_follow_alt",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 100
+  },
+  {
+   "name": "nav_max_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 1000
+  },
+  {
+   "name": "nav_rth_home_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_linear_descent_start_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_use_linear_descent",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_trackback_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON",
+    "FS"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "nav_rth_trackback_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 50,
+   "max": 2000,
+   "default": 500
+  },
+  {
+   "name": "safehome_max_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65000,
+   "default": 20000
+  },
+  {
+   "name": "safehome_usage_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "RTH",
+    "RTH_FS"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "nav_mission_planner_reset",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "nav_cruise_yaw_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 120,
+   "default": 60
+  },
+  {
+   "name": "nav_mc_bank_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 15,
+   "max": 45,
+   "default": 35
+  },
+  {
+   "name": "nav_mc_auto_climb_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 500
+  },
+  {
+   "name": "nav_mc_manual_climb_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 200
+  },
+  {
+   "name": "nav_auto_disarm_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 10000,
+   "default": 1000
+  },
+  {
+   "name": "nav_mc_braking_speed_threshold",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 100
+  },
+  {
+   "name": "nav_mc_braking_disengage_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 75
+  },
+  {
+   "name": "nav_mc_braking_timeout",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 5000,
+   "default": 2000
+  },
+  {
+   "name": "nav_mc_braking_boost_factor",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 200,
+   "default": 100
+  },
+  {
+   "name": "nav_mc_braking_boost_timeout",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5000,
+   "default": 750
+  },
+  {
+   "name": "nav_mc_braking_boost_speed_threshold",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 1000,
+   "default": 150
+  },
+  {
+   "name": "nav_mc_braking_boost_disengage_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 100
+  },
+  {
+   "name": "nav_mc_braking_bank_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 15,
+   "max": 60,
+   "default": 40
+  },
+  {
+   "name": "nav_mc_pos_deceleration_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 120
+  },
+  {
+   "name": "nav_mc_pos_expo",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 10
+  },
+  {
+   "name": "nav_mc_wp_slowdown",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "nav_fw_bank_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 80,
+   "default": 35
+  },
+  {
+   "name": "nav_fw_auto_climb_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2000,
+   "default": 500
+  },
+  {
+   "name": "nav_fw_manual_climb_rate",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 2500,
+   "default": 300
+  },
+  {
+   "name": "nav_fw_climb_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 80,
+   "default": 20
+  },
+  {
+   "name": "nav_fw_dive_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 80,
+   "default": 15
+  },
+  {
+   "name": "nav_fw_pitch2thr_smoothing",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 9,
+   "default": 6
+  },
+  {
+   "name": "fw_min_throttle_down_pitch",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 450,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_pitch2thr_threshold",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 900,
+   "default": 50
+  },
+  {
+   "name": "nav_fw_loiter_radius",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 30000,
+   "default": 7500
+  },
+  {
+   "name": "fw_loiter_direction",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "RIGHT",
+    "LEFT",
+    "YAW"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_cruise_speed",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_control_smoothness",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 9,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_land_dive_angle",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": -20,
+   "max": 20,
+   "default": 2
+  },
+  {
+   "name": "nav_fw_launch_velocity",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 10000,
+   "default": 300
+  },
+  {
+   "name": "nav_fw_launch_accel",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 1350,
+   "max": 20000,
+   "default": 1863
+  },
+  {
+   "name": "nav_fw_launch_max_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 180,
+   "default": 45
+  },
+  {
+   "name": "nav_fw_launch_detect_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 1000,
+   "default": 40
+  },
+  {
+   "name": "nav_fw_launch_idle_motor_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 60000,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_launch_wiggle_to_wake_idle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_launch_motor_delay",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5000,
+   "default": 500
+  },
+  {
+   "name": "nav_fw_launch_spinup_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000,
+   "default": 100
+  },
+  {
+   "name": "nav_fw_launch_end_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5000,
+   "default": 3000
+  },
+  {
+   "name": "nav_fw_launch_min_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 60000,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_launch_timeout",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 60000,
+   "default": 5000
+  },
+  {
+   "name": "nav_fw_launch_max_altitude",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 60000,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_launch_climb_angle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 45,
+   "default": 18
+  },
+  {
+   "name": "nav_fw_launch_manual_throttle",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_launch_land_abort_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 2,
+   "max": 250,
+   "default": 100
+  },
+  {
+   "name": "nav_fw_allow_manual_thr_increase",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_use_fw_yaw_control",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_yaw_deadband",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1002,
+   "pg_name": "PG_NAV_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 90,
+   "default": 0
+  },
+  {
+   "name": "telemetry_switch",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "telemetry_inverted",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "frsky_pitch_roll",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "frsky_use_legacy_gps_mode_sensor_ids",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "report_cell_voltage",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "hott_alarm_sound_interval",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 120,
+   "default": 5
+  },
+  {
+   "name": "telemetry_halfduplex",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "smartport_fuel_unit",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "PERCENT",
+    "MAH",
+    "MWH"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "ibus_telemetry_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "ltm_update_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "NORMAL",
+    "MEDIUM",
+    "SLOW"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "sim_ground_station_number",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 15,
+   "default": ""
+  },
+  {
+   "name": "sim_pin",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 7,
+   "default": "0000"
+  },
+  {
+   "name": "sim_transmit_interval",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 60
+  },
+  {
+   "name": "sim_transmit_flags",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 63,
+   "default": 2
+  },
+  {
+   "name": "acc_event_threshold_high",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "acc_event_threshold_low",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 900,
+   "default": 0
+  },
+  {
+   "name": "acc_event_threshold_neg_x",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "sim_low_altitude",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": -32768,
+   "max": 32767,
+   "default": -32767
+  },
+  {
+   "name": "mavlink_ext_status_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 2
+  },
+  {
+   "name": "mavlink_autopilot_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "GENERIC",
+    "ARDUPILOT"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "mavlink_rc_chan_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 1
+  },
+  {
+   "name": "mavlink_pos_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 2
+  },
+  {
+   "name": "mavlink_extra1_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 2
+  },
+  {
+   "name": "mavlink_extra2_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 2
+  },
+  {
+   "name": "mavlink_extra3_rate",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 1
+  },
+  {
+   "name": "mavlink_version",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 2,
+   "default": 2
+  },
+  {
+   "name": "mavlink_min_txbuffer",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 33
+  },
+  {
+   "name": "mavlink_radio_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 64,
+   "values": [
+    "GENERIC",
+    "ELRS",
+    "SIK"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "mavlink_sysid",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 31,
+   "pg_name": "PG_TELEMETRY_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 255,
+   "default": 1
+  },
+  {
+   "name": "osd_telemetry",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON",
+    "TEST"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "osd_video_system",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "AUTO",
+    "PAL",
+    "NTSC",
+    "HDZERO",
+    "DJIWTF",
+    "AVATAR",
+    "BF43COMPAT",
+    "BFHDCOMPAT",
+    "DJI_NATIVE"
+   ],
+   "min": 0,
+   "max": 8,
+   "default": 0
+  },
+  {
+   "name": "osd_row_shiftdown",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_msp_displayport_fullframe_interval",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -1,
+   "max": 600,
+   "default": 10
+  },
+  {
+   "name": "osd_units",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "IMPERIAL",
+    "METRIC",
+    "METRIC_MPH",
+    "UK",
+    "GA"
+   ],
+   "min": 0,
+   "max": 4,
+   "default": 1
+  },
+  {
+   "name": "osd_stats_energy_unit",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "MAH",
+    "WH"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_stats_page_auto_swap_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 3
+  },
+  {
+   "name": "osd_stats_show_metric_efficiency",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_rssi_alarm",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 20
+  },
+  {
+   "name": "osd_time_alarm",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 600,
+   "default": 10
+  },
+  {
+   "name": "osd_alt_alarm",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 100
+  },
+  {
+   "name": "osd_dist_alarm",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 50000,
+   "default": 1000
+  },
+  {
+   "name": "osd_neg_alt_alarm",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 5
+  },
+  {
+   "name": "osd_current_alarm",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "osd_gforce_alarm",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 20,
+   "default": 5
+  },
+  {
+   "name": "osd_gforce_axis_alarm_min",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -20,
+   "max": 20,
+   "default": -5
+  },
+  {
+   "name": "osd_gforce_axis_alarm_max",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -20,
+   "max": 20,
+   "default": 5
+  },
+  {
+   "name": "osd_imu_temp_alarm_min",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1250,
+   "default": -200
+  },
+  {
+   "name": "osd_imu_temp_alarm_max",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1250,
+   "default": 600
+  },
+  {
+   "name": "osd_esc_temp_alarm_max",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1500,
+   "default": 900
+  },
+  {
+   "name": "osd_esc_temp_alarm_min",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1500,
+   "default": -200
+  },
+  {
+   "name": "osd_baro_temp_alarm_min",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1250,
+   "default": -200
+  },
+  {
+   "name": "osd_baro_temp_alarm_max",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -550,
+   "max": 1250,
+   "default": 600
+  },
+  {
+   "name": "osd_snr_alarm",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -20,
+   "max": 30,
+   "default": 4
+  },
+  {
+   "name": "osd_link_quality_alarm",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 70
+  },
+  {
+   "name": "osd_rssi_dbm_alarm",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -130,
+   "max": 0,
+   "default": 0
+  },
+  {
+   "name": "osd_rssi_dbm_max",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -50,
+   "max": 0,
+   "default": -30
+  },
+  {
+   "name": "osd_rssi_dbm_min",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -130,
+   "max": 0,
+   "default": -120
+  },
+  {
+   "name": "osd_temp_label_align",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "LEFT",
+    "RIGHT"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_airspeed_alarm_min",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 0,
+   "default": 0
+  },
+  {
+   "name": "osd_airspeed_alarm_max",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 0,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_reverse_roll",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_max_pitch",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 90,
+   "default": 20
+  },
+  {
+   "name": "osd_crosshairs_style",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "DEFAULT",
+    "AIRCRAFT",
+    "TYPE3",
+    "TYPE4",
+    "TYPE5",
+    "TYPE6",
+    "TYPE7",
+    "TYPE8"
+   ],
+   "min": 0,
+   "max": 7,
+   "default": 0
+  },
+  {
+   "name": "osd_crsf_lq_format",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "TYPE1",
+    "TYPE2",
+    "TYPE3"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "osd_horizon_offset",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -2,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "osd_camera_uptilt",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -40,
+   "max": 80,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_camera_uptilt_comp",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_camera_fov_h",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 60,
+   "max": 150,
+   "default": 135
+  },
+  {
+   "name": "osd_camera_fov_v",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 30,
+   "max": 120,
+   "default": 85
+  },
+  {
+   "name": "osd_hud_margin_h",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 4,
+   "default": 3
+  },
+  {
+   "name": "osd_hud_margin_v",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 3,
+   "default": 3
+  },
+  {
+   "name": "osd_hud_homing",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_hud_homepoint",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_hud_radar_disp",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 4,
+   "default": 0
+  },
+  {
+   "name": "osd_hud_radar_range_min",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 30,
+   "default": 3
+  },
+  {
+   "name": "osd_hud_radar_range_max",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 9990,
+   "default": 4000
+  },
+  {
+   "name": "osd_hud_radar_alt_difference_display_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10,
+   "default": 3
+  },
+  {
+   "name": "osd_hud_radar_distance_display_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 10,
+   "default": 3
+  },
+  {
+   "name": "osd_radar_peers_display_time",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 10,
+   "default": 3
+  },
+  {
+   "name": "osd_hud_wp_disp",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "osd_left_sidebar_scroll",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "ALTITUDE",
+    "SPEED",
+    "HOME_DISTANCE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "osd_right_sidebar_scroll",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "ALTITUDE",
+    "SPEED",
+    "HOME_DISTANCE"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "osd_sidebar_scroll_arrows",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_main_voltage_decimals",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "osd_decimals_altitude",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 3,
+   "max": 5,
+   "default": 3
+  },
+  {
+   "name": "osd_decimals_distance",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 3,
+   "max": 5,
+   "default": 3
+  },
+  {
+   "name": "osd_coordinate_digits",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 8,
+   "max": 11,
+   "default": 9
+  },
+  {
+   "name": "osd_adsb_distance_warning",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 64000,
+   "default": 20000
+  },
+  {
+   "name": "osd_adsb_distance_alert",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 64000,
+   "default": 3000
+  },
+  {
+   "name": "osd_adsb_ignore_plane_above_me_limit",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 64000,
+   "default": 0
+  },
+  {
+   "name": "osd_adsb_warning_style",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "COMPACT",
+    "EXTENDED"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_estimations_wind_compensation",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "osd_estimations_wind_mps",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_failsafe_switch_layout",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_plus_code_digits",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 10,
+   "max": 13,
+   "default": 11
+  },
+  {
+   "name": "osd_plus_code_short",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "0",
+    "2",
+    "4",
+    "6"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_style",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "DEFAULT",
+    "LINE"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_force_grid",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_bordered",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_ahi_width",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 132
+  },
+  {
+   "name": "osd_ahi_height",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 162
+  },
+  {
+   "name": "osd_ahi_vertical_offset",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -128,
+   "max": 127,
+   "default": -18
+  },
+  {
+   "name": "osd_sidebar_horizontal_offset",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -128,
+   "max": 127,
+   "default": 0
+  },
+  {
+   "name": "osd_left_sidebar_scroll_step",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "osd_right_sidebar_scroll_step",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 0
+  },
+  {
+   "name": "osd_sidebar_height",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": 3
+  },
+  {
+   "name": "osd_ahi_pitch_interval",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 30,
+   "default": 0
+  },
+  {
+   "name": "osd_home_position_arm_screen",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "osd_pan_servo_index",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 16,
+   "default": 0
+  },
+  {
+   "name": "osd_pan_servo_range_decadegrees",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": -36,
+   "max": 36,
+   "default": 0
+  },
+  {
+   "name": "osd_pan_servo_offcentre_warning",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 45,
+   "default": 10
+  },
+  {
+   "name": "osd_pan_servo_indicator_show_degrees",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_esc_rpm_precision",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 3,
+   "max": 6,
+   "default": 3
+  },
+  {
+   "name": "osd_mah_precision",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 3,
+   "max": 6,
+   "default": 4
+  },
+  {
+   "name": "osd_use_pilot_logo",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_inav_to_pilot_logo_spacing",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 20,
+   "default": 8
+  },
+  {
+   "name": "osd_arm_screen_display_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 1000,
+   "max": 5000,
+   "default": 1500
+  },
+  {
+   "name": "osd_system_msg_display_time",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 500,
+   "max": 5000,
+   "default": 1000
+  },
+  {
+   "name": "osd_highlight_djis_missing_font_symbols",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "enable_broken_o4_workaround",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_switch_indicator_zero_name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": "FLAP"
+  },
+  {
+   "name": "osd_switch_indicator_one_name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": "GEAR"
+  },
+  {
+   "name": "osd_switch_indicator_two_name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": "CAM"
+  },
+  {
+   "name": "osd_switch_indicator_three_name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": "LIGT"
+  },
+  {
+   "name": "osd_switch_indicator_zero_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 34,
+   "default": 5
+  },
+  {
+   "name": "osd_switch_indicator_one_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 34,
+   "default": 5
+  },
+  {
+   "name": "osd_switch_indicator_two_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 34,
+   "default": 5
+  },
+  {
+   "name": "osd_switch_indicator_three_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 0,
+   "min": 5,
+   "max": 34,
+   "default": 5
+  },
+  {
+   "name": "osd_switch_indicators_align_left",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1004,
+   "pg_name": "PG_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "osd_speed_source",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1031,
+   "pg_name": "PG_OSD_COMMON_CONFIG",
+   "mode": 64,
+   "values": [
+    "GROUND",
+    "3D",
+    "AIR"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "i2c_speed",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 64,
+   "values": [
+    "400KHZ",
+    "800KHZ",
+    "100KHZ",
+    "200KHZ"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "debug_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 64,
+   "values": [
+    "[",
+    "\"",
+    "N",
+    "O",
+    "N",
+    "E",
+    "\"",
+    ",",
+    " ",
+    "\"",
+    "A",
+    "G",
+    "L",
+    "\"",
+    ",",
+    " ",
+    "\"",
+    "F",
+    "L",
+    "O",
+    "W",
+    "_",
+    "R",
+    "A",
+    "W",
+    "\"",
+    ",",
+    " ",
+    "\"",
+    "F",
+    "L",
+    "O",
+    "W",
+    "\"",
+    ",",
+    " ",
+    "\"",
+    "A",
+    "L",
+    "W",
+    "A",
+    "Y",
+    "S",
+    "\"",
+    ",",
+    " ",
+    "\"",
+    "S",
+    "A",
+    "G",
+    "_",
+    "C",
+    "O",
+    "M",
+    "P",
+    "_",
+    "V",
+    "O",
+    "L",
+    "T",
+    "A",
+    "G",
+    "E",
+    "\"",
+    ","
+   ],
+   "min": 0,
+   "max": 64,
+   "default": 2
+  },
+  {
+   "name": "ground_test_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "throttle_tilt_comp_str",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 0
+  },
+  {
+   "name": "name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 16,
+   "default": ""
+  },
+  {
+   "name": "pilot_name",
+   "type": "string",
+   "section": "MASTER_VALUE",
+   "pg": 18,
+   "pg_name": "PG_SYSTEM_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 16,
+   "default": ""
+  },
+  {
+   "name": "mode_range_logic_operator",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1003,
+   "pg_name": "PG_MODE_ACTIVATION_OPERATOR_CONFIG",
+   "mode": 64,
+   "values": [
+    "OR",
+    "AND"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "stats",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1009,
+   "pg_name": "PG_STATS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "stats_total_time",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1009,
+   "pg_name": "PG_STATS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2147483647,
+   "default": 0
+  },
+  {
+   "name": "stats_total_dist",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1009,
+   "pg_name": "PG_STATS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2147483647,
+   "default": 0
+  },
+  {
+   "name": "stats_total_energy",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1009,
+   "pg_name": "PG_STATS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 2147483647,
+   "default": 0
+  },
+  {
+   "name": "stats_flight_count",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1009,
+   "pg_name": "PG_STATS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 65535,
+   "default": 0
+  },
+  {
+   "name": "tz_offset",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1011,
+   "pg_name": "PG_TIME_CONFIG",
+   "mode": 0,
+   "min": -720,
+   "max": 840,
+   "default": 0
+  },
+  {
+   "name": "tz_automatic_dst",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1011,
+   "pg_name": "PG_TIME_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "EU",
+    "USA"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "display_force_sw_blink",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1013,
+   "pg_name": "PG_DISPLAY_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "vtx_halfduplex",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 54,
+   "pg_name": "PG_VTX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "vtx_smartaudio_early_akk_workaround",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 54,
+   "pg_name": "PG_VTX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "vtx_smartaudio_alternate_softserial_method",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 54,
+   "pg_name": "PG_VTX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "vtx_softserial_shortstop",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 54,
+   "pg_name": "PG_VTX_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "vtx_smartaudio_stopbits",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 54,
+   "pg_name": "PG_VTX_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 2,
+   "default": 2
+  },
+  {
+   "name": "vtx_band",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "vtx_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 8,
+   "default": 1
+  },
+  {
+   "name": "vtx_power",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 8,
+   "default": 1
+  },
+  {
+   "name": "vtx_low_power_disarm",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON",
+    "UNTIL_FIRST_ARM"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "vtx_pit_mode_chan",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 8,
+   "default": 1
+  },
+  {
+   "name": "vtx_max_power_override",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 0
+  },
+  {
+   "name": "vtx_frequency_group",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 259,
+   "pg_name": "PG_VTX_SETTINGS_CONFIG",
+   "mode": 64,
+   "values": [
+    "FREQUENCYGROUP_5G8",
+    "FREQUENCYGROUP_2G4",
+    "FREQUENCYGROUP_1G3"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "pinio_box1",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1015,
+   "pg_name": "PG_PINIOBOX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 255
+  },
+  {
+   "name": "pinio_box2",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1015,
+   "pg_name": "PG_PINIOBOX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 255
+  },
+  {
+   "name": "pinio_box3",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1015,
+   "pg_name": "PG_PINIOBOX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 255
+  },
+  {
+   "name": "pinio_box4",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1015,
+   "pg_name": "PG_PINIOBOX_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 255,
+   "default": 255
+  },
+  {
+   "name": "log_level",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1017,
+   "pg_name": "PG_LOG_CONFIG",
+   "mode": 64,
+   "values": [
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "VERBOSE",
+    "DEBUG"
+   ],
+   "min": 0,
+   "max": 4,
+   "default": 0
+  },
+  {
+   "name": "log_topics",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1017,
+   "pg_name": "PG_LOG_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 4294967295,
+   "default": 0
+  },
+  {
+   "name": "esc_sensor_listen_only",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1021,
+   "pg_name": "PG_ESC_SENSOR_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "smartport_master_halfduplex",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1024,
+   "pg_name": "PG_SMARTPORT_MASTER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "smartport_master_inverted",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1024,
+   "pg_name": "PG_SMARTPORT_MASTER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "dji_use_name_for_messages",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "dji_esc_temp_source",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "ESC",
+    "IMU",
+    "BARO"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "dji_message_speed_source",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "GROUND",
+    "3D",
+    "AIR"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 1
+  },
+  {
+   "name": "dji_rssi_source",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "RSSI",
+    "CRSF_LQ"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "dji_use_adjustments",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "dji_cn_alternating_duration",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1027,
+   "pg_name": "PG_DJI_OSD_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 150,
+   "default": 30
+  },
+  {
+   "name": "dshot_beeper_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1005,
+   "pg_name": "PG_BEEPER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 1
+  },
+  {
+   "name": "dshot_beeper_tone",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1005,
+   "pg_name": "PG_BEEPER_CONFIG",
+   "mode": 0,
+   "min": 1,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "beeper_pwm_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1005,
+   "pg_name": "PG_BEEPER_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "limit_pi_p",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1030,
+   "pg_name": "PG_POWER_LIMITS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 100
+  },
+  {
+   "name": "limit_pi_i",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1030,
+   "pg_name": "PG_POWER_LIMITS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 100
+  },
+  {
+   "name": "limit_attn_filter_cutoff",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1030,
+   "pg_name": "PG_POWER_LIMITS_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 1.2
+  },
+  {
+   "name": "led_pin_pwm_mode",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1034,
+   "pg_name": "PG_LEDPIN_CONFIG",
+   "mode": 64,
+   "values": [
+    "SHARED_LOW",
+    "SHARED_HIGH",
+    "LOW",
+    "HIGH"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "osd_joystick_enabled",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "osd_joystick_down",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 0
+  },
+  {
+   "name": "osd_joystick_up",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 48
+  },
+  {
+   "name": "osd_joystick_left",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 63
+  },
+  {
+   "name": "osd_joystick_right",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 28
+  },
+  {
+   "name": "osd_joystick_enter",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1035,
+   "pg_name": "PG_OSD_JOYSTICK_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100,
+   "default": 75
+  },
+  {
+   "name": "nav_fw_land_approach_length",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 100000,
+   "default": 35000
+  },
+  {
+   "name": "nav_fw_land_final_approach_pitch2throttle_mod",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 400,
+   "default": 100
+  },
+  {
+   "name": "nav_fw_land_glide_alt",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": 100,
+   "max": 5000,
+   "default": 200
+  },
+  {
+   "name": "nav_fw_land_flare_alt",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 150
+  },
+  {
+   "name": "nav_fw_land_glide_pitch",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": -15,
+   "max": 45,
+   "default": 0
+  },
+  {
+   "name": "nav_fw_land_flare_pitch",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": -15,
+   "max": 45,
+   "default": 8
+  },
+  {
+   "name": "nav_fw_land_max_tailwind",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1036,
+   "pg_name": "PG_FW_AUTOLAND_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 3000,
+   "default": 140
+  },
+  {
+   "name": "gimbal_pan_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 32,
+   "default": 0
+  },
+  {
+   "name": "gimbal_roll_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 32,
+   "default": 0
+  },
+  {
+   "name": "gimbal_tilt_channel",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 32,
+   "default": 0
+  },
+  {
+   "name": "gimbal_sensitivity",
+   "type": "int8",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": -16,
+   "max": 15,
+   "default": 0
+  },
+  {
+   "name": "gimbal_pan_trim",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": -500,
+   "max": 500,
+   "default": 0
+  },
+  {
+   "name": "gimbal_tilt_trim",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": -500,
+   "max": 500,
+   "default": 0
+  },
+  {
+   "name": "gimbal_roll_trim",
+   "type": "int16",
+   "section": "MASTER_VALUE",
+   "pg": 1039,
+   "pg_name": "PG_GIMBAL_CONFIG",
+   "mode": 0,
+   "min": -500,
+   "max": 500,
+   "default": 0
+  },
+  {
+   "name": "gimbal_serial_single_uart",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1040,
+   "pg_name": "PG_GIMBAL_SERIAL_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "headtracker_type",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1041,
+   "pg_name": "PG_HEADTRACKER_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "SERIAL",
+    "MSP"
+   ],
+   "min": 0,
+   "max": 2,
+   "default": 0
+  },
+  {
+   "name": "headtracker_pan_ratio",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1041,
+   "pg_name": "PG_HEADTRACKER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "headtracker_tilt_ratio",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1041,
+   "pg_name": "PG_HEADTRACKER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "headtracker_roll_ratio",
+   "type": "float",
+   "section": "MASTER_VALUE",
+   "pg": 1041,
+   "pg_name": "PG_HEADTRACKER_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 5,
+   "default": 1
+  },
+  {
+   "name": "geozone_detection_distance",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000000,
+   "default": 50000
+  },
+  {
+   "name": "geozone_avoid_altitude_range",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 1000000,
+   "default": 5000
+  },
+  {
+   "name": "geozone_safe_altitude_distance",
+   "type": "uint16",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 10000,
+   "default": 1000
+  },
+  {
+   "name": "geozone_safehome_as_inclusive",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 64,
+   "values": [
+    "OFF",
+    "ON"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "name": "geozone_safehome_zone_action",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 64,
+   "values": [
+    "NONE",
+    "AVOID",
+    "POS_HOLD",
+    "RTH"
+   ],
+   "min": 0,
+   "max": 3,
+   "default": 0
+  },
+  {
+   "name": "geozone_mr_stop_distance",
+   "type": "uint32",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 0,
+   "min": 0,
+   "max": 100000,
+   "default": 15000
+  },
+  {
+   "name": "geozone_no_way_home_action",
+   "type": "uint8",
+   "section": "MASTER_VALUE",
+   "pg": 1042,
+   "pg_name": "PG_GEOZONE_CONFIG",
+   "mode": 64,
+   "values": [
+    "RTH",
+    "EMRG_LAND"
+   ],
+   "min": 0,
+   "max": 1,
+   "default": 0
+  }
+ ],
+ "lookup_tables": {
+  "alignment": [
+   "DEFAULT",
+   "CW0",
+   "CW90",
+   "CW180",
+   "CW270",
+   "CW0FLIP",
+   "CW90FLIP",
+   "CW180FLIP",
+   "CW270FLIP"
+  ],
+  "acc_hardware": [
+   "NONE",
+   "AUTO",
+   "MPU6000",
+   "MPU6500",
+   "MPU9250",
+   "BMI160",
+   "ICM20689",
+   "BMI088",
+   "ICM42605",
+   "BMI270",
+   "LSM6DXX",
+   "ICM45686",
+   "FAKE"
+  ],
+  "rangefinder_hardware": [
+   "NONE",
+   "SRF10",
+   "VL53L0X",
+   "MSP",
+   "BENEWAKE",
+   "VL53L1X",
+   "US42",
+   "TOF10120_I2C",
+   "FAKE",
+   "TERARANGER_EVO",
+   "USD1_V0",
+   "NRA"
+  ],
+  "mag_hardware": [
+   "NONE",
+   "AUTO",
+   "HMC5883",
+   "AK8975",
+   "MAG3110",
+   "AK8963",
+   "IST8310",
+   "QMC5883",
+   "QMC5883P",
+   "MPU9250",
+   "IST8308",
+   "LIS3MDL",
+   "MSP",
+   "RM3100",
+   "VCM5883",
+   "MLX90393",
+   "FAKE"
+  ],
+  "opflow_hardware": [
+   "NONE",
+   "CXOF",
+   "MSP",
+   "FAKE"
+  ],
+  "baro_hardware": [
+   "NONE",
+   "AUTO",
+   "BMP085",
+   "MS5611",
+   "BMP280",
+   "MS5607",
+   "LPS25H",
+   "SPL06",
+   "BMP388",
+   "DPS310",
+   "B2SMPB",
+   "MSP",
+   "FAKE"
+  ],
+  "pitot_hardware": [
+   "NONE",
+   "AUTO",
+   "MS4525",
+   "ADC",
+   "VIRTUAL",
+   "FAKE",
+   "MSP",
+   "DLVR-L10D",
+   "MS5525"
+  ],
+  "receiver_type": [
+   "NONE",
+   "SERIAL",
+   "MSP",
+   "SIM (SITL)"
+  ],
+  "serial_rx": [
+   "SPEK1024",
+   "SPEK2048",
+   "SBUS",
+   "SUMD",
+   "IBUS",
+   "JETIEXBUS",
+   "CRSF",
+   "FPORT",
+   "SBUS_FAST",
+   "FPORT2",
+   "SRXL2",
+   "GHST",
+   "MAVLINK",
+   "FBUS",
+   "SBUS2"
+  ],
+  "blackbox_device": [
+   "SERIAL",
+   "SPIFLASH",
+   "SDCARD",
+   "FILE"
+  ],
+  "motor_pwm_protocol": [
+   "STANDARD",
+   "ONESHOT125",
+   "MULTISHOT",
+   "BRUSHED",
+   "DSHOT150",
+   "DSHOT300",
+   "DSHOT600"
+  ],
+  "servo_protocol": [
+   "PWM",
+   "SBUS",
+   "SBUS_PWM"
+  ],
+  "failsafe_procedure": [
+   "LAND",
+   "DROP",
+   "RTH",
+   "NONE"
+  ],
+  "current_sensor": [
+   "NONE",
+   "ADC",
+   "VIRTUAL",
+   "FAKE",
+   "ESC",
+   "SMARTPORT"
+  ],
+  "voltage_sensor": [
+   "NONE",
+   "ADC",
+   "ESC",
+   "FAKE",
+   "SMARTPORT"
+  ],
+  "imu_inertia_comp_method": [
+   "VELNED",
+   "TURNRATE",
+   "ADAPTIVE"
+  ],
+  "gps_provider": [
+   "UBLOX",
+   "MSP",
+   "FAKE"
+  ],
+  "gps_sbas_mode": [
+   "AUTO",
+   "EGNOS",
+   "WAAS",
+   "MSAS",
+   "GAGAN",
+   "SPAN",
+   "NONE"
+  ],
+  "gps_dyn_model": [
+   "PEDESTRIAN",
+   "AUTOMOTIVE",
+   "AIR_1G",
+   "AIR_2G",
+   "AIR_4G",
+   "SEA",
+   "MOWER"
+  ],
+  "reset_type": [
+   "NEVER",
+   "FIRST_ARM",
+   "EACH_ARM"
+  ],
+  "direction": [
+   "RIGHT",
+   "LEFT",
+   "YAW"
+  ],
+  "nav_user_control_mode": [
+   "ATTI",
+   "CRUISE"
+  ],
+  "nav_rth_alt_mode": [
+   "CURRENT",
+   "EXTRA",
+   "FIXED",
+   "MAX",
+   "AT_LEAST"
+  ],
+  "nav_rth_climb_first_stage_modes": [
+   "AT_LEAST",
+   "EXTRA"
+  ],
+  "osd_unit": [
+   "IMPERIAL",
+   "METRIC",
+   "METRIC_MPH",
+   "UK",
+   "GA"
+  ],
+  "osd_stats_energy_unit": [
+   "MAH",
+   "WH"
+  ],
+  "osd_video_system": [
+   "AUTO",
+   "PAL",
+   "NTSC",
+   "HDZERO",
+   "DJIWTF",
+   "AVATAR",
+   "BF43COMPAT",
+   "BFHDCOMPAT",
+   "DJI_NATIVE"
+  ],
+  "osd_telemetry": [
+   "OFF",
+   "ON",
+   "TEST"
+  ],
+  "osd_alignment": [
+   "LEFT",
+   "RIGHT"
+  ],
+  "ltm_rates": [
+   "NORMAL",
+   "MEDIUM",
+   "SLOW"
+  ],
+  "i2c_speed": [
+   "400KHZ",
+   "800KHZ",
+   "100KHZ",
+   "200KHZ"
+  ],
+  "debug_modes": "[\"NONE\", \"AGL\", \"FLOW_RAW\", \"FLOW\", \"ALWAYS\", \"SAG_COMP_VOLTAGE\",",
+  "aux_operator": [
+   "OR",
+   "AND"
+  ],
+  "osd_crosshairs_style": [
+   "DEFAULT",
+   "AIRCRAFT",
+   "TYPE3",
+   "TYPE4",
+   "TYPE5",
+   "TYPE6",
+   "TYPE7",
+   "TYPE8"
+  ],
+  "osd_sidebar_scroll": [
+   "NONE",
+   "ALTITUDE",
+   "SPEED",
+   "HOME_DISTANCE"
+  ],
+  "nav_rth_allow_landing": [
+   "NEVER",
+   "ALWAYS",
+   "FS_ONLY"
+  ],
+  "bat_capacity_unit": [
+   "MAH",
+   "MWH"
+  ],
+  "bat_voltage_source": [
+   "RAW",
+   "SAG_COMP"
+  ],
+  "smartport_fuel_unit": [
+   "PERCENT",
+   "MAH",
+   "MWH"
+  ],
+  "platform_type": [
+   "MULTIROTOR",
+   "AIRPLANE",
+   "HELICOPTER",
+   "TRICOPTER",
+   "ROVER",
+   "BOAT"
+  ],
+  "tz_automatic_dst": [
+   "OFF",
+   "EU",
+   "USA"
+  ],
+  "vtx_low_power_disarm": [
+   "OFF",
+   "ON",
+   "UNTIL_FIRST_ARM"
+  ],
+  "vtx_frequency_groups": [
+   "FREQUENCYGROUP_5G8",
+   "FREQUENCYGROUP_2G4",
+   "FREQUENCYGROUP_1G3"
+  ],
+  "filter_type": [
+   "PT1",
+   "BIQUAD"
+  ],
+  "filter_type_full": [
+   "PT1",
+   "BIQUAD",
+   "PT2",
+   "PT3",
+   "LULU"
+  ],
+  "log_level": [
+   "ERROR",
+   "WARNING",
+   "INFO",
+   "VERBOSE",
+   "DEBUG"
+  ],
+  "iterm_relax": [
+   "OFF",
+   "RP",
+   "RPY"
+  ],
+  "airmodeHandlingType": [
+   "STICK_CENTER",
+   "THROTTLE_THRESHOLD",
+   "STICK_CENTER_ONCE"
+  ],
+  "nav_extra_arming_safety": [
+   "ON",
+   "ALLOW_BYPASS"
+  ],
+  "rssi_source": [
+   "NONE",
+   "AUTO",
+   "ADC",
+   "CHANNEL",
+   "PROTOCOL",
+   "MSP"
+  ],
+  "pidTypeTable": [
+   "NONE",
+   "PID",
+   "PIFF",
+   "AUTO"
+  ],
+  "osd_ahi_style": [
+   "DEFAULT",
+   "LINE"
+  ],
+  "tristate": [
+   "AUTO",
+   "ON",
+   "OFF"
+  ],
+  "osd_crsf_lq_format": [
+   "TYPE1",
+   "TYPE2",
+   "TYPE3"
+  ],
+  "off_on": [
+   "OFF",
+   "ON"
+  ],
+  "djiOsdTempSource": [
+   "ESC",
+   "IMU",
+   "BARO"
+  ],
+  "osdSpeedSource": [
+   "GROUND",
+   "3D",
+   "AIR"
+  ],
+  "nav_overrides_motor_stop": [
+   "OFF_ALWAYS",
+   "OFF",
+   "AUTO_ONLY",
+   "ALL_NAV"
+  ],
+  "osd_plus_code_short": [
+   "0",
+   "2",
+   "4",
+   "6"
+  ],
+  "autotune_rate_adjustment": [
+   "FIXED",
+   "LIMIT",
+   "AUTO"
+  ],
+  "safehome_usage_mode": [
+   "OFF",
+   "RTH",
+   "RTH_FS"
+  ],
+  "nav_rth_climb_first": [
+   "OFF",
+   "ON",
+   "ON_FW_SPIRAL"
+  ],
+  "nav_wp_mission_restart": [
+   "START",
+   "RESUME",
+   "SWITCH"
+  ],
+  "djiRssiSource": [
+   "RSSI",
+   "CRSF_LQ"
+  ],
+  "rth_trackback_mode": [
+   "OFF",
+   "ON",
+   "FS"
+  ],
+  "dynamic_gyro_notch_mode": [
+   "2D",
+   "3D"
+  ],
+  "nav_fw_wp_turn_smoothing": [
+   "OFF",
+   "ON",
+   "ON-CUT"
+  ],
+  "gps_auto_baud_max": [
+   "115200",
+   "57600",
+   "38400",
+   "19200",
+   "9600",
+   "230400",
+   "460800",
+   "921600"
+  ],
+  "nav_mc_althold_throttle": [
+   "STICK",
+   "MID_STICK",
+   "HOVER"
+  ],
+  "led_pin_pwm_mode": [
+   "SHARED_LOW",
+   "SHARED_HIGH",
+   "LOW",
+   "HIGH"
+  ],
+  "gyro_filter_mode": [
+   "OFF",
+   "STATIC",
+   "DYNAMIC",
+   "ADAPTIVE"
+  ],
+  "headtracker_dev_type": [
+   "NONE",
+   "SERIAL",
+   "MSP"
+  ],
+  "mavlink_radio_type": [
+   "GENERIC",
+   "ELRS",
+   "SIK"
+  ],
+  "mavlink_autopilot_type": [
+   "GENERIC",
+   "ARDUPILOT"
+  ],
+  "default_altitude_source": [
+   "GPS",
+   "BARO",
+   "GPS_ONLY",
+   "BARO_ONLY"
+  ],
+  "fence_action": [
+   "NONE",
+   "AVOID",
+   "POS_HOLD",
+   "RTH"
+  ],
+  "geozone_rth_no_way_home": [
+   "RTH",
+   "EMRG_LAND"
+  ],
+  "osd_adsb_warning_style": [
+   "COMPACT",
+   "EXTENDED"
+  ]
+ },
+ "features": [
+  {
+   "bit": 0,
+   "name": "THR_VBAT_COMP"
+  },
+  {
+   "bit": 1,
+   "name": "VBAT"
+  },
+  {
+   "bit": 2,
+   "name": "TX_PROF_SEL"
+  },
+  {
+   "bit": 3,
+   "name": "BAT_PROFILE_AUTOSWITCH"
+  },
+  {
+   "bit": 4,
+   "name": "GEOZONE"
+  },
+  {
+   "bit": 6,
+   "name": "SOFTSERIAL"
+  },
+  {
+   "bit": 7,
+   "name": "GPS"
+  },
+  {
+   "bit": 10,
+   "name": "TELEMETRY"
+  },
+  {
+   "bit": 11,
+   "name": "CURRENT_METER"
+  },
+  {
+   "bit": 12,
+   "name": "REVERSIBLE_MOTORS"
+  },
+  {
+   "bit": 15,
+   "name": "RSSI_ADC"
+  },
+  {
+   "bit": 16,
+   "name": "LED_STRIP"
+  },
+  {
+   "bit": 17,
+   "name": "DASHBOARD"
+  },
+  {
+   "bit": 19,
+   "name": "BLACKBOX"
+  },
+  {
+   "bit": 22,
+   "name": "AIRMODE"
+  },
+  {
+   "bit": 26,
+   "name": "SOFTSPI"
+  },
+  {
+   "bit": 28,
+   "name": "PWM_OUTPUT_ENABLE"
+  },
+  {
+   "bit": 29,
+   "name": "OSD"
+  },
+  {
+   "bit": 30,
+   "name": "FW_LAUNCH"
+  },
+  {
+   "bit": 31,
+   "name": "FW_AUTOTRIM"
+  }
+ ],
+ "boxes": [
+  {
+   "box": "BOXARM",
+   "name": "ARM",
+   "permanent_id": 0
+  },
+  {
+   "box": "BOXANGLE",
+   "name": "ANGLE",
+   "permanent_id": 1
+  },
+  {
+   "box": "BOXHORIZON",
+   "name": "HORIZON",
+   "permanent_id": 2
+  },
+  {
+   "box": "BOXNAVALTHOLD",
+   "name": "NAV ALTHOLD",
+   "permanent_id": 3
+  },
+  {
+   "box": "BOXHEADINGHOLD",
+   "name": "HEADING HOLD",
+   "permanent_id": 5
+  },
+  {
+   "box": "BOXHEADFREE",
+   "name": "HEADFREE",
+   "permanent_id": 6
+  },
+  {
+   "box": "BOXHEADADJ",
+   "name": "HEADADJ",
+   "permanent_id": 7
+  },
+  {
+   "box": "BOXCAMSTAB",
+   "name": "CAMSTAB",
+   "permanent_id": 8
+  },
+  {
+   "box": "BOXNAVRTH",
+   "name": "NAV RTH",
+   "permanent_id": 10
+  },
+  {
+   "box": "BOXNAVPOSHOLD",
+   "name": "NAV POSHOLD",
+   "permanent_id": 11
+  },
+  {
+   "box": "BOXMANUAL",
+   "name": "MANUAL",
+   "permanent_id": 12
+  },
+  {
+   "box": "BOXBEEPERON",
+   "name": "BEEPER",
+   "permanent_id": 13
+  },
+  {
+   "box": "BOXLEDLOW",
+   "name": "LEDS OFF",
+   "permanent_id": 15
+  },
+  {
+   "box": "BOXLIGHTS",
+   "name": "LIGHTS",
+   "permanent_id": 16
+  },
+  {
+   "box": "BOXOSD",
+   "name": "OSD OFF",
+   "permanent_id": 19
+  },
+  {
+   "box": "BOXTELEMETRY",
+   "name": "TELEMETRY",
+   "permanent_id": 20
+  },
+  {
+   "box": "BOXAUTOTUNE",
+   "name": "AUTO TUNE",
+   "permanent_id": 21
+  },
+  {
+   "box": "BOXBLACKBOX",
+   "name": "BLACKBOX",
+   "permanent_id": 26
+  },
+  {
+   "box": "BOXFAILSAFE",
+   "name": "FAILSAFE",
+   "permanent_id": 27
+  },
+  {
+   "box": "BOXNAVWP",
+   "name": "NAV WP",
+   "permanent_id": 28
+  },
+  {
+   "box": "BOXAIRMODE",
+   "name": "AIR MODE",
+   "permanent_id": 29
+  },
+  {
+   "box": "BOXHOMERESET",
+   "name": "HOME RESET",
+   "permanent_id": 30
+  },
+  {
+   "box": "BOXGCSNAV",
+   "name": "GCS NAV",
+   "permanent_id": 31
+  },
+  {
+   "box": "BOXFPVANGLEMIX",
+   "name": "FPV ANGLE MIX",
+   "permanent_id": 32
+  },
+  {
+   "box": "BOXSURFACE",
+   "name": "SURFACE",
+   "permanent_id": 33
+  },
+  {
+   "box": "BOXFLAPERON",
+   "name": "FLAPERON",
+   "permanent_id": 34
+  },
+  {
+   "box": "BOXTURNASSIST",
+   "name": "TURN ASSIST",
+   "permanent_id": 35
+  },
+  {
+   "box": "BOXNAVLAUNCH",
+   "name": "NAV LAUNCH",
+   "permanent_id": 36
+  },
+  {
+   "box": "BOXAUTOTRIM",
+   "name": "SERVO AUTOTRIM",
+   "permanent_id": 37
+  },
+  {
+   "box": "BOXCAMERA1",
+   "name": "CAMERA CONTROL 1",
+   "permanent_id": 39
+  },
+  {
+   "box": "BOXCAMERA2",
+   "name": "CAMERA CONTROL 2",
+   "permanent_id": 40
+  },
+  {
+   "box": "BOXCAMERA3",
+   "name": "CAMERA CONTROL 3",
+   "permanent_id": 41
+  },
+  {
+   "box": "BOXOSDALT1",
+   "name": "OSD ALT 1",
+   "permanent_id": 42
+  },
+  {
+   "box": "BOXOSDALT2",
+   "name": "OSD ALT 2",
+   "permanent_id": 43
+  },
+  {
+   "box": "BOXOSDALT3",
+   "name": "OSD ALT 3",
+   "permanent_id": 44
+  },
+  {
+   "box": "BOXNAVCOURSEHOLD",
+   "name": "NAV COURSE HOLD",
+   "permanent_id": 45
+  },
+  {
+   "box": "BOXBRAKING",
+   "name": "MC BRAKING",
+   "permanent_id": 46
+  },
+  {
+   "box": "BOXLOITERDIRCHN",
+   "name": "LOITER CHANGE",
+   "permanent_id": 49
+  },
+  {
+   "box": "BOXMSPRCOVERRIDE",
+   "name": "MSP RC OVERRIDE",
+   "permanent_id": 50
+  },
+  {
+   "box": "BOXPREARM",
+   "name": "PREARM",
+   "permanent_id": 51
+  },
+  {
+   "box": "BOXTURTLE",
+   "name": "TURTLE",
+   "permanent_id": 52
+  },
+  {
+   "box": "BOXNAVCRUISE",
+   "name": "NAV CRUISE",
+   "permanent_id": 53
+  },
+  {
+   "box": "BOXAUTOLEVEL",
+   "name": "AUTO LEVEL TRIM",
+   "permanent_id": 54
+  },
+  {
+   "box": "BOXPLANWPMISSION",
+   "name": "WP PLANNER",
+   "permanent_id": 55
+  },
+  {
+   "box": "BOXSOARING",
+   "name": "SOARING",
+   "permanent_id": 56
+  },
+  {
+   "box": "BOXCHANGEMISSION",
+   "name": "MISSION CHANGE",
+   "permanent_id": 59
+  },
+  {
+   "box": "BOXBEEPERMUTE",
+   "name": "BEEPER MUTE",
+   "permanent_id": 60
+  },
+  {
+   "box": "BOXMULTIFUNCTION",
+   "name": "MULTI FUNCTION",
+   "permanent_id": 61
+  },
+  {
+   "box": "BOXMIXERPROFILE",
+   "name": "MIXER PROFILE 2",
+   "permanent_id": 62
+  },
+  {
+   "box": "BOXMIXERTRANSITION",
+   "name": "MIXER TRANSITION",
+   "permanent_id": 63
+  },
+  {
+   "box": "BOXANGLEHOLD",
+   "name": "ANGLE HOLD",
+   "permanent_id": 64
+  },
+  {
+   "box": "BOXGIMBALTLOCK",
+   "name": "GIMBAL LEVEL TILT",
+   "permanent_id": 65
+  },
+  {
+   "box": "BOXGIMBALRLOCK",
+   "name": "GIMBAL LEVEL ROLL",
+   "permanent_id": 66
+  },
+  {
+   "box": "BOXGIMBALCENTER",
+   "name": "GIMBAL CENTER",
+   "permanent_id": 67
+  },
+  {
+   "box": "BOXGIMBALHTRK",
+   "name": "GIMBAL HEADTRACKER",
+   "permanent_id": 68
+  }
+ ],
+ "serial": {
+  "functions": [
+   {
+    "name": "MSP",
+    "bit": 0
+   },
+   {
+    "name": "GPS",
+    "bit": 1
+   },
+   {
+    "name": "TELEMETRY_FRSKY",
+    "bit": 2
+   },
+   {
+    "name": "TELEMETRY_HOTT",
+    "bit": 3
+   },
+   {
+    "name": "TELEMETRY_LTM",
+    "bit": 4
+   },
+   {
+    "name": "TELEMETRY_SMARTPORT",
+    "bit": 5
+   },
+   {
+    "name": "RX_SERIAL",
+    "bit": 6
+   },
+   {
+    "name": "BLACKBOX",
+    "bit": 7
+   },
+   {
+    "name": "TELEMETRY_MAVLINK",
+    "bit": 8
+   },
+   {
+    "name": "TELEMETRY_IBUS",
+    "bit": 9
+   },
+   {
+    "name": "RUNCAM_DEVICE_CONTROL",
+    "bit": 10
+   },
+   {
+    "name": "TBS_SMARTAUDIO",
+    "bit": 11
+   },
+   {
+    "name": "IRC_TRAMP",
+    "bit": 12
+   },
+   {
+    "name": "OPFLOW",
+    "bit": 14
+   },
+   {
+    "name": "LOG",
+    "bit": 15
+   },
+   {
+    "name": "RANGEFINDER",
+    "bit": 16
+   },
+   {
+    "name": "VTX_FFPV",
+    "bit": 17
+   },
+   {
+    "name": "ESC",
+    "bit": 18
+   },
+   {
+    "name": "GSM_SMS",
+    "bit": 19
+   },
+   {
+    "name": "FRSKY_OSD",
+    "bit": 20
+   },
+   {
+    "name": "DJI_FPV",
+    "bit": 21
+   },
+   {
+    "name": "SBUS_OUTPUT",
+    "bit": 22
+   },
+   {
+    "name": "SMARTPORT_MASTER",
+    "bit": 23
+   },
+   {
+    "name": "MSP_DISPLAYPORT",
+    "bit": 25
+   },
+   {
+    "name": "GIMBAL",
+    "bit": 26
+   },
+   {
+    "name": "HEADTRACKER",
+    "bit": 27
+   }
+  ],
+  "port_identifiers": {
+   "0": "UART1",
+   "1": "UART2",
+   "2": "UART3",
+   "3": "UART4",
+   "4": "UART5",
+   "5": "UART6",
+   "6": "UART7",
+   "7": "UART8",
+   "20": "USB VCP",
+   "30": "SOFTSERIAL1",
+   "31": "SOFTSERIAL2"
+  }
+ },
+ "osd_layout_defaults": [
+  8215,
+  8204,
+  0,
+  392,
+  392,
+  535,
+  599,
+  8973,
+  148,
+  8321,
+  392,
+  8386,
+  8449,
+  87,
+  8896,
+  8193,
+  642,
+  706,
+  770,
+  79,
+  786,
+  768,
+  718,
+  65,
+  140,
+  343,
+  472,
+  323,
+  8919,
+  791,
+  9025,
+  640,
+  76,
+  134,
+  146,
+  321,
+  321,
+  385,
+  449,
+  321,
+  129,
+  513,
+  449,
+  0,
+  0,
+  0,
+  387,
+  451,
+  471,
+  407,
+  0,
+  140,
+  140,
+  76,
+  76,
+  513,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  642,
+  706,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  0,
+  770,
+  770,
+  770,
+  770,
+  770,
+  770,
+  87,
+  147,
+  211,
+  275,
+  339,
+  403,
+  467,
+  531,
+  595,
+  659,
+  723,
+  0,
+  768,
+  0,
+  0,
+  268,
+  332,
+  396,
+  460,
+  259,
+  323,
+  129,
+  193,
+  770,
+  791,
+  663,
+  600,
+  664,
+  65,
+  129,
+  193,
+  257,
+  0,
+  0,
+  0,
+  0,
+  259,
+  323,
+  387,
+  151,
+  0,
+  0,
+  0,
+  0,
+  640,
+  450,
+  514,
+  578,
+  642,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  204,
+  204,
+  212,
+  0,
+  257,
+  193,
+  212,
+  0,
+  0,
+  0,
+  450,
+  514,
+  642,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  727,
+  728,
+  792,
+  856,
+  0,
+  0,
+  0,
+  0,
+  0,
+  343
+ ]
+}
