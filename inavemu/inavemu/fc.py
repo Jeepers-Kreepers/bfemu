@@ -258,6 +258,48 @@ def i32(v):
     return struct.pack("<i", int(v))
 
 
+# ---------------------------------------------------------------------------
+# MISC/BATTERY_CONFIG ↔ база настроек
+# В прошивке MSP2_INAV_MISC (0x2003) и MSP2_INAV_BATTERY_CONFIG (0x2005) —
+# «провод» над PG_BATTERY_METERS_CONFIG (batteryMetersConfig) и
+# PG_BATTERY_PROFILES (batteryProfile): это те же поля, что и CLI-настройки
+# (fc_msp.c MSP2_INAV_MISC/MSP2_INAV_SET_MISC). Единый источник значений —
+# SettingsStore: CLI set/get и MSP2_COMMON_SETTING/SET_SETTING (0x1003/0x1004)
+# видят и меняют то же самое, что и вкладки Configurator.
+# Ключи словарей совпадают с настройками 1:1, кроме:
+#   mag_declination — провод в десятых градуса, настройка в сотых (/10, *10);
+#   vbat*cellvoltage — настройки и провод в сотых вольта (425 = 4.25 В),
+#     словарь хранит вольты (4.25) — формат прежнего eeprom.
+MISC_SETTING_MAP = {
+    "mincommand": "min_command",
+    "failsafe_throttle": "failsafe_throttle",
+    "vbatscale": "vbat_scale",
+    "voltage_source": "bat_voltage_src",
+    "battery_cells": "bat_cells",
+    "battery_capacity": "battery_capacity",
+    "battery_capacity_warning": "battery_capacity_warning",
+    "battery_capacity_critical": "battery_capacity_critical",
+    "battery_capacity_unit": "battery_capacity_unit",
+}
+CELL_SETTING_MAP = {
+    "vbatdetectcellvoltage": "vbat_cell_detect_voltage",
+    "vbatmincellvoltage": "vbat_min_cell_voltage",
+    "vbatmaxcellvoltage": "vbat_max_cell_voltage",
+    "vbatwarningcellvoltage": "vbat_warning_cell_voltage",
+}
+BATTERY_CONFIG_SETTING_MAP = {
+    "vbatscale": "vbat_scale",
+    "voltage_source": "bat_voltage_src",
+    "battery_cells": "bat_cells",
+    "capacity": "battery_capacity",
+    "capacity_warning": "battery_capacity_warning",
+    "capacity_critical": "battery_capacity_critical",
+    "capacity_unit": "battery_capacity_unit",
+    "current_offset": "current_meter_offset",
+    "current_scale": "current_meter_scale",
+}
+
+
 class InavFC:
     def __init__(self, fc_version: str = "9.1.0", api_version: str = "2.5.0",
                  board: str = "SITL", target: str = "SITL", eeprom_path=None):
@@ -288,25 +330,17 @@ class InavFC:
             "motor_stop_on_low": 0, "platform_type": 0, "has_flaps": 0,
             "applied_mixer_preset": 3,
         }
+        # Словари misc/battery_config — кэш над базой настроек (см. карты
+        # соответствий ниже): батарейный блок заполняется из store, а не
+        # собственными дефолтами. midrc/minthrottle/maxthrottle настроек не
+        # имеют (как и в прошивке — это константы провода).
         self.misc = {
             "midrc": 1500, "minthrottle": 1150, "maxthrottle": 1850,
-            "mincommand": 1000, "failsafe_throttle": 1500,
             "gps_type": 0, "sensors_baudrate": 1, "gps_ubx_sbas": 0,
-            "rssi_channel": 0, "mag_declination": 0,
-            "vbatscale": 1100, "voltage_source": 1, "battery_cells": 3,
-            "vbatdetectcellvoltage": 330, "vbatmincellvoltage": 330,
-            "vbatmaxcellvoltage": 420, "vbatwarningcellvoltage": 350,
-            "battery_capacity": 2200, "battery_capacity_warning": 1100,
-            "battery_capacity_critical": 500, "battery_capacity_unit": 0,
+            "rssi_channel": 0,
         }
-        self.battery_config = {
-            "vbatscale": 1100, "voltage_source": 1, "battery_cells": 3,
-            "vbatdetectcellvoltage": 330, "vbatmincellvoltage": 330,
-            "vbatmaxcellvoltage": 420, "vbatwarningcellvoltage": 350,
-            "current_offset": 0, "current_scale": 400,
-            "capacity": 2200, "capacity_warning": 1100,
-            "capacity_critical": 500, "capacity_unit": 0,
-        }
+        self.battery_config = {}
+        self._sync_battery_dicts()
         # serial-порты: identifier, functions(mask), msp/sensors/telemetry/peripherals baud.
         # Состав и порядок — как serialPortIdentifiers[] прошивки (io/serial.c):
         # VCP, UART1..UART8, SOFTSERIAL1/2 — максимальный набор портов INAV.
@@ -727,8 +761,15 @@ class InavFC:
                 self.output_mapping = [tuple(t) for t in
                                        data.get("output_mapping",
                                                 self.output_mapping)]
-                for name, val in (data.get("settings") or {}).items():
-                    self.store.set(name, val)
+                saved_settings = data.get("settings") or {}
+                if saved_settings:
+                    # единый источник — база настроек; словари ниже пересоберутся
+                    for name, val in saved_settings.items():
+                        self.store.set(name, val)
+                else:
+                    # старый формат eeprom: батарейный блок жил в словарях
+                    self._battery_dicts_to_settings()
+                self._sync_battery_dicts()
             except Exception as exc:  # noqa: BLE001
                 self._log(f"eeprom: не удалось загрузить ({exc})")
 
@@ -736,6 +777,7 @@ class InavFC:
         if not self.eeprom_path:
             return
         import json
+        self._sync_battery_dicts()
         data = {
             "features": self.features, "craft_name": self.craft_name,
             "misc": self.misc, "battery_config": self.battery_config,
@@ -1144,7 +1186,7 @@ class InavFC:
 
     def _msp2_inav_analog(self, _p):
         # биты: 0 full, 1 capacity thresholds, 2-3 state, 4-7 cells
-        flags = (0) | (0 << 1) | (0 << 2) | (self.misc["battery_cells"] << 4)
+        flags = (0) | (0 << 1) | (0 << 2) | (self.battery_cell_count() << 4)
         voltage = 1260  # сотые вольта
         amperage = 350  # сотые ампера
         power = voltage * amperage // 100
@@ -1185,19 +1227,82 @@ class InavFC:
         })
         return b""
 
+    # --- батарейный блок: единый источник значений — база настроек ---
+
+    def battery_cell_count(self):
+        """Число ячеек: bat_cells либо автоопределение (battery.c batteryUpdate)."""
+        cells = int(self.store.get("bat_cells") or 0)
+        if cells > 0:
+            return cells
+        detect = int(self.store.get("vbat_cell_detect_voltage") or 0)
+        if detect <= 0:
+            return 1
+        cells = 1260 // detect + 1  # 1260 cV — «подключённая» батарея эмулятора
+        if cells in (7, 9, 11):
+            cells += 1  # 7S/9S/11S не бывают: округляем до 8S/10S/12S
+        return min(cells, 12)
+
+    def _sync_battery_dicts(self):
+        """Словари misc/battery_config — кэш над store (единый источник)."""
+        st = self.store
+        for key, name in MISC_SETTING_MAP.items():
+            self.misc[key] = st.get(name)
+        for key, name in CELL_SETTING_MAP.items():
+            self.misc[key] = st.get(name) / 100.0
+        self.misc["mag_declination"] = int(st.get("mag_declination") / 10)
+        for key, name in BATTERY_CONFIG_SETTING_MAP.items():
+            self.battery_config[key] = st.get(name)
+        for key, name in CELL_SETTING_MAP.items():
+            self.battery_config[key] = st.get(name) / 100.0
+
+    def _battery_dicts_to_settings(self):
+        """Миграция старого eeprom: блок жил в словарях misc/battery_config."""
+        st = self.store
+        for mapping, source in ((MISC_SETTING_MAP, self.misc),
+                                (BATTERY_CONFIG_SETTING_MAP, self.battery_config)):
+            for key, name in mapping.items():
+                if key in source:
+                    st.set(name, source[key])
+        for source in (self.misc, self.battery_config):
+            for key, name in CELL_SETTING_MAP.items():
+                if key in source:
+                    value = source[key]
+                    # вольты (4.25) либо прежние «сотые» (330) в старых eeprom
+                    cV = (int(round(value * 100)) if abs(value) <= 10
+                          else int(round(value)))
+                    st.set(name, cV)
+        st.set("mag_declination", int(self.misc.get("mag_declination", 0)) * 10)
+
+    def _validate_battery_settings(self):
+        """Валидация MSP2_INAV_SET_MISC/BATTERY_CONFIG: мусор — ошибка."""
+        st = self.store
+        if st.get("bat_voltage_src") not in (0, 1):
+            st.set("bat_voltage_src", 0)
+            self._sync_battery_dicts()
+            raise MSPError("MISC: неизвестный источник напряжения")
+        if st.get("battery_capacity_unit") not in (0, 1):
+            st.set("battery_capacity_unit", 0)
+            self._sync_battery_dicts()
+            raise MSPError("MISC: неизвестная единица ёмкости")
+
     def _msp2_inav_misc(self, _p):
         m = self.misc
+        st = self.store
+        # батарейный блок — из базы настроек (fc_msp.c MSP2_INAV_MISC):
+        # провод несёт те же значения, что и CLI-настройки; vbat*cellvoltage —
+        # сотые вольта (cV), mag_declination — десятые градуса
         return (i16(m["midrc"]) + u16(m["minthrottle"]) + u16(m["maxthrottle"])
-                + u16(m["mincommand"]) + u16(m["failsafe_throttle"])
+                + u16(st.get("min_command")) + u16(st.get("failsafe_throttle"))
                 + u8(m["gps_type"]) + u8(m["sensors_baudrate"]) + i8(m["gps_ubx_sbas"])
-                + u8(m["rssi_channel"]) + i16(m["mag_declination"]) + u16(m["vbatscale"])
-                + u8(m["voltage_source"]) + u8(m["battery_cells"])
-                + u16(int(m["vbatdetectcellvoltage"] * 100))
-                + u16(int(m["vbatmincellvoltage"] * 100))
-                + u16(int(m["vbatmaxcellvoltage"] * 100))
-                + u16(int(m["vbatwarningcellvoltage"] * 100))
-                + u32(m["battery_capacity"]) + u32(m["battery_capacity_warning"])
-                + u32(m["battery_capacity_critical"]) + u8(m["battery_capacity_unit"]))
+                + u8(m["rssi_channel"]) + i16(int(st.get("mag_declination") / 10))
+                + u16(st.get("vbat_scale"))
+                + u8(st.get("bat_voltage_src")) + u8(st.get("bat_cells"))
+                + u16(st.get("vbat_cell_detect_voltage"))
+                + u16(st.get("vbat_min_cell_voltage"))
+                + u16(st.get("vbat_max_cell_voltage"))
+                + u16(st.get("vbat_warning_cell_voltage"))
+                + u32(st.get("battery_capacity")) + u32(st.get("battery_capacity_warning"))
+                + u32(st.get("battery_capacity_critical")) + u8(st.get("battery_capacity_unit")))
 
     def _msp2_inav_set_misc(self, p):
         if len(p) < 41:
@@ -1216,30 +1321,44 @@ class InavFC:
         (cap, capw, capc) = self._take(p, "<III", off)
         off += 12
         unit = p[off] if len(p) > off else 0
+        # как в прошивке (MSP2_INAV_SET_MISC): батарейный блок пишется в базу
+        # настроек, midrc/minthrottle/maxthrottle отбрасываются
+        st = self.store
+        st.set("min_command", min(2000, max(0, mincmd)))
+        st.set("failsafe_throttle", min(2000, max(1000, fsthr)))
+        st.set("mag_declination", magdec * 10)  # провод — десятые градуса
+        st.set("vbat_scale", vbatscale)
+        st.set("bat_voltage_src", vsrc)
+        st.set("bat_cells", cells)
+        st.set("vbat_cell_detect_voltage", vdetect)
+        st.set("vbat_min_cell_voltage", vmin)
+        st.set("vbat_max_cell_voltage", vmax)
+        st.set("vbat_warning_cell_voltage", vwarn)
+        st.set("battery_capacity", cap)
+        st.set("battery_capacity_warning", capw)
+        st.set("battery_capacity_critical", capc)
+        st.set("battery_capacity_unit", unit)
         self.misc.update({
             "midrc": midrc, "minthrottle": minthr, "maxthrottle": maxthr,
-            "mincommand": mincmd, "failsafe_throttle": fsthr,
             "gps_type": gps_type, "sensors_baudrate": sbas_baud,
             "gps_ubx_sbas": sbas, "rssi_channel": rssi_ch,
-            "mag_declination": magdec, "vbatscale": vbatscale,
-            "voltage_source": vsrc, "battery_cells": cells,
-            "vbatdetectcellvoltage": vdetect / 100, "vbatmincellvoltage": vmin / 100,
-            "vbatmaxcellvoltage": vmax / 100, "vbatwarningcellvoltage": vwarn / 100,
-            "battery_capacity": cap, "battery_capacity_warning": capw,
-            "battery_capacity_critical": capc, "battery_capacity_unit": unit,
         })
+        self._sync_battery_dicts()
+        self._validate_battery_settings()
         return b""
 
     def _msp2_battery_config(self, _p):
-        b = self.battery_config
-        return (u16(b["vbatscale"]) + u8(b["voltage_source"]) + u8(b["battery_cells"])
-                + u16(int(b["vbatdetectcellvoltage"] * 100))
-                + u16(int(b["vbatmincellvoltage"] * 100))
-                + u16(int(b["vbatmaxcellvoltage"] * 100))
-                + u16(int(b["vbatwarningcellvoltage"] * 100))
-                + u16(b["current_offset"]) + u16(b["current_scale"])
-                + u32(b["capacity"]) + u32(b["capacity_warning"])
-                + u32(b["capacity_critical"]) + u8(b["capacity_unit"]))
+        st = self.store
+        return (u16(st.get("vbat_scale")) + u8(st.get("bat_voltage_src"))
+                + u8(st.get("bat_cells"))
+                + u16(st.get("vbat_cell_detect_voltage"))
+                + u16(st.get("vbat_min_cell_voltage"))
+                + u16(st.get("vbat_max_cell_voltage"))
+                + u16(st.get("vbat_warning_cell_voltage"))
+                + u16(int(st.get("current_meter_offset")) & 0xFFFF)
+                + u16(int(st.get("current_meter_scale")) & 0xFFFF)
+                + u32(st.get("battery_capacity")) + u32(st.get("battery_capacity_warning"))
+                + u32(st.get("battery_capacity_critical")) + u8(st.get("battery_capacity_unit")))
 
     def _msp2_set_battery_config(self, p):
         if len(p) < 29:
@@ -1248,14 +1367,25 @@ class InavFC:
         (vdetect, vmin, vmax, vwarn, coff, cscale) = self._take(p, "<HHHHHH", 4)
         (cap, capw, capc) = self._take(p, "<III", 16)
         unit = p[28] if len(p) > 28 else 0
-        self.battery_config.update({
-            "vbatscale": vscale, "voltage_source": vsrc, "battery_cells": cells,
-            "vbatdetectcellvoltage": vdetect / 100, "vbatmincellvoltage": vmin / 100,
-            "vbatmaxcellvoltage": vmax / 100, "vbatwarningcellvoltage": vwarn / 100,
-            "current_offset": coff, "current_scale": cscale,
-            "capacity": cap, "capacity_warning": capw,
-            "capacity_critical": capc, "capacity_unit": unit,
-        })
+        st = self.store
+        st.set("vbat_scale", vscale)
+        st.set("bat_voltage_src", vsrc)
+        st.set("bat_cells", cells)
+        st.set("vbat_cell_detect_voltage", vdetect)
+        st.set("vbat_min_cell_voltage", vmin)
+        st.set("vbat_max_cell_voltage", vmax)
+        st.set("vbat_warning_cell_voltage", vwarn)
+        # current_meter_* в базе int16, провод — 16 бит two's complement
+        st.set("current_meter_offset",
+               coff if coff < 0x8000 else coff - 0x10000)
+        st.set("current_meter_scale",
+               cscale if cscale < 0x8000 else cscale - 0x10000)
+        st.set("battery_capacity", cap)
+        st.set("battery_capacity_warning", capw)
+        st.set("battery_capacity_critical", capc)
+        st.set("battery_capacity_unit", unit)
+        self._sync_battery_dicts()
+        self._validate_battery_settings()
         return b""
 
     def _msp2_serial_config(self, _p):

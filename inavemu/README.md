@@ -42,6 +42,17 @@ inav-configurator 9.1.1: обрабатываются **все 163 MSP-кода*
 конфигуратор умеет отправлять (вкладки Calibration, LED Strip, Mixer,
 Outputs, Advanced Tuning и остальные).
 
+Батарейный блок `MSP2_INAV_MISC`/`MSP2_INAV_BATTERY_CONFIG` связан с базой
+настроек в единый источник (как в прошивке: `batteryMetersConfig` /
+`batteryProfile`): CLI `set bat_voltage_src = SAG_COMP` переключает
+«Voltage source» на вкладке Configuration, а Save вкладки меняет значение
+CLI (`get`). То же для `vbat_scale`, `bat_cells`, `vbat_cell_*_voltage`,
+`battery_capacity*`, `failsafe_throttle`, `mag_declination`, `min_command`,
+`current_meter_*`. Единицы провода — как в `MSPHelper.js`: напряжение ячеек
+в сотых вольта (425 = 4.25 В), `mag_declination` в десятых градуса
+(настройка — в сотых). Значения по умолчанию — стоковые INAV 9.1.0
+(`bat_voltage_src = RAW`, `bat_cells = 0` — автоопределение ячеек).
+
 ## Куда смотреть
 
 | Если нужно | Файл |
@@ -145,7 +156,10 @@ python3 tools/gen_data_inav.py /path/to/inav-9.1.0 \
 * определяет типы полей через gcc тем же трюком, что и `src/utils/settings.rb`
   прошивки (`поле.__type_detect_` → тип из сообщения об ошибке), — сверено:
   165 настроек с явным типом в YAML совпали с gcc, расхождений нет;
-* разрешает min/max/дефолты через константы из заголовков;
+* разрешает min/max/дефолты через константы из заголовков; `default_value:
+  :target` (дефолт задаёт `target.h`) берётся из таблицы `TARGET_DEFAULTS`
+  generic-таргета (`vbat_scale = 1100` — `battery.h`, `current_meter_scale
+  = 400`, `current_meter_offset = 0`);
 * берёт список боксов из `fc/fc_msp_box.c` и смысл битов `MSP_FEATURE` из
   исходников конфигуратора.
 

@@ -234,7 +234,7 @@ class CliSession:
         out += time.strftime("Current Time: %Y-%m-%d @ %H:%M:%S\r\n").encode()
         voltage = 1260
         out += (f"Voltage: {voltage // 100}.{voltage % 100:02d}V "
-                f"({fc.misc['battery_cells']}S battery - OK)\r\n").encode()
+                f"({fc.battery_cell_count()}S battery - OK)\r\n").encode()
         out += b"CPU Clock=216MHz, GYRO=MPU6000, ACC=MPU6000, MAG=HMC5883, BARO=MS5611\r\n"
         out += b"Stack size: 2048, Stack address: 0x1000fff0\r\n"
         out += b"I2C Errors: 0, config size: 5268, max available: 16384\r\n"
