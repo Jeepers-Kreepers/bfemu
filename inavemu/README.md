@@ -53,6 +53,14 @@ CLI (`get`). То же для `vbat_scale`, `bat_cells`, `vbat_cell_*_voltage`,
 (настройка — в сотых). Значения по умолчанию — стоковые INAV 9.1.0
 (`bat_voltage_src = RAW`, `bat_cells = 0` — автоопределение ячеек).
 
+Вкладка Receiver — так же: `MSP_RX_CONFIG`/`MSP_RC_DEADBAND`/
+`MSP2_INAV_RATE_PROFILE` читают и пишут те же настройки (`rssi_channel`,
+`deadband`, `yaw_deadband`, `3d_deadband_throttle`, `serialrx_provider`,
+`min_check`/`max_check`, `rx_min_usec`/`rx_max_usec`, `receiver_type`,
+`thr_mid`/`thr_expo`, `rc_expo`, `tpa_rate`/`tpa_breakpoint`, rates):
+`set rssi_channel = 5` переключает RSSI channel, `set deadband` — поле
+Deadband, Save вкладки меняет значения CLI.
+
 ## Куда смотреть
 
 | Если нужно | Файл |
