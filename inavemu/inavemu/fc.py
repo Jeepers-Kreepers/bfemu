@@ -589,6 +589,7 @@ class InavFC:
         # --- «живая» телеметрия ---
         self.t0 = time.time()
         self.rc_channels = [1500] * 16
+        self.rc_channels[2] = 1000   # газ (CH3, карта AETR) — нейтраль
         self.rc_channels[0] = 1500
         self.motors = [1000] * 8
         self.servos = [1500] * MAX_SUPPORTED_SERVOS
@@ -2555,6 +2556,24 @@ class InavFC:
                 lo, hi = groups[pg]
                 out += u16(pg) + u16(lo) + u16(hi)
         return out
+
+    def set_rc_channels(self, values):
+        """Каналы RC от веб-«пульта» (слайдеры/кнопки или Gamepad-аппаратура).
+
+        Значения попадают в rc_channels — их же отдаёт MSP_RC и пишет
+        MSP_SET_RAW_RC: вкладка Receiver в Configurator видит их как
+        движение стиков.
+        """
+        values = list(values)
+        if not 1 <= len(values) <= 16:
+            raise MSPError("RC: ожидается 1..16 каналов")
+        for i, v in enumerate(values):
+            if isinstance(v, bool) or not isinstance(v, int):
+                raise MSPError(f"RC: канал {i + 1}: ожидается целое число")
+            if not 300 <= v <= 2300:
+                raise MSPError(f"RC: канал {i + 1}: {v} вне диапазона 300..2300")
+        self.rc_channels[:len(values)] = values
+        return len(values)
 
     def _msp_set_raw_rc(self, p):
         if len(p) == 0 or len(p) % 2 or len(p) > 36:
