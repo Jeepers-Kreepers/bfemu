@@ -42,6 +42,25 @@ inav-configurator 9.1.1: обрабатываются **все 163 MSP-кода*
 конфигуратор умеет отправлять (вкладки Calibration, LED Strip, Mixer,
 Outputs, Advanced Tuning и остальные).
 
+Батарейный блок `MSP2_INAV_MISC`/`MSP2_INAV_BATTERY_CONFIG` связан с базой
+настроек в единый источник (как в прошивке: `batteryMetersConfig` /
+`batteryProfile`): CLI `set bat_voltage_src = SAG_COMP` переключает
+«Voltage source» на вкладке Configuration, а Save вкладки меняет значение
+CLI (`get`). То же для `vbat_scale`, `bat_cells`, `vbat_cell_*_voltage`,
+`battery_capacity*`, `failsafe_throttle`, `mag_declination`, `min_command`,
+`current_meter_*`. Единицы провода — как в `MSPHelper.js`: напряжение ячеек
+в сотых вольта (425 = 4.25 В), `mag_declination` в десятых градуса
+(настройка — в сотых). Значения по умолчанию — стоковые INAV 9.1.0
+(`bat_voltage_src = RAW`, `bat_cells = 0` — автоопределение ячеек).
+
+Вкладка Receiver — так же: `MSP_RX_CONFIG`/`MSP_RC_DEADBAND`/
+`MSP2_INAV_RATE_PROFILE` читают и пишут те же настройки (`rssi_channel`,
+`deadband`, `yaw_deadband`, `3d_deadband_throttle`, `serialrx_provider`,
+`min_check`/`max_check`, `rx_min_usec`/`rx_max_usec`, `receiver_type`,
+`thr_mid`/`thr_expo`, `rc_expo`, `tpa_rate`/`tpa_breakpoint`, rates):
+`set rssi_channel = 5` переключает RSSI channel, `set deadband` — поле
+Deadband, Save вкладки меняет значения CLI.
+
 ## Куда смотреть
 
 | Если нужно | Файл |
@@ -108,6 +127,22 @@ INAV уже запущен`. Блокировка снимается автом�
 * API: `POST /api/outputs` с JSON вида `{"motors": 6, "servos": 3}`
   (частичные обновления, диапазоны проверяются).
 
+Страница **«Пульт»** (`/rc`) — управление каналами RC из браузера:
+
+* **8 каналов (CH1–CH8)** — слайдеры (875–2125), поля ввода и быстрые кнопки
+  1000/1500/2000; значения уходят в `rc_channels` и видны через `MSP_RC`,
+  поэтому полосы каналов вкладки Receiver в конфигураторе двигаются вместе
+  с ними (CH3 — газ, по умолчанию 1000);
+* **аппаратура по USB** (например Radiomaster Zorro) — браузер читает её через
+  Gamepad API (режим USB Joystick в EdgeTX) и передаёт каналы сюда: стики —
+  оси 0–3, тумблеры/кнопки — кнопки джойстика; для каждой кнопки доступны
+  режимы «2 позиции» и «пара кнопок — 3 позиции» (кнопка N+1 = 2000,
+  N = 1000, иначе 1500), у осей есть инверсия; есть пресет привязок
+  Radiomaster Zorro и «Нейтраль: стики 1500, газ 1000»;
+* привязки осей/кнопок и включение управления хранятся в localStorage;
+* API: `GET/POST /api/rc` с JSON вида `{"channels": [8..16 чисел 300..2300]}`,
+  состояние каналов также в `/api/state` (ключ `rc`).
+
 Страница **«Монитор»** (`/`) — состояние FC и журнал запросов.
 
 Нужен доступ с другой машины — откройте адрес явно:
@@ -145,7 +180,10 @@ python3 tools/gen_data_inav.py /path/to/inav-9.1.0 \
 * определяет типы полей через gcc тем же трюком, что и `src/utils/settings.rb`
   прошивки (`поле.__type_detect_` → тип из сообщения об ошибке), — сверено:
   165 настроек с явным типом в YAML совпали с gcc, расхождений нет;
-* разрешает min/max/дефолты через константы из заголовков;
+* разрешает min/max/дефолты через константы из заголовков; `default_value:
+  :target` (дефолт задаёт `target.h`) берётся из таблицы `TARGET_DEFAULTS`
+  generic-таргета (`vbat_scale = 1100` — `battery.h`, `current_meter_scale
+  = 400`, `current_meter_offset = 0`);
 * берёт список боксов из `fc/fc_msp_box.c` и смысл битов `MSP_FEATURE` из
   исходников конфигуратора.
 

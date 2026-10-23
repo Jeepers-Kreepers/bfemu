@@ -340,7 +340,7 @@ def resolve_const(name, consts, stack=()):
     for sub in set(re.findall(r"\b[A-Za-z_]\w*\b", expr)):
         if sub in ("u", "U", "L", "f", "F"):
             continue
-        v = resolve_const(sub, consts, stack + (name,))
+        v = resolve_const(sub, consts, (*stack, name))
         if v is None:
             return None
         py = re.sub(rf"\b{sub}\b", str(v), py)
@@ -462,6 +462,15 @@ TYPE_TO_CODE = {
 }
 TYPE_ORDER = ["uint8", "int8", "uint16", "int16", "uint32", "float", "string"]
 
+# default_value: :target — константы generic-таргета (заголовки прошивки):
+# battery.h: #ifndef VBAT_SCALE_DEFAULT → 1100; CURRENT_METER_SCALE/OFFSET —
+# типовые 400 (40 мВ/А, ACS756) и 0. Таргет может переопределять.
+TARGET_DEFAULTS = {
+    "vbat_scale": 1100,
+    "current_meter_scale": 400,
+    "current_meter_offset": 0,
+}
+
 
 def build_settings(repo: Path, cfg: dict, consts: dict):
     tables = {}
@@ -492,7 +501,6 @@ def build_settings(repo: Path, cfg: dict, consts: dict):
                 cond_defines.add(str(mem["condition"]))
     for group in cfg.get("groups") or []:
         group_type = group.get("type")
-        headers = group.get("headers") or []
         pg_name = group.get("name")
         pg_id = resolve_const(pg_name, consts)
         section = group.get("value_type") or "MASTER_VALUE"
@@ -586,7 +594,10 @@ def build_settings(repo: Path, cfg: dict, consts: dict):
             elif isinstance(dv, str):
                 dv_name = dv[1:] if dv.startswith(":") else dv
                 if dv_name in ("zero", "target", "target specific") or dv == "":
-                    entry["default"] = "" if typ == "string" else 0
+                    # :target — дефолт задаёт target.h; для generic-таргета
+                    # известные константы (battery.h: #ifndef VBAT_SCALE_DEFAULT ...)
+                    entry["default"] = TARGET_DEFAULTS.get(
+                        name, "" if typ == "string" else 0)
                 elif values is not None and dv_name in values:
                     entry["default"] = values.index(dv_name)
                 elif values is not None and dv in values:

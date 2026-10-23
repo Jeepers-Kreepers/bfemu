@@ -26,7 +26,7 @@ def test_echo_and_prompt(cli):
 
 def test_help_lists_all_commands(cli):
     text = cli.feed(b"help\r\n").decode()
-    for name, desc, _ in COMMANDS:
+    for name, _desc, _ in COMMANDS:
         assert name in text
 
 

@@ -258,6 +258,83 @@ def i32(v):
     return struct.pack("<i", int(v))
 
 
+# ---------------------------------------------------------------------------
+# MISC/BATTERY_CONFIG ↔ база настроек
+# В прошивке MSP2_INAV_MISC (0x2003) и MSP2_INAV_BATTERY_CONFIG (0x2005) —
+# «провод» над PG_BATTERY_METERS_CONFIG (batteryMetersConfig) и
+# PG_BATTERY_PROFILES (batteryProfile): это те же поля, что и CLI-настройки
+# (fc_msp.c MSP2_INAV_MISC/MSP2_INAV_SET_MISC). Единый источник значений —
+# SettingsStore: CLI set/get и MSP2_COMMON_SETTING/SET_SETTING (0x1003/0x1004)
+# видят и меняют то же самое, что и вкладки Configurator.
+# Ключи словарей совпадают с настройками 1:1, кроме:
+#   mag_declination — провод в десятых градуса, настройка в сотых (/10, *10);
+#   vbat*cellvoltage — настройки и провод в сотых вольта (425 = 4.25 В),
+#     словарь хранит вольты (4.25) — формат прежнего eeprom.
+MISC_SETTING_MAP = {
+    "mincommand": "min_command",
+    "failsafe_throttle": "failsafe_throttle",
+    "vbatscale": "vbat_scale",
+    "voltage_source": "bat_voltage_src",
+    "battery_cells": "bat_cells",
+    "battery_capacity": "battery_capacity",
+    "battery_capacity_warning": "battery_capacity_warning",
+    "battery_capacity_critical": "battery_capacity_critical",
+    "battery_capacity_unit": "battery_capacity_unit",
+    "rssi_channel": "rssi_channel",
+}
+CELL_SETTING_MAP = {
+    "vbatdetectcellvoltage": "vbat_cell_detect_voltage",
+    "vbatmincellvoltage": "vbat_min_cell_voltage",
+    "vbatmaxcellvoltage": "vbat_max_cell_voltage",
+    "vbatwarningcellvoltage": "vbat_warning_cell_voltage",
+}
+BATTERY_CONFIG_SETTING_MAP = {
+    "vbatscale": "vbat_scale",
+    "voltage_source": "bat_voltage_src",
+    "battery_cells": "bat_cells",
+    "capacity": "battery_capacity",
+    "capacity_warning": "battery_capacity_warning",
+    "capacity_critical": "battery_capacity_critical",
+    "capacity_unit": "battery_capacity_unit",
+    "current_offset": "current_meter_offset",
+    "current_scale": "current_meter_scale",
+}
+# вкладка Receiver: MSP_RX_CONFIG (44/45), MSP_RC_DEADBAND (125),
+# MSP2_INAV_RATE_PROFILE — те же PG_RX_CONFIG / rcControls / controlProfile,
+# что и CLI-настройки (fc_msp.c MSP_RX_CONFIG, MSP_RC_DEADBAND, MSP2_INAV_RATE_PROFILE)
+RX_CONFIG_SETTING_MAP = {
+    "serialrx_provider": "serialrx_provider",
+    "maxcheck": "max_check",
+    "mincheck": "min_check",
+    "spektrum_sat_bind": "spektrum_sat_bind",
+    "rx_min_usec": "rx_min_usec",
+    "rx_max_usec": "rx_max_usec",
+    "receiver_type": "receiver_type",
+}
+RC_DEADBAND_SETTING_MAP = {
+    "deadband": "deadband",
+    "yaw_deadband": "yaw_deadband",
+    "alt_hold_deadband": "alt_hold_deadband",
+    "deadband_throttle": "3d_deadband_throttle",  # rcControls.mid_throttle_deadband
+}
+RATE_PROFILE_SETTING_MAP = {
+    "throttle_mid": "thr_mid",
+    "throttle_expo": "thr_expo",
+    "dyn_pid": "tpa_rate",
+    "pa_breakpoint": "tpa_breakpoint",
+    "rc_expo": "rc_expo",
+    "yaw_expo": "rc_yaw_expo",
+    "roll_rate": "roll_rate",
+    "pitch_rate": "pitch_rate",
+    "yaw_rate": "yaw_rate",
+    "manual_rc_expo": "manual_rc_expo",
+    "manual_yaw_expo": "manual_rc_yaw_expo",
+    "manual_roll_rate": "manual_roll_rate",
+    "manual_pitch_rate": "manual_pitch_rate",
+    "manual_yaw_rate": "manual_yaw_rate",
+}
+
+
 class InavFC:
     def __init__(self, fc_version: str = "9.1.0", api_version: str = "2.5.0",
                  board: str = "SITL", target: str = "SITL", eeprom_path=None):
@@ -288,25 +365,15 @@ class InavFC:
             "motor_stop_on_low": 0, "platform_type": 0, "has_flaps": 0,
             "applied_mixer_preset": 3,
         }
+        # Словари misc/battery_config — кэш над базой настроек (см. карты
+        # соответствий ниже): батарейный блок заполняется из store, а не
+        # собственными дефолтами. midrc/minthrottle/maxthrottle настроек не
+        # имеют (как и в прошивке — это константы провода).
         self.misc = {
             "midrc": 1500, "minthrottle": 1150, "maxthrottle": 1850,
-            "mincommand": 1000, "failsafe_throttle": 1500,
             "gps_type": 0, "sensors_baudrate": 1, "gps_ubx_sbas": 0,
-            "rssi_channel": 0, "mag_declination": 0,
-            "vbatscale": 1100, "voltage_source": 1, "battery_cells": 3,
-            "vbatdetectcellvoltage": 330, "vbatmincellvoltage": 330,
-            "vbatmaxcellvoltage": 420, "vbatwarningcellvoltage": 350,
-            "battery_capacity": 2200, "battery_capacity_warning": 1100,
-            "battery_capacity_critical": 500, "battery_capacity_unit": 0,
         }
-        self.battery_config = {
-            "vbatscale": 1100, "voltage_source": 1, "battery_cells": 3,
-            "vbatdetectcellvoltage": 330, "vbatmincellvoltage": 330,
-            "vbatmaxcellvoltage": 420, "vbatwarningcellvoltage": 350,
-            "current_offset": 0, "current_scale": 400,
-            "capacity": 2200, "capacity_warning": 1100,
-            "capacity_critical": 500, "capacity_unit": 0,
-        }
+        self.battery_config = {}
         # serial-порты: identifier, functions(mask), msp/sensors/telemetry/peripherals baud.
         # Состав и порядок — как serialPortIdentifiers[] прошивки (io/serial.c):
         # VCP, UART1..UART8, SOFTSERIAL1/2 — максимальный набор портов INAV.
@@ -326,16 +393,14 @@ class InavFC:
             _port(6, 0), _port(7, 0),                # UART7, UART8
             _port(30, 0), _port(31, 0),              # SOFTSERIAL1/2
         ]
+        # midrc и spirx_* настроек не имеют — только словарь; остальное
+        # (в том числе receiver_type/serialrx_provider) — из базы настроек
         self.rx_config = {
-            "serialrx_provider": 2, "maxcheck": 1900, "midrc": 1500,
-            "mincheck": 1100, "spektrum_sat_bind": 0,
-            "rx_min_usec": 885, "rx_max_usec": 2115,
+            "midrc": 1500,
             "spirx_protocol": 0, "spirx_id": 0, "spirx_channel_count": 16,
-            "receiver_type": 1,
         }
         self.rx_map = [0, 1, 2, 3, 4, 5, 6, 7]
-        self.rc_deadband = {"deadband": 10, "yaw_deadband": 10,
-                            "alt_hold_deadband": 50, "deadband_throttle": 50}
+        self.rc_deadband = {}
         self.board_alignment = {"roll": 0, "pitch": 0, "yaw": 0}
         self.current_meter_config = {"scale": 400, "offset": 0, "type": 1, "capacity": 2200}
         self.sensor_alignment = {"gyro": 1, "acc": 1, "mag": 1, "opflow": 1}
@@ -348,13 +413,8 @@ class InavFC:
             "device_type": 0, "band": 1, "channel": 1, "power": 1,
             "pitmode": 0, "low_power_disarm": 0,
         }
-        self.rate_profile = {
-            "throttle_mid": 50, "throttle_expo": 0, "dyn_pid": 0,
-            "pa_breakpoint": 1500, "rc_expo": 0, "yaw_expo": 0,
-            "roll_rate": 20, "pitch_rate": 20, "yaw_rate": 20,
-            "manual_rc_expo": 0, "manual_yaw_expo": 0,
-            "manual_roll_rate": 100, "manual_pitch_rate": 100, "manual_yaw_rate": 100,
-        }
+        self.rate_profile = {}
+        self._sync_setting_dicts()
         self.inav_pid = {
             "async_mode": 0, "acc_task_freq": 500, "att_task_freq": 250,
             "mag_hold_rate_limit": 90, "mag_hold_error_lpf": 20,
@@ -529,6 +589,7 @@ class InavFC:
         # --- «живая» телеметрия ---
         self.t0 = time.time()
         self.rc_channels = [1500] * 16
+        self.rc_channels[2] = 1000   # газ (CH3, карта AETR) — нейтраль
         self.rc_channels[0] = 1500
         self.motors = [1000] * 8
         self.servos = [1500] * MAX_SUPPORTED_SERVOS
@@ -727,15 +788,23 @@ class InavFC:
                 self.output_mapping = [tuple(t) for t in
                                        data.get("output_mapping",
                                                 self.output_mapping)]
-                for name, val in (data.get("settings") or {}).items():
-                    self.store.set(name, val)
-            except Exception as exc:  # noqa: BLE001
+                saved_settings = data.get("settings") or {}
+                if saved_settings:
+                    # единый источник — база настроек; словари ниже пересоберутся
+                    for name, val in saved_settings.items():
+                        self.store.set(name, val)
+                else:
+                    # старый формат eeprom: батарейный блок жил в словарях
+                    self._legacy_dicts_to_settings()
+                self._sync_setting_dicts()
+            except Exception as exc:
                 self._log(f"eeprom: не удалось загрузить ({exc})")
 
     def save_eeprom(self):
         if not self.eeprom_path:
             return
         import json
+        self._sync_setting_dicts()
         data = {
             "features": self.features, "craft_name": self.craft_name,
             "misc": self.misc, "battery_config": self.battery_config,
@@ -1021,7 +1090,7 @@ class InavFC:
 
     def _msp_fc_version(self, _p):
         parts = self.fc_version.split(".")
-        nums = [int(x) for x in (parts + ["0", "0", "0"])[:3]]
+        nums = [int(x) for x in ([*parts, "0", "0", "0"])[:3]]
         return bytes(nums)
 
     def _msp_board_info(self, _p):
@@ -1144,7 +1213,7 @@ class InavFC:
 
     def _msp2_inav_analog(self, _p):
         # биты: 0 full, 1 capacity thresholds, 2-3 state, 4-7 cells
-        flags = (0) | (0 << 1) | (0 << 2) | (self.misc["battery_cells"] << 4)
+        flags = (0) | (0 << 1) | (0 << 2) | (self.battery_cell_count() << 4)
         voltage = 1260  # сотые вольта
         amperage = 350  # сотые ампера
         power = voltage * amperage // 100
@@ -1185,19 +1254,92 @@ class InavFC:
         })
         return b""
 
+    # --- батарейный блок: единый источник значений — база настроек ---
+
+    def battery_cell_count(self):
+        """Число ячеек: bat_cells либо автоопределение (battery.c batteryUpdate)."""
+        cells = int(self.store.get("bat_cells") or 0)
+        if cells > 0:
+            return cells
+        detect = int(self.store.get("vbat_cell_detect_voltage") or 0)
+        if detect <= 0:
+            return 1
+        cells = 1260 // detect + 1  # 1260 cV — «подключённая» батарея эмулятора
+        if cells in (7, 9, 11):
+            cells += 1  # 7S/9S/11S не бывают: округляем до 8S/10S/12S
+        return min(cells, 12)
+
+    def _sync_setting_dicts(self):
+        """Словари misc/battery_config/rx_config/rc_deadband/rate_profile —
+        кэш над store (единый источник значений)."""
+        st = self.store
+        for key, name in MISC_SETTING_MAP.items():
+            self.misc[key] = st.get(name)
+        for key, name in CELL_SETTING_MAP.items():
+            self.misc[key] = st.get(name) / 100.0
+        self.misc["mag_declination"] = int(st.get("mag_declination") / 10)
+        for key, name in BATTERY_CONFIG_SETTING_MAP.items():
+            self.battery_config[key] = st.get(name)
+        for key, name in CELL_SETTING_MAP.items():
+            self.battery_config[key] = st.get(name) / 100.0
+        for key, name in RX_CONFIG_SETTING_MAP.items():
+            self.rx_config[key] = st.get(name)
+        for key, name in RC_DEADBAND_SETTING_MAP.items():
+            self.rc_deadband[key] = st.get(name)
+        for key, name in RATE_PROFILE_SETTING_MAP.items():
+            self.rate_profile[key] = st.get(name)
+
+    def _legacy_dicts_to_settings(self):
+        """Миграция старого eeprom: значения блоков жили в словарях."""
+        st = self.store
+        for mapping, source in ((MISC_SETTING_MAP, self.misc),
+                                (BATTERY_CONFIG_SETTING_MAP, self.battery_config),
+                                (RX_CONFIG_SETTING_MAP, self.rx_config),
+                                (RC_DEADBAND_SETTING_MAP, self.rc_deadband),
+                                (RATE_PROFILE_SETTING_MAP, self.rate_profile)):
+            for key, name in mapping.items():
+                if key in source:
+                    st.set(name, source[key])
+        for source in (self.misc, self.battery_config):
+            for key, name in CELL_SETTING_MAP.items():
+                if key in source:
+                    value = source[key]
+                    # вольты (4.25) либо прежние «сотые» (330) в старых eeprom
+                    cV = (int(round(value * 100)) if abs(value) <= 10
+                          else int(round(value)))
+                    st.set(name, cV)
+        st.set("mag_declination", int(self.misc.get("mag_declination", 0)) * 10)
+
+    def _validate_battery_settings(self):
+        """Валидация MSP2_INAV_SET_MISC/BATTERY_CONFIG: мусор — ошибка."""
+        st = self.store
+        if st.get("bat_voltage_src") not in (0, 1):
+            st.set("bat_voltage_src", 0)
+            self._sync_setting_dicts()
+            raise MSPError("MISC: неизвестный источник напряжения")
+        if st.get("battery_capacity_unit") not in (0, 1):
+            st.set("battery_capacity_unit", 0)
+            self._sync_setting_dicts()
+            raise MSPError("MISC: неизвестная единица ёмкости")
+
     def _msp2_inav_misc(self, _p):
         m = self.misc
+        st = self.store
+        # батарейный блок — из базы настроек (fc_msp.c MSP2_INAV_MISC):
+        # провод несёт те же значения, что и CLI-настройки; vbat*cellvoltage —
+        # сотые вольта (cV), mag_declination — десятые градуса
         return (i16(m["midrc"]) + u16(m["minthrottle"]) + u16(m["maxthrottle"])
-                + u16(m["mincommand"]) + u16(m["failsafe_throttle"])
+                + u16(st.get("min_command")) + u16(st.get("failsafe_throttle"))
                 + u8(m["gps_type"]) + u8(m["sensors_baudrate"]) + i8(m["gps_ubx_sbas"])
-                + u8(m["rssi_channel"]) + i16(m["mag_declination"]) + u16(m["vbatscale"])
-                + u8(m["voltage_source"]) + u8(m["battery_cells"])
-                + u16(int(m["vbatdetectcellvoltage"] * 100))
-                + u16(int(m["vbatmincellvoltage"] * 100))
-                + u16(int(m["vbatmaxcellvoltage"] * 100))
-                + u16(int(m["vbatwarningcellvoltage"] * 100))
-                + u32(m["battery_capacity"]) + u32(m["battery_capacity_warning"])
-                + u32(m["battery_capacity_critical"]) + u8(m["battery_capacity_unit"]))
+                + u8(st.get("rssi_channel")) + i16(int(st.get("mag_declination") / 10))
+                + u16(st.get("vbat_scale"))
+                + u8(st.get("bat_voltage_src")) + u8(st.get("bat_cells"))
+                + u16(st.get("vbat_cell_detect_voltage"))
+                + u16(st.get("vbat_min_cell_voltage"))
+                + u16(st.get("vbat_max_cell_voltage"))
+                + u16(st.get("vbat_warning_cell_voltage"))
+                + u32(st.get("battery_capacity")) + u32(st.get("battery_capacity_warning"))
+                + u32(st.get("battery_capacity_critical")) + u8(st.get("battery_capacity_unit")))
 
     def _msp2_inav_set_misc(self, p):
         if len(p) < 41:
@@ -1216,30 +1358,45 @@ class InavFC:
         (cap, capw, capc) = self._take(p, "<III", off)
         off += 12
         unit = p[off] if len(p) > off else 0
+        # как в прошивке (MSP2_INAV_SET_MISC): батарейный блок пишется в базу
+        # настроек, midrc/minthrottle/maxthrottle отбрасываются
+        st = self.store
+        st.set("min_command", min(2000, max(0, mincmd)))
+        st.set("failsafe_throttle", min(2000, max(1000, fsthr)))
+        st.set("rssi_channel", rssi_ch)
+        st.set("mag_declination", magdec * 10)  # провод — десятые градуса
+        st.set("vbat_scale", vbatscale)
+        st.set("bat_voltage_src", vsrc)
+        st.set("bat_cells", cells)
+        st.set("vbat_cell_detect_voltage", vdetect)
+        st.set("vbat_min_cell_voltage", vmin)
+        st.set("vbat_max_cell_voltage", vmax)
+        st.set("vbat_warning_cell_voltage", vwarn)
+        st.set("battery_capacity", cap)
+        st.set("battery_capacity_warning", capw)
+        st.set("battery_capacity_critical", capc)
+        st.set("battery_capacity_unit", unit)
         self.misc.update({
             "midrc": midrc, "minthrottle": minthr, "maxthrottle": maxthr,
-            "mincommand": mincmd, "failsafe_throttle": fsthr,
             "gps_type": gps_type, "sensors_baudrate": sbas_baud,
-            "gps_ubx_sbas": sbas, "rssi_channel": rssi_ch,
-            "mag_declination": magdec, "vbatscale": vbatscale,
-            "voltage_source": vsrc, "battery_cells": cells,
-            "vbatdetectcellvoltage": vdetect / 100, "vbatmincellvoltage": vmin / 100,
-            "vbatmaxcellvoltage": vmax / 100, "vbatwarningcellvoltage": vwarn / 100,
-            "battery_capacity": cap, "battery_capacity_warning": capw,
-            "battery_capacity_critical": capc, "battery_capacity_unit": unit,
+            "gps_ubx_sbas": sbas,
         })
+        self._sync_setting_dicts()
+        self._validate_battery_settings()
         return b""
 
     def _msp2_battery_config(self, _p):
-        b = self.battery_config
-        return (u16(b["vbatscale"]) + u8(b["voltage_source"]) + u8(b["battery_cells"])
-                + u16(int(b["vbatdetectcellvoltage"] * 100))
-                + u16(int(b["vbatmincellvoltage"] * 100))
-                + u16(int(b["vbatmaxcellvoltage"] * 100))
-                + u16(int(b["vbatwarningcellvoltage"] * 100))
-                + u16(b["current_offset"]) + u16(b["current_scale"])
-                + u32(b["capacity"]) + u32(b["capacity_warning"])
-                + u32(b["capacity_critical"]) + u8(b["capacity_unit"]))
+        st = self.store
+        return (u16(st.get("vbat_scale")) + u8(st.get("bat_voltage_src"))
+                + u8(st.get("bat_cells"))
+                + u16(st.get("vbat_cell_detect_voltage"))
+                + u16(st.get("vbat_min_cell_voltage"))
+                + u16(st.get("vbat_max_cell_voltage"))
+                + u16(st.get("vbat_warning_cell_voltage"))
+                + u16(int(st.get("current_meter_offset")) & 0xFFFF)
+                + u16(int(st.get("current_meter_scale")) & 0xFFFF)
+                + u32(st.get("battery_capacity")) + u32(st.get("battery_capacity_warning"))
+                + u32(st.get("battery_capacity_critical")) + u8(st.get("battery_capacity_unit")))
 
     def _msp2_set_battery_config(self, p):
         if len(p) < 29:
@@ -1248,14 +1405,25 @@ class InavFC:
         (vdetect, vmin, vmax, vwarn, coff, cscale) = self._take(p, "<HHHHHH", 4)
         (cap, capw, capc) = self._take(p, "<III", 16)
         unit = p[28] if len(p) > 28 else 0
-        self.battery_config.update({
-            "vbatscale": vscale, "voltage_source": vsrc, "battery_cells": cells,
-            "vbatdetectcellvoltage": vdetect / 100, "vbatmincellvoltage": vmin / 100,
-            "vbatmaxcellvoltage": vmax / 100, "vbatwarningcellvoltage": vwarn / 100,
-            "current_offset": coff, "current_scale": cscale,
-            "capacity": cap, "capacity_warning": capw,
-            "capacity_critical": capc, "capacity_unit": unit,
-        })
+        st = self.store
+        st.set("vbat_scale", vscale)
+        st.set("bat_voltage_src", vsrc)
+        st.set("bat_cells", cells)
+        st.set("vbat_cell_detect_voltage", vdetect)
+        st.set("vbat_min_cell_voltage", vmin)
+        st.set("vbat_max_cell_voltage", vmax)
+        st.set("vbat_warning_cell_voltage", vwarn)
+        # current_meter_* в базе int16, провод — 16 бит two's complement
+        st.set("current_meter_offset",
+               coff if coff < 0x8000 else coff - 0x10000)
+        st.set("current_meter_scale",
+               cscale if cscale < 0x8000 else cscale - 0x10000)
+        st.set("battery_capacity", cap)
+        st.set("battery_capacity_warning", capw)
+        st.set("battery_capacity_critical", capc)
+        st.set("battery_capacity_unit", unit)
+        self._sync_setting_dicts()
+        self._validate_battery_settings()
         return b""
 
     def _msp2_serial_config(self, _p):
@@ -1284,11 +1452,15 @@ class InavFC:
 
     def _msp_rx_config(self, _p):
         r = self.rx_config
-        return (u8(r["serialrx_provider"]) + u16(r["maxcheck"]) + u16(r["midrc"])
-                + u16(r["mincheck"]) + u8(r["spektrum_sat_bind"])
-                + u16(r["rx_min_usec"]) + u16(r["rx_max_usec"]) + b"\x00" * 4
+        st = self.store
+        # PG_RX_CONFIG — из базы настроек; midrc и spirx_* без двойников
+        return (u8(st.get("serialrx_provider")) + u16(st.get("max_check"))
+                + u16(r["midrc"])
+                + u16(st.get("min_check")) + u8(st.get("spektrum_sat_bind"))
+                + u16(st.get("rx_min_usec")) + u16(st.get("rx_max_usec"))
+                + b"\x00" * 4
                 + u8(r["spirx_protocol"]) + u32(r["spirx_id"])
-                + u8(r["spirx_channel_count"]) + u8(0) + u8(r["receiver_type"]))
+                + u8(r["spirx_channel_count"]) + u8(0) + u8(st.get("receiver_type")))
 
     def _msp_set_rx_config(self, p):
         if len(p) < 24:
@@ -1298,13 +1470,19 @@ class InavFC:
         (spirx_proto,) = self._take(p, "<B", 16)
         (spirx_id,) = self._take(p, "<I", 17)
         rx_type = p[23] if len(p) > 23 else 1
+        st = self.store
+        st.set("serialrx_provider", provider)
+        st.set("max_check", maxcheck)
+        st.set("min_check", mincheck)
+        st.set("spektrum_sat_bind", bind)
+        st.set("rx_min_usec", rmin)
+        st.set("rx_max_usec", rmax)
+        st.set("receiver_type", rx_type)
         self.rx_config.update({
-            "serialrx_provider": provider, "maxcheck": maxcheck, "midrc": midrc,
-            "mincheck": mincheck, "spektrum_sat_bind": bind,
-            "rx_min_usec": rmin, "rx_max_usec": rmax,
+            "midrc": midrc,
             "spirx_protocol": spirx_proto, "spirx_id": spirx_id,
-            "receiver_type": rx_type,
         })
+        self._sync_setting_dicts()
         return b""
 
     def _msp_set_rx_map(self, p):
@@ -1312,26 +1490,35 @@ class InavFC:
         return b""
 
     def _msp_rc_deadband(self, _p):
-        d = self.rc_deadband
-        return (u8(d["deadband"]) + u8(d["yaw_deadband"]) + u8(d["alt_hold_deadband"])
-                + u16(d["deadband_throttle"]))
+        st = self.store
+        return (u8(st.get("deadband")) + u8(st.get("yaw_deadband"))
+                + u8(st.get("alt_hold_deadband"))
+                + u16(st.get("3d_deadband_throttle")))
 
     def _msp_set_rc_deadband(self, p):
         if len(p) < 5:
             raise MSPError("RC_DEADBAND: короткий payload")
         (db, ydb, adb, tdb) = self._take(p, "<BBBH")
-        self.rc_deadband.update({"deadband": db, "yaw_deadband": ydb,
-                                 "alt_hold_deadband": adb, "deadband_throttle": tdb})
+        st = self.store
+        st.set("deadband", db)
+        st.set("yaw_deadband", ydb)
+        st.set("alt_hold_deadband", adb)
+        st.set("3d_deadband_throttle", tdb)
+        self._sync_setting_dicts()
         return b""
 
     def _msp2_rate_profile(self, _p):
-        r = self.rate_profile
-        return (u8(r["throttle_mid"]) + u8(r["throttle_expo"]) + u8(r["dyn_pid"])
-                + u16(r["pa_breakpoint"]) + u8(r["rc_expo"]) + u8(r["yaw_expo"])
-                + u8(r["roll_rate"]) + u8(r["pitch_rate"]) + u8(r["yaw_rate"])
-                + u8(r["manual_rc_expo"]) + u8(r["manual_yaw_expo"])
-                + u8(r["manual_roll_rate"]) + u8(r["manual_pitch_rate"])
-                + u8(r["manual_yaw_rate"]))
+        st = self.store
+        m = RATE_PROFILE_SETTING_MAP
+        return (u8(st.get(m["throttle_mid"])) + u8(st.get(m["throttle_expo"]))
+                + u8(st.get(m["dyn_pid"]))
+                + u16(st.get(m["pa_breakpoint"])) + u8(st.get(m["rc_expo"]))
+                + u8(st.get(m["yaw_expo"]))
+                + u8(st.get(m["roll_rate"])) + u8(st.get(m["pitch_rate"]))
+                + u8(st.get(m["yaw_rate"]))
+                + u8(st.get(m["manual_rc_expo"])) + u8(st.get(m["manual_yaw_expo"]))
+                + u8(st.get(m["manual_roll_rate"])) + u8(st.get(m["manual_pitch_rate"]))
+                + u8(st.get(m["manual_yaw_rate"])))
 
     def _msp2_set_rate_profile(self, p):
         if len(p) < 14:
@@ -1341,16 +1528,20 @@ class InavFC:
                 "rc_expo", "yaw_expo", "roll_rate", "pitch_rate", "yaw_rate",
                 "manual_rc_expo", "manual_yaw_expo", "manual_roll_rate",
                 "manual_pitch_rate", "manual_yaw_rate"]
-        self.rate_profile.update(dict(zip(keys, vals)))
+        st = self.store
+        for key, value in zip(keys, vals, strict=False):
+            st.set(RATE_PROFILE_SETTING_MAP[key], value)
+        self._sync_setting_dicts()
         return b""
 
     def _msp_rc_tuning(self, _p):
-        r = self.rate_profile
-        return (u8(100) + u8(r["rc_expo"])
-                + u8(r["roll_rate"] // 10) + u8(r["pitch_rate"] // 10)
-                + u8(r["yaw_rate"] // 10) + u8(r["dyn_pid"])
-                + u8(r["throttle_mid"]) + u8(r["throttle_expo"])
-                + u16(r["pa_breakpoint"]) + u8(r["yaw_expo"]))
+        st = self.store
+        m = RATE_PROFILE_SETTING_MAP
+        return (u8(100) + u8(st.get(m["rc_expo"]))
+                + u8(st.get(m["roll_rate"]) // 10) + u8(st.get(m["pitch_rate"]) // 10)
+                + u8(st.get(m["yaw_rate"]) // 10) + u8(st.get(m["dyn_pid"]))
+                + u8(st.get(m["throttle_mid"])) + u8(st.get(m["throttle_expo"]))
+                + u16(st.get(m["pa_breakpoint"])) + u8(st.get(m["yaw_expo"])))
 
     def _msp_mode_ranges(self, _p):
         out = bytearray()
@@ -1582,7 +1773,7 @@ class InavFC:
         keys = ["axis_ratio", "response", "damping", "stability",
                 "aggressiveness", "rate", "expo", "snappiness"]
         self.ez_tune.update({"enabled": enabled, "filter_hz": filter_hz})
-        self.ez_tune.update(dict(zip(keys, p[3:11])))
+        self.ez_tune.update(dict(zip(keys, p[3:11], strict=False)))
         return b""
 
     def _msp_sensor_config(self, _p):
@@ -1593,7 +1784,7 @@ class InavFC:
     def _msp_set_sensor_config(self, p):
         if len(p) < 6:
             raise MSPError("SENSOR_CONFIG: короткий payload")
-        for key, val in zip(self.sensor_keys, p[:6]):
+        for key, val in zip(self.sensor_keys, p[:6], strict=False):
             self.store.set(key, val)
         return b""
 
@@ -1727,7 +1918,7 @@ class InavFC:
                 "crosshairs_style", "left_sidebar_scroll", "right_sidebar_scroll",
                 "sidebar_scroll_arrows", "units", "stats_energy_unit",
                 "adsb_warning_style"]
-        self.osd_preferences.update(dict(zip(keys, p[:10])))
+        self.osd_preferences.update(dict(zip(keys, p[:10], strict=False)))
         return b""
 
     def _msp2_custom_osd_elements(self, _p):
@@ -2157,7 +2348,7 @@ class InavFC:
                 "land_slowdown_maxalt", "emerg_descent_rate"]
         sizes = [2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]
         off = 0
-        for key, size in zip(keys, sizes):
+        for key, size in zip(keys, sizes, strict=False):
             raw = p[off:off + size]
             self.rth_land[key] = int.from_bytes(raw, "little")
             off += size
@@ -2366,6 +2557,24 @@ class InavFC:
                 out += u16(pg) + u16(lo) + u16(hi)
         return out
 
+    def set_rc_channels(self, values):
+        """Каналы RC от веб-«пульта» (слайдеры/кнопки или Gamepad-аппаратура).
+
+        Значения попадают в rc_channels — их же отдаёт MSP_RC и пишет
+        MSP_SET_RAW_RC: вкладка Receiver в Configurator видит их как
+        движение стиков.
+        """
+        values = list(values)
+        if not 1 <= len(values) <= 16:
+            raise MSPError("RC: ожидается 1..16 каналов")
+        for i, v in enumerate(values):
+            if isinstance(v, bool) or not isinstance(v, int):
+                raise MSPError(f"RC: канал {i + 1}: ожидается целое число")
+            if not 300 <= v <= 2300:
+                raise MSPError(f"RC: канал {i + 1}: {v} вне диапазона 300..2300")
+        self.rc_channels[:len(values)] = values
+        return len(values)
+
     def _msp_set_raw_rc(self, p):
         if len(p) == 0 or len(p) % 2 or len(p) > 36:
             raise MSPError("SET_RAW_RC: 1..18 каналов по u16")
@@ -2389,15 +2598,17 @@ class InavFC:
     def _msp_set_rc_tuning(self, p):
         if len(p) not in (10, 11):
             raise MSPError("SET_RC_TUNING: ожидается 10 или 11 байт")
-        r = self.rate_profile
-        r["rc_expo"] = p[1]
-        r["roll_rate"] = p[2] * 10
-        r["pitch_rate"] = p[3] * 10
-        r["yaw_rate"] = p[4] * 10
-        r["dyn_pid"] = p[5]
-        r["throttle_mid"] = p[6]
-        r["throttle_expo"] = p[7]
-        r["pa_breakpoint"] = int.from_bytes(p[8:10], "little")
+        st = self.store
+        m = RATE_PROFILE_SETTING_MAP
+        st.set(m["rc_expo"], p[1])
+        st.set(m["roll_rate"], p[2] * 10)
+        st.set(m["pitch_rate"], p[3] * 10)
+        st.set(m["yaw_rate"], p[4] * 10)
+        st.set(m["dyn_pid"], p[5])
+        st.set(m["throttle_mid"], p[6])
+        st.set(m["throttle_expo"], p[7])
+        st.set(m["pa_breakpoint"], int.from_bytes(p[8:10], "little"))
         if len(p) == 11:
-            r["yaw_expo"] = p[10]
+            st.set(m["yaw_expo"], p[10])
+        self._sync_setting_dicts()
         return b""

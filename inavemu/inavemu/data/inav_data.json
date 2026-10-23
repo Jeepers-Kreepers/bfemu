@@ -1550,7 +1550,7 @@
    "mode": 0,
    "min": 0,
    "max": 65535,
-   "default": 0
+   "default": 1100
   },
   {
    "name": "battery_capacity_unit",
@@ -1576,7 +1576,7 @@
    "mode": 0,
    "min": -10000,
    "max": 10000,
-   "default": 0
+   "default": 400
   },
   {
    "name": "current_meter_offset",
