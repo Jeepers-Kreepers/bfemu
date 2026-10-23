@@ -150,5 +150,6 @@ def test_rc_page_renders(web):
 
 def test_rc_page_has_no_cdn(web):
     code, body = _get(web + "/rc")
+    assert code == 200
     for token in ("http://", "https://", "cdn", "googleapis"):
         assert token not in body, f"внешний ресурс: {token}"

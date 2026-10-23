@@ -16,8 +16,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from inavemu import msp  # noqa: E402
-from inavemu.fc import *  # noqa: E402,F403
+from inavemu import msp
+from inavemu.fc import (  # имена кодов MSP для демо-сессии
+    MSP2_CF_SERIAL_CONFIG,
+    MSP2_COMMON_SETTING,
+    MSP2_COMMON_SETTING_INFO,
+    MSP2_INAV_ANALOG,
+    MSP2_INAV_MISC,
+    MSP2_INAV_STATUS,
+    MSP_ATTITUDE,
+    MSP_API_VERSION,
+    MSP_BOARD_INFO,
+    MSP_BOXIDS,
+    MSP_BUILD_INFO,
+    MSP_FC_VARIANT,
+    MSP_FC_VERSION,
+    MSP_NAME,
+    MSP_RC,
+    MSP_UID,
+)
 
 
 def main():
@@ -40,7 +57,7 @@ def main():
                     return frame.payload
             try:
                 data = sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             if not data:
                 break

@@ -797,7 +797,7 @@ class InavFC:
                     # старый формат eeprom: батарейный блок жил в словарях
                     self._legacy_dicts_to_settings()
                 self._sync_setting_dicts()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._log(f"eeprom: не удалось загрузить ({exc})")
 
     def save_eeprom(self):
@@ -1090,7 +1090,7 @@ class InavFC:
 
     def _msp_fc_version(self, _p):
         parts = self.fc_version.split(".")
-        nums = [int(x) for x in (parts + ["0", "0", "0"])[:3]]
+        nums = [int(x) for x in ([*parts, "0", "0", "0"])[:3]]
         return bytes(nums)
 
     def _msp_board_info(self, _p):
@@ -1529,7 +1529,7 @@ class InavFC:
                 "manual_rc_expo", "manual_yaw_expo", "manual_roll_rate",
                 "manual_pitch_rate", "manual_yaw_rate"]
         st = self.store
-        for key, value in zip(keys, vals):
+        for key, value in zip(keys, vals, strict=False):
             st.set(RATE_PROFILE_SETTING_MAP[key], value)
         self._sync_setting_dicts()
         return b""
@@ -1773,7 +1773,7 @@ class InavFC:
         keys = ["axis_ratio", "response", "damping", "stability",
                 "aggressiveness", "rate", "expo", "snappiness"]
         self.ez_tune.update({"enabled": enabled, "filter_hz": filter_hz})
-        self.ez_tune.update(dict(zip(keys, p[3:11])))
+        self.ez_tune.update(dict(zip(keys, p[3:11], strict=False)))
         return b""
 
     def _msp_sensor_config(self, _p):
@@ -1784,7 +1784,7 @@ class InavFC:
     def _msp_set_sensor_config(self, p):
         if len(p) < 6:
             raise MSPError("SENSOR_CONFIG: короткий payload")
-        for key, val in zip(self.sensor_keys, p[:6]):
+        for key, val in zip(self.sensor_keys, p[:6], strict=False):
             self.store.set(key, val)
         return b""
 
@@ -1918,7 +1918,7 @@ class InavFC:
                 "crosshairs_style", "left_sidebar_scroll", "right_sidebar_scroll",
                 "sidebar_scroll_arrows", "units", "stats_energy_unit",
                 "adsb_warning_style"]
-        self.osd_preferences.update(dict(zip(keys, p[:10])))
+        self.osd_preferences.update(dict(zip(keys, p[:10], strict=False)))
         return b""
 
     def _msp2_custom_osd_elements(self, _p):
@@ -2348,7 +2348,7 @@ class InavFC:
                 "land_slowdown_maxalt", "emerg_descent_rate"]
         sizes = [2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]
         off = 0
-        for key, size in zip(keys, sizes):
+        for key, size in zip(keys, sizes, strict=False):
             raw = p[off:off + size]
             self.rth_land[key] = int.from_bytes(raw, "little")
             off += size

@@ -340,7 +340,7 @@ def resolve_const(name, consts, stack=()):
     for sub in set(re.findall(r"\b[A-Za-z_]\w*\b", expr)):
         if sub in ("u", "U", "L", "f", "F"):
             continue
-        v = resolve_const(sub, consts, stack + (name,))
+        v = resolve_const(sub, consts, (*stack, name))
         if v is None:
             return None
         py = re.sub(rf"\b{sub}\b", str(v), py)
@@ -501,7 +501,6 @@ def build_settings(repo: Path, cfg: dict, consts: dict):
                 cond_defines.add(str(mem["condition"]))
     for group in cfg.get("groups") or []:
         group_type = group.get("type")
-        headers = group.get("headers") or []
         pg_name = group.get("name")
         pg_id = resolve_const(pg_name, consts)
         section = group.get("value_type") or "MASTER_VALUE"

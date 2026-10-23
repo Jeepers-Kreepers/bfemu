@@ -28,7 +28,7 @@ def test_setting_info_layout():
     # name + NUL
     assert info.startswith(b"gyro_filter_mode\x00")
     off = 17
-    pg = struct.unpack_from("<H", info, off)[0]
+    _pg = struct.unpack_from("<H", info, off)[0]
     off += 2
     typ, section, mode = info[off], info[off + 1], info[off + 2]
     off += 3
@@ -37,7 +37,7 @@ def test_setting_info_layout():
     off += 8
     idx = struct.unpack_from("<H", info, off)[0]
     off += 2
-    prof_cur, prof_cnt = info[off], info[off + 1]
+    _prof_cur, _prof_cnt = info[off], info[off + 1]
     off += 2
     assert mode == MODE_LOOKUP
     assert (mn, mx) == (0, len(s["values"]) - 1)

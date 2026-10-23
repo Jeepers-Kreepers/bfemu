@@ -376,8 +376,6 @@ class CliSession:
                     continue
                 if showdefaults and not equals_default:
                     default = s.get("default", 0)
-                    shown = dict(s)
-                    shown_val = default
                     if s.get("mode") == MODE_LOOKUP:
                         values = s.get("values") or []
                         shown_text = values[default] if 0 <= default < len(values) else str(default)
@@ -514,7 +512,7 @@ class CliSession:
                         if len(parts) >= 2:
                             port["functions"] = int(parts[1])
                         keys = ("msp", "sensors", "telemetry", "peripherals")
-                        for key, text in zip(keys, parts[2:6]):
+                        for key, text in zip(keys, parts[2:6], strict=False):
                             try:
                                 want = int(text)
                             except ValueError:

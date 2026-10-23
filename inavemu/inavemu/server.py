@@ -46,7 +46,7 @@ class FCServer:
         while not self._stop.is_set():
             try:
                 conn, addr = self._sock.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break
@@ -87,7 +87,7 @@ class FCServer:
             while not self._stop.is_set():
                 try:
                     data = conn.recv(4096)
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 if not data:
                     break
@@ -154,7 +154,7 @@ class FCServer:
             if req.code not in self._POLL_CODES:
                 print(f"[MSP] 0x{req.code:04X} -> ошибка: {exc}", flush=True)
             return msp.encode(req, b"", error=True)
-        except Exception as exc:  # noqa: BLE001 — не ронять линк из-за бага обработчика
+        except Exception as exc:
             self.fc._log(f"MSP 0x{req.code:04X}: внутренняя ошибка {exc!r}")
             print(f"[MSP] 0x{req.code:04X} -> ВНУТРЕННЯЯ ОШИБКА {exc!r}", flush=True)
             return msp.encode(req, b"", error=True)
@@ -269,7 +269,7 @@ def make_http_handler(server: FCServer):
                         else:
                             server.fc.set_servos_connected(val)
                     except MSPError as exc:
-                        raise ValueError(str(exc))
+                        raise ValueError(str(exc)) from exc
             except (ValueError, json.JSONDecodeError) as exc:
                 self._send_json({"error": str(exc)}, 400)
                 return
@@ -300,7 +300,7 @@ def make_http_handler(server: FCServer):
                 try:
                     server.fc.set_rc_channels(vals)
                 except MSPError as exc:
-                    raise ValueError(str(exc))
+                    raise ValueError(str(exc)) from exc
             except (ValueError, json.JSONDecodeError) as exc:
                 self._send_json({"error": str(exc)}, 400)
                 return
