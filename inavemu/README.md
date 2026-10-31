@@ -32,7 +32,7 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 | Failsafe | `MSP_FAILSAFE_CONFIG` / `MSP_SET_FAILSAFE_CONFIG` (20 байт) — вкладка Failsafe |
 | Программирование | `MSP2_INAV_LOGIC_CONDITIONS_SINGLE`/`SET` (64 условия + маска `CONFIGURED`), `MSP2_INAV_LOGIC_CONDITIONS_STATUS`, `MSP2_INAV_GVAR_STATUS`, `MSP2_INAV_PROGRAMMING_PID` (+SET/STATUS) — вкладки Programming |
 | Blackbox | `MSP2_BLACKBOX_CONFIG` / `MSP2_SET_BLACKBOX_CONFIG` (9 байт), `MSP_DATAFLASH_SUMMARY`/`READ`/`ERASE`, `MSP_SDCARD_SUMMARY` — вкладка Onboard Logging (Blackbox) |
-| Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c` |
+| Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c`; слоты `aux`/`adjrange` (40 + 20) с `MSP_MODE_RANGES`/`MSP_ADJUSTMENT_RANGES` — вкладки Modes и Adjustments |
 | CLI | «сырой» CLI-порт (`#`, эхо, приглашение `# `, TAB-автодополнение, CTRL-D/CTRL-L): **62 команды `cmdTable[]` прошивки** — `help`, `version`, `status`, `tasks`, `get`, `set`, `dump`, `diff`, `defaults`, `save`, `exit`, `feature`, `serial`, `aux`, `adjrange`, `map`, `mmix`, `smix`, `servo`, `motor`, `pid`, `wp`, `resource`, `batch`…; `save`/`exit`/`defaults` печатают «Rebooting» и рвут линк |
 | «Флеш» | `MSP_EEPROM_WRITE` и CLI `save` пишут конфигурацию в `inav_eeprom.json`; после перезагрузки (`MSP_SET_REBOOT` — линк рвётся) она поднимается обратно |
 
@@ -60,6 +60,16 @@ CLI (`get`). То же для `vbat_scale`, `bat_cells`, `vbat_cell_*_voltage`,
 `thr_mid`/`thr_expo`, `rc_expo`, `tpa_rate`/`tpa_breakpoint`, rates):
 `set rssi_channel = 5` переключает RSSI channel, `set deadband` — поле
 Deadband, Save вкладки меняет значения CLI.
+
+Команды `aux` и `adjrange` (как printAux()/cliAux()/printAdjustmentRange()/
+cliAdjustmentRange() в `cli.c`) печатают **все** слоты — 40 режимов и 20
+корректировок, пустые включая (`aux 3 0 0 900 900`, `adjrange 3 0 0 900 900 0 0`),
+диапазоны в микросекундах с сеткой 25 мкс. Слот режима хранит permanentId
+(`aux 1 2 1 1300 1700` — HORIZON на AUX1), слот корректировки — `adjustmentIndex`;
+те же слоты уходят в `MSP_MODE_RANGES`/`MSP_ADJUSTMENT_RANGES`, поэтому вкладки
+Modes и Adjustments показывают ровно то, что настроено в CLI. Неполные аргументы
+обнуляют слот (как в прошивке), `dump` печатает секции `# aux` и `# adjrange`,
+`diff` — только настроенные.
 
 ## Куда смотреть
 
