@@ -200,9 +200,10 @@ def main():
         check(len(mr) == 160, f"MSP_MODE_RANGES: {len(mr)} байт")
         ar = c.request(MSP_ADJUSTMENT_RANGES).payload
         check(len(ar) == 120, f"MSP_ADJUSTMENT_RANGES: {len(ar)} байт")
-        c.request(MSP_SET_MODE_RANGE, bytes([0, 2, 10, 20]))
+        c.request(MSP_SET_MODE_RANGE, bytes([0, 2, 10, 20, 30]))
         mr2 = c.request(MSP_MODE_RANGES).payload
-        check(mr2[1] == 2 and mr2[2] == 10 and mr2[3] == 20, "SET_MODE_RANGE")
+        check(mr2[0] == 2 and mr2[1] == 10 and mr2[2] == 20 and mr2[3] == 30,
+              "SET_MODE_RANGE")
 
         # --- Sensors ---
         check(len(c.request(MSP_RAW_IMU).payload) == 18, "MSP_RAW_IMU")

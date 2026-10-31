@@ -205,6 +205,9 @@ MAX_MIXER_PROFILE_COUNT = 2
 
 MODE_ACTIVATION_CONDITION_COUNT = 40  # rc_modes.h
 ADJUSTMENT_RANGE_COUNT = 20           # rc_adjustments.h
+MAX_SIMULTANEOUS_ADJUSTMENT_COUNT = 4  # rc_adjustments.h
+MAX_AUX_CHANNEL_COUNT = 30             # rx.h: 34 − 4
+ADJUSTMENT_FUNCTION_COUNT = 61         # rc_adjustments.h: функции 0..60
 
 # Чем «оснащён» виртуальный стенд (enum'ы сенсоров INAV, sensors/*.h):
 # при *_hardware == AUTODETECT прошивка выписывает найденный чип — это наши «чипы».
@@ -576,13 +579,15 @@ class InavFC:
         ]
         self.output_mapping[-1] = (8, 1 << 24, 1)     # LED-выход
 
-        # режимы (mode ranges / adjustment ranges)
+        # режимы (mode ranges / adjustment ranges) — как modeActivationConditions[]
+        # и adjustmentRanges[] в прошивке: пустой слот — 900/900
         self.mode_ranges = [
-            {"id": i, "aux": 0, "start": 900, "end": 900}
+            {"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
             for i in range(MODE_ACTIVATION_CONDITION_COUNT)
         ]
         self.adjustment_ranges = [
-            {"slot": i, "aux": 0, "start": 900, "end": 900, "function": 0, "switch": 0}
+            {"slot": i, "adjustmentIndex": 0, "aux": 0, "start": 900,
+             "end": 900, "function": 0, "switch": 0}
             for i in range(ADJUSTMENT_RANGE_COUNT)
         ]
 
@@ -734,8 +739,10 @@ class InavFC:
                 self.vtx_config.update(data.get("vtx_config", {}))
                 self.rate_profile.update(data.get("rate_profile", {}))
                 self.mixer.update(data.get("mixer", {}))
-                self.mode_ranges = data.get("mode_ranges", self.mode_ranges)
-                self.adjustment_ranges = data.get("adjustment_ranges", self.adjustment_ranges)
+                self.mode_ranges = self._merge_slots(
+                    self.mode_ranges, data.get("mode_ranges"))
+                self.adjustment_ranges = self._merge_slots(
+                    self.adjustment_ranges, data.get("adjustment_ranges"))
                 self.waypoints = data.get("waypoints", self.waypoints)
                 self.waypoint_list_valid = data.get("waypoint_list_valid",
                                                     self.waypoint_list_valid)
@@ -1543,21 +1550,29 @@ class InavFC:
                 + u8(st.get(m["throttle_mid"])) + u8(st.get(m["throttle_expo"]))
                 + u16(st.get(m["pa_breakpoint"])) + u8(st.get(m["yaw_expo"])))
 
+    def box_permanent_ids(self):
+        """Набор permanentId режимов — findBoxByPermanentId() для aux/MSP_SET_MODE_RANGE."""
+        return {b["permanent_id"] for b in self.store.boxes}
+
     def _msp_mode_ranges(self, _p):
         out = bytearray()
         for mr in self.mode_ranges:
             start = max(0, min(255, (mr["start"] - 900) // 25))
             end = max(0, min(255, (mr["end"] - 900) // 25))
-            out += u8(mr["id"]) + u8(mr["aux"]) + u8(start) + u8(end)
+            out += u8(mr["mode"]) + u8(mr["aux"]) + u8(start) + u8(end)
         return bytes(out)
 
     def _msp_set_mode_range(self, p):
-        if len(p) < 4:
-            raise MSPError("SET_MODE_RANGE: короткий payload")
-        idx, aux, start, end = p[0], p[1], p[2], p[3]
-        if idx < len(self.mode_ranges):
-            self.mode_ranges[idx].update({
-                "aux": aux, "start": 900 + start * 25, "end": 900 + end * 25})
+        if len(p) != 5:
+            raise MSPError("SET_MODE_RANGE: 5 байт")
+        idx, mode, aux, start, end = p
+        if idx >= len(self.mode_ranges):
+            raise MSPError("SET_MODE_RANGE: индекс вне диапазона")
+        if mode not in self.box_permanent_ids():
+            raise MSPError("SET_MODE_RANGE: неизвестный permanentId")
+        self.mode_ranges[idx].update({
+            "mode": mode, "aux": aux,
+            "start": 900 + start * 25, "end": 900 + end * 25})
         return b""
 
     def _msp_adjustment_ranges(self, _p):
@@ -1565,18 +1580,22 @@ class InavFC:
         for ar in self.adjustment_ranges:
             start = max(0, min(255, (ar["start"] - 900) // 25))
             end = max(0, min(255, (ar["end"] - 900) // 25))
-            out += (u8(ar["slot"]) + u8(ar["aux"]) + u8(start) + u8(end)
+            out += (u8(ar["adjustmentIndex"]) + u8(ar["aux"]) + u8(start) + u8(end)
                     + u8(ar["function"]) + u8(ar["switch"]))
         return bytes(out)
 
     def _msp_set_adjustment_range(self, p):
-        if len(p) < 6:
-            raise MSPError("SET_ADJUSTMENT_RANGE: короткий payload")
-        slot = p[0]
-        if slot < len(self.adjustment_ranges):
-            self.adjustment_ranges[slot].update({
-                "aux": p[1], "start": 900 + p[2] * 25, "end": 900 + p[3] * 25,
-                "function": p[4], "switch": p[5]})
+        if len(p) != 7:
+            raise MSPError("SET_ADJUSTMENT_RANGE: 7 байт")
+        idx = p[0]
+        if idx >= len(self.adjustment_ranges):
+            raise MSPError("SET_ADJUSTMENT_RANGE: индекс вне диапазона")
+        if p[1] >= MAX_SIMULTANEOUS_ADJUSTMENT_COUNT:
+            raise MSPError("SET_ADJUSTMENT_RANGE: adjustmentIndex 0..3")
+        self.adjustment_ranges[idx].update({
+            "adjustmentIndex": p[1], "aux": p[2],
+            "start": 900 + p[3] * 25, "end": 900 + p[4] * 25,
+            "function": p[5], "switch": p[6]})
         return b""
 
     def _msp_sensor_alignment(self, _p):
@@ -2555,6 +2574,22 @@ class InavFC:
             if first <= pg <= last:
                 lo, hi = groups[pg]
                 out += u16(pg) + u16(lo) + u16(hi)
+        return out
+
+    @staticmethod
+    def _merge_slots(defaults, loaded):
+        """Слоты из «флеша»: дополняем старые записи новыми полями (mode, adjustmentIndex).
+
+        Старый eeprom знал слоты без них — такие записи не должны ломать загрузку.
+        """
+        if not isinstance(loaded, list):
+            return defaults
+        out = []
+        for i, base in enumerate(defaults):
+            slot = dict(base)
+            if i < len(loaded) and isinstance(loaded[i], dict):
+                slot.update({k: v for k, v in loaded[i].items() if k in slot})
+            out.append(slot)
         return out
 
     def set_rc_channels(self, values):

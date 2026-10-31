@@ -255,9 +255,11 @@ def test_set_feature_and_save(fc, tmp_path):
 
 
 def test_set_mode_range(fc):
-    ask(fc, MSP_SET_MODE_RANGE, bytes([3, 1, 40, 80]))
+    # MSP_SET_MODE_RANGE: 5 байт — idx, permanentId, aux, startStep, endStep
+    ask(fc, MSP_SET_MODE_RANGE, bytes([3, 1, 7, 40, 80]))
     mr = fc.mode_ranges[3]
-    assert mr["aux"] == 1
+    assert mr["mode"] == 1
+    assert mr["aux"] == 7
     assert mr["start"] == 900 + 40 * 25
     assert mr["end"] == 900 + 80 * 25
 
