@@ -738,9 +738,8 @@ class InavFC:
                 self.vtx_config.update(data.get("vtx_config", {}))
                 self.rate_profile.update(data.get("rate_profile", {}))
                 self.mixer.update(data.get("mixer", {}))
-                self.mode_ranges = self._merge_slots(
-                    self.mode_ranges,
-                    self._legacy_slots(data.get("mode_ranges")))
+                self.mode_ranges = self._slots_with_stock(
+                    data.get("mode_ranges"))
                 self.adjustment_ranges = self._merge_slots(
                     self.adjustment_ranges, data.get("adjustment_ranges"))
                 self.waypoints = data.get("waypoints", self.waypoints)
@@ -2603,20 +2602,27 @@ class InavFC:
         return slots
 
     @staticmethod
-    def _legacy_slots(loaded):
-        """Старый «флеш» (слоты без поля mode): пустые слоты заменяет сток.
+    def _slots_with_stock(loaded):
+        """Слоты режимов: сток + настроенные слоты пользователя из «флеша».
 
-        Их никто не настраивал — вкладка Modes должна показать стоковую
-        конфигурацию, а не пустоту; настройки юзера сохраняются. Новый «флеш»
-        (с полем mode) честно хранит и очищенные слоты.
+        Пустые слоты из «флеша» не воспроизводятся: стенд всегда оснащён
+        (как с оборудованием), вкладка Modes никогда не показывает пустую
+        таблицу. Сохраняются только настроенные слоты (start < end) —
+        неважно, в каком формате их записали старые версии.
         """
-        if not isinstance(loaded, list) or not loaded:
-            return loaded
-        items = [i for i in loaded if isinstance(i, dict)]
-        if not items or any("mode" in i for i in items):
-            return loaded
-        return [i if i.get("start", 900) != i.get("end", 900) else None
-                for i in loaded]
+        slots = InavFC._stock_mode_ranges()
+        if not isinstance(loaded, list):
+            return slots
+        for i, item in enumerate(loaded):
+            if i >= len(slots):
+                break
+            if not isinstance(item, dict):
+                continue
+            if item.get("start", 900) < item.get("end", 900):
+                slot = dict(slots[i])
+                slot.update({k: v for k, v in item.items() if k in slot})
+                slots[i] = slot
+        return slots
 
     @staticmethod
     def _merge_slots(defaults, loaded):

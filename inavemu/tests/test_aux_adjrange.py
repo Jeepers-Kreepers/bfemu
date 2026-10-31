@@ -247,13 +247,28 @@ def test_old_eeprom_configured_slots_kept(tmp_path):
     assert fc2.mode_ranges[0]["start"] == 1700, "остальные слоты — сток"
 
 
-def test_new_eeprom_cleared_slots_preserved(tmp_path):
+def test_new_eeprom_all_empty_keeps_stock(tmp_path):
     path = tmp_path / "eeprom.json"
     saved = [{"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
              for i in range(40)]
     path.write_text(json.dumps({"mode_ranges": saved}))
     fc2 = InavFC(eeprom_path=path)
-    assert fc2.mode_ranges[0]["start"] == 900, "юзер очистил слоты — так и остаётся"
+    assert fc2.mode_ranges[0]["start"] == 1700, \
+        "пустые слоты не воспроизводятся — стенд оснащён стоком"
+    assert fc2.mode_ranges[4]["mode"] == 10
+
+
+def test_new_eeprom_user_slot_wins_over_stock(tmp_path):
+    path = tmp_path / "eeprom.json"
+    saved = [{"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
+             for i in range(40)]
+    saved[2] = {"id": 2, "mode": 5, "aux": 3, "start": 1100, "end": 1600}
+    path.write_text(json.dumps({"mode_ranges": saved}))
+    fc2 = InavFC(eeprom_path=path)
+    assert (fc2.mode_ranges[2]["mode"], fc2.mode_ranges[2]["aux"],
+            fc2.mode_ranges[2]["start"], fc2.mode_ranges[2]["end"]) == \
+        (5, 3, 1100, 1600), "настроенный слот юзера сохраняется"
+    assert fc2.mode_ranges[0]["start"] == 1700, "остальные слоты — сток"
 
 
 def test_old_eeprom_slots_load(tmp_path):
