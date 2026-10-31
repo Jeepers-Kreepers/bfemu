@@ -18,13 +18,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from inavemu import msp  # noqa: E402
-from inavemu.fc import (  # noqa: E402
+from inavemu import msp
+from inavemu.fc import (
     MSP2_CF_SERIAL_CONFIG, MSP2_COMMON_SET_SETTING, MSP2_COMMON_SETTING,
     MSP2_COMMON_SETTING_INFO,
     MSP2_INAV_ANALOG, MSP2_INAV_BATTERY_CONFIG, MSP2_INAV_DEBUG, MSP2_INAV_MISC,
-    MSP2_INAV_MIXER, MSP2_INAV_RATE_PROFILE, MSP2_INAV_SET_MISC,
-    MSP2_INAV_TEMPERATURES, MSP2_INAV_AIR_SPEED, MSP2_INAV_STATUS,
+    MSP2_INAV_MIXER, MSP2_INAV_RATE_PROFILE, MSP2_INAV_TEMPERATURES, MSP2_INAV_AIR_SPEED, MSP2_INAV_STATUS,
     MSP_ACTIVEBOXES, MSP_ADJUSTMENT_RANGES, MSP_ADVANCED_CONFIG,
     MSP_API_VERSION, MSP_BOARD_ALIGNMENT, MSP_BOARD_INFO, MSP_BOXIDS,
     MSP_BUILD_INFO, MSP_CURRENT_METER_CONFIG, MSP_DATAFLASH_SUMMARY,
@@ -34,15 +33,15 @@ from inavemu.fc import (  # noqa: E402
     MSP_SET_REBOOT, MSP_SET_RX_MAP, MSP_SET_WP, MSP_SONAR, MSP_ALTITUDE,
     MSP_ATTITUDE,
     MSP_RAW_IMU, MSP_UID, MSP_VTX_CONFIG,
-    MSP_WP, MSP_WP_GETINFO, MSP_WP_MISSION_SAVE,
+    MSP_WP_MISSION_SAVE,
     MSP2_BLACKBOX_CONFIG, MSP2_INAV_GEOZONE_VERTEX, MSP2_INAV_LOGIC_CONDITIONS_SINGLE,
     MSP2_INAV_SAFEHOME, MSP2_INAV_SET_GEOZONE, MSP2_INAV_SET_GEOZONE_VERTICE,
     MSP2_INAV_SET_LOGIC_CONDITIONS, MSP2_INAV_SET_SAFEHOME,
     MSP2_SET_BLACKBOX_CONFIG,
     OSD_ITEM_COUNT, OSD_LAYOUT_COUNT,
 )
-from inavemu.fc import InavFC  # noqa: E402
-from inavemu.server import FCServer  # noqa: E402
+from inavemu.fc import InavFC
+from inavemu.server import FCServer
 
 CHECKS = 0
 FAILS = []
@@ -75,7 +74,7 @@ class Client:
                     return frame
             try:
                 data = self.sock.recv(65536)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             if not data:
                 break
@@ -99,7 +98,7 @@ def _recv_until(client: Client, marker: bytes, timeout: float = 5.0) -> bytes:
             return bytes(buf)
         try:
             data = client.sock.recv(65536)
-        except socket.timeout:
+        except TimeoutError:
             continue
         if not data:
             break
@@ -201,9 +200,10 @@ def main():
         check(len(mr) == 160, f"MSP_MODE_RANGES: {len(mr)} байт")
         ar = c.request(MSP_ADJUSTMENT_RANGES).payload
         check(len(ar) == 120, f"MSP_ADJUSTMENT_RANGES: {len(ar)} байт")
-        c.request(MSP_SET_MODE_RANGE, bytes([0, 2, 10, 20]))
+        c.request(MSP_SET_MODE_RANGE, bytes([0, 2, 10, 20, 30]))
         mr2 = c.request(MSP_MODE_RANGES).payload
-        check(mr2[1] == 2 and mr2[2] == 10 and mr2[3] == 20, "SET_MODE_RANGE")
+        check(mr2[0] == 2 and mr2[1] == 10 and mr2[2] == 20 and mr2[3] == 30,
+              "SET_MODE_RANGE")
 
         # --- Sensors ---
         check(len(c.request(MSP_RAW_IMU).payload) == 18, "MSP_RAW_IMU")

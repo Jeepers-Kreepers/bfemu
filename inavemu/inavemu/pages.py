@@ -90,7 +90,7 @@ NAV_STYLE = """
 
 def nav_html(active: str, tcp: str = "", http_port: int = 0) -> str:
     items = (("monitor", "/", "Монитор"), ("equipment", "/equipment", "Оборудование"),
-             ("outputs", "/outputs", "Моторы и сервы"))
+             ("outputs", "/outputs", "Моторы и сервы"), ("rc", "/rc", "Пульт"))
     links = "".join(
         f'<a href="{href}" class="{"on" if key == active else ""}">{label}</a>'
         for key, href, label in items
@@ -387,4 +387,285 @@ def outputs_page(nav: str, style: str) -> str:
  <div class="chips">{servo_chips}</div>
 </div>
 {_OUT_JS}
+</body></html>"""
+
+
+# ======================== пульт: каналы RC + Gamepad ========================
+
+_RC_STYLE = """
+ .rcrow{display:flex;align-items:center;gap:12px;margin:8px 0 4px;flex-wrap:wrap}
+ .rcrow .lbl{color:#8b949e;font-size:13px;min-width:126px}
+ .rcrow input[type=range]{flex:1;min-width:160px;accent-color:#1f6feb}
+ .rcrow input[type=number]{width:80px;background:#21262d;color:#e6edf3;
+  border:1px solid #30363d;border-radius:7px;padding:6px 8px;font-size:14px}
+ .maprow select{background:#21262d;color:#e6edf3;border:1px solid #30363d;
+  border-radius:7px;padding:5px 8px;font-size:13px;min-width:168px}
+ .maprow label{color:#8b949e;font-size:12.5px}
+ .maprow .chip{min-width:58px}
+"""
+
+_RC_JS = """
+<script>
+const $ = (id) => document.getElementById(id);
+const CH = 8, VMIN = 875, VMAX = 2125;
+const clamp = (v) => Math.max(VMIN, Math.min(VMAX, v));
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                            .replace(/"/g, '&quot;');
+let channels = new Array(16).fill(1500);
+channels[2] = 1000;
+let map = Array.from({length: CH}, () => ({src: '', inv: false}));
+let gpOn = false, gpSel = -1, sendT = null, lastKey = '';
+
+function saveMap(){
+  try { localStorage.setItem('inavemu_rc_map',
+        JSON.stringify({map: map, gpOn: gpOn, gpSel: gpSel})); } catch (e) {}
+}
+(function loadMap(){
+  try {
+    const s = JSON.parse(localStorage.getItem('inavemu_rc_map') || 'null');
+    if (s && Array.isArray(s.map)){
+      map = s.map; gpOn = !!s.gpOn; gpSel = (s.gpSel == null ? -1 : s.gpSel);
+    }
+  } catch (e) {}
+})();
+
+function render(){
+  for (let i = 0; i < CH; i++){
+    const v = Math.round(channels[i]);
+    const sl = $('sl' + i), nu = $('num' + i), gv = $('gpv' + i);
+    if (document.activeElement !== sl) sl.value = v;
+    if (document.activeElement !== nu) nu.value = v;
+    if (gv) gv.textContent = v;
+    $('row' + i).querySelectorAll('.quick button').forEach((b) => {
+      b.classList.toggle('on', +b.dataset.v === v);
+    });
+  }
+}
+
+function doSend(){
+  const body = channels.slice(0, CH).map((v) => Math.round(v));
+  const key = body.join(',');
+  if (key === lastKey) return;
+  lastKey = key;
+  fetch('/api/rc', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({channels: body}),
+  }).then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+    .catch(() => { lastKey = ''; });
+}
+function send(){
+  if (sendT) return;
+  sendT = setTimeout(() => { sendT = null; doSend(); }, 45);
+}
+function setCh(i, v){
+  if (!isFinite(v)) return;
+  channels[i] = clamp(Math.round(v));
+  render(); send();
+}
+
+for (let i = 0; i < CH; i++){
+  $('sl' + i).addEventListener('input', (e) => setCh(i, +e.target.value));
+  $('num' + i).addEventListener('input', (e) => setCh(i, +e.target.value));
+}
+$('rcrows').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-v]');
+  if (b) setCh(+b.dataset.ch, +b.dataset.v);
+});
+$('rc_neutral').addEventListener('click', () => {
+  for (let i = 0; i < CH; i++) channels[i] = 1500;
+  channels[2] = 1000;
+  render(); send();
+});
+
+// ------------------------------ Gamepad ------------------------------
+function mapValue(pad, m){
+  const s = m.src || '';
+  if (!s) return null;
+  const k = s.charAt(0), n = +s.slice(1);
+  if (k === 'a'){
+    const a = pad.axes[n];
+    if (typeof a !== 'number' || !isFinite(a)) return null;
+    return clamp(Math.round(1500 + (m.inv ? -1 : 1) * a * 500));
+  }
+  const btn = (j) => !!(pad.buttons[j] && pad.buttons[j].pressed);
+  if (k === 'b') return btn(n) ? 2000 : 1000;
+  if (k === 't') return btn(n + 1) ? 2000 : (btn(n) ? 1000 : 1500);
+  return null;
+}
+
+function refreshPads(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const sel = $('gp_sel'), cur = sel.value;
+  let html = '<option value="-1">автоматически</option>';
+  for (const p of pads){
+    if (!p) continue;
+    html += '<option value="' + p.index + '">#' + p.index + ' ' +
+            esc(p.id.slice(0, 52)) + '</option>';
+  }
+  sel.innerHTML = html;
+  sel.value = cur;
+  if (sel.selectedIndex < 0) sel.value = '-1';
+}
+
+function poll(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let pad = null, found = 0;
+  for (const p of pads){
+    if (!p) continue;
+    found++;
+    if (!pad && (gpSel < 0 || p.index === gpSel)) pad = p;
+  }
+  if (!pad){
+    $('gp_status').textContent = found
+      ? 'устройство видно — выберите его в списке'
+      : 'аппаратура не видна: USB + режим USB Joystick, затем шевельните палкой/кнопкой';
+    $('gp_axes').innerHTML = '';
+    $('gp_btns').innerHTML = '';
+    return;
+  }
+  $('gp_status').textContent = pad.id.slice(0, 60) + ' · осей ' + pad.axes.length +
+    ', кнопок ' + pad.buttons.length + (gpOn ? ' · УПРАВЛЕНИЕ ВКЛ' : '');
+  $('gp_axes').innerHTML = pad.axes.map((a, j) =>
+    '<div class="chip' + (Math.abs(a) > 0.02 ? ' on' : '') +
+    '"><b>A' + j + '</b>' + a.toFixed(2) + '</div>').join('');
+  $('gp_btns').innerHTML = pad.buttons.map((b, j) =>
+    '<div class="chip' + (b.pressed ? ' on' : '') +
+    '"><b>B' + j + '</b>' + (b.pressed ? 'ON' : '—') + '</div>').join('');
+  if (!gpOn) return;
+  let changed = false;
+  for (let i = 0; i < CH; i++){
+    const v = mapValue(pad, map[i]);
+    if (v != null && Math.round(channels[i]) !== v){ channels[i] = v; changed = true; }
+  }
+  if (changed){ render(); send(); }
+}
+
+for (let i = 0; i < CH; i++){
+  const sel = $('gps' + i), inv = $('gpi' + i);
+  sel.value = map[i].src || '';
+  inv.checked = !!map[i].inv;
+  sel.addEventListener('change', () => { map[i].src = sel.value; saveMap(); });
+  inv.addEventListener('change', () => { map[i].inv = inv.checked; saveMap(); });
+}
+$('gp_on').checked = gpOn;
+$('gp_on').addEventListener('change', (e) => { gpOn = e.target.checked; saveMap(); });
+$('gp_sel').value = String(gpSel);
+$('gp_sel').addEventListener('change', (e) => { gpSel = +e.target.value; saveMap(); });
+$('gp_preset').addEventListener('click', () => {
+  // Radiomaster Zorro (EdgeTX, USB Joystick): стики — оси 0..3, тумблеры — кнопки
+  const src = ['a0', 'a1', 'a2', 'a3', 'b0', 'b1', 't2', 'b4'];
+  const inv = [false, true, true, false, false, false, false, false];
+  for (let i = 0; i < CH; i++){
+    map[i] = {src: src[i], inv: inv[i]};
+    $('gps' + i).value = src[i];
+    $('gpi' + i).checked = inv[i];
+  }
+  saveMap();
+});
+$('gp_clear').addEventListener('click', () => {
+  for (let i = 0; i < CH; i++){
+    map[i] = {src: '', inv: false};
+    $('gps' + i).value = '';
+    $('gpi' + i).checked = false;
+  }
+  saveMap();
+});
+
+window.addEventListener('gamepadconnected', refreshPads);
+window.addEventListener('gamepaddisconnected', refreshPads);
+setInterval(poll, 50);
+fetch('/api/rc').then((r) => r.json()).then((js) => {
+  if (js && js.channels) js.channels.forEach((v, i) => { channels[i] = v; });
+  render();
+}).catch(() => render());
+refreshPads();
+</script>
+"""
+
+
+def _map_options() -> str:
+    """Опции <select> привязки канала → ось/кнопка Gamepad."""
+    parts = ['<option value="">— не привязан</option>',
+             '<optgroup label="Оси (стик/крутилка)">']
+    for a in range(8):
+        parts.append(f'<option value="a{a}">Ось {a}</option>')
+    parts.append('</optgroup><optgroup label="Кнопка — 2 позиции">')
+    for b in range(12):
+        parts.append(f'<option value="b{b}">Кнопка {b}</option>')
+    parts.append('</optgroup><optgroup label="Пара кнопок — 3 позиции">')
+    for b in range(0, 12, 2):
+        parts.append(f'<option value="t{b}">Кнопки {b}+{b + 1}</option>')
+    parts.append('</optgroup>')
+    return "".join(parts)
+
+
+def rc_page(nav: str, style: str = "") -> str:
+    labels = ("CH1 · AIL (Roll)", "CH2 · ELE (Pitch)", "CH3 · THR (Throttle)",
+              "CH4 · RUD (Yaw)", "CH5 · AUX1", "CH6 · AUX2",
+              "CH7 · AUX3", "CH8 · AUX4")
+    opts = _map_options()
+    rows, maprows = [], []
+    for i, label in enumerate(labels):
+        rows.append(f"""
+<div class="rcrow" id="row{i}">
+ <span class="lbl">{label}</span>
+ <input type="range" id="sl{i}" min="875" max="2125" step="1" value="1500">
+ <input type="number" id="num{i}" min="875" max="2125" step="1" value="1500">
+ <div class="quick">
+  <button data-ch="{i}" data-v="1000">1000</button>
+  <button data-ch="{i}" data-v="1500">1500</button>
+  <button data-ch="{i}" data-v="2000">2000</button>
+ </div>
+</div>""")
+        maprows.append(f"""
+<div class="step maprow">
+ <span class="lbl" style="min-width:126px">{label}</span>
+ <select id="gps{i}">{opts}</select>
+ <label><input type="checkbox" id="gpi{i}"> инверсия</label>
+ <span class="chip" id="gpv{i}">1500</span>
+</div>""")
+    return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Пульт</title><style>{style}{_RC_STYLE}</style></head>
+<body>
+{nav}
+<div class="wrap">
+ <h1>Пульт: управление каналами RC</h1>
+ <p class="hint">Каналы ведут виртуальный приёмник: значения отдаются через MSP_RC,
+ и полосы каналов вкладки Receiver в INAV Configurator двигаются вместе с ними.
+ Управлять можно слайдерами/кнопками ниже, а также с реальной аппаратуры
+ (например Radiomaster Zorro), подключённой к USB порту компьютера — браузер
+ видит её как джойстик (Gamepad API) и передаёт сюда.</p>
+
+ <h2>Каналы CH1…CH8 (слайдеры и кнопки)</h2>
+ <div id="rcrows">{''.join(rows)}</div>
+ <div class="quick">
+  <button id="rc_neutral">Нейтраль: стики 1500, газ 1000</button>
+ </div>
+
+ <h2>Аппаратура по USB (Gamepad)</h2>
+ <p class="hint">1) Подключите аппаратуру к USB и включите режим USB Joystick
+ (Radio Setup → USB → Joystick). 2) Нажмите/шевельните любую палку или кнопку —
+ браузер разрешит доступ и покажет состояние ниже. 3) Включите «Управление
+ с аппаратуры» и привяжите оси и кнопки к каналам (пресет Zorro — стики на CH1–CH4,
+ тумблеры на CH5–CH8). Пока галочка включена, аппаратура перехватывает слайдеры.</p>
+ <div class="card">
+  <label><input type="checkbox" id="gp_on"> Управление с аппаратуры</label>
+  <div class="step">
+   <span class="lbl">Устройство</span>
+   <select id="gp_sel"><option value="-1">автоматически</option></select>
+  </div>
+  <p class="hint" id="gp_status">аппаратура не видна</p>
+  <div class="chips" id="gp_axes"></div>
+  <div class="chips" id="gp_btns"></div>
+  {''.join(maprows)}
+  <div class="quick">
+   <button id="gp_preset">Пресет: Radiomaster Zorro</button>
+   <button id="gp_clear">Сбросить привязки</button>
+  </div>
+ </div>
+</div>
+{_RC_JS}
 </body></html>"""

@@ -14,8 +14,7 @@ from inavemu.fc import (
     MSP2_INAV_RATE_PROFILE, MSP2_INAV_STATUS, MSP_ACTIVEBOXES, MSP_ADVANCED_CONFIG,
     MSP_API_VERSION, MSP_BOARD_INFO, MSP_BOARD_ALIGNMENT, MSP_BOXIDS,
     MSP_BUILD_INFO, MSP_CURRENT_METER_CONFIG, MSP_DATAFLASH_SUMMARY, MSP_EEPROM_WRITE,
-    MSP_FC_VARIANT, MSP_FC_VERSION, MSP_FEATURE, MSP_MODE_RANGES, MSP_NAME,
-    MSP_RC, MSP_RC_DEADBAND, MSP_RX_CONFIG, MSP_RX_MAP, MSP_SENSOR_ALIGNMENT,
+    MSP_FC_VARIANT, MSP_FC_VERSION, MSP_MODE_RANGES, MSP_RC, MSP_RC_DEADBAND, MSP_RX_CONFIG, MSP_RX_MAP, MSP_SENSOR_ALIGNMENT,
     MSP_SENSOR_STATUS, MSP_SET_FEATURE, MSP_SET_MODE_RANGE, MSP_SET_REBOOT,
     MSP_UID, MSP_VTX_CONFIG, MSPError, InavFC,
 )
@@ -256,9 +255,11 @@ def test_set_feature_and_save(fc, tmp_path):
 
 
 def test_set_mode_range(fc):
-    ask(fc, MSP_SET_MODE_RANGE, bytes([3, 1, 40, 80]))
+    # MSP_SET_MODE_RANGE: 5 байт — idx, permanentId, aux, startStep, endStep
+    ask(fc, MSP_SET_MODE_RANGE, bytes([3, 1, 7, 40, 80]))
     mr = fc.mode_ranges[3]
-    assert mr["aux"] == 1
+    assert mr["mode"] == 1
+    assert mr["aux"] == 7
     assert mr["start"] == 900 + 40 * 25
     assert mr["end"] == 900 + 80 * 25
 

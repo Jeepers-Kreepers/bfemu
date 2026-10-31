@@ -46,7 +46,7 @@ class FCServer:
         while not self._stop.is_set():
             try:
                 conn, addr = self._sock.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break
@@ -87,7 +87,7 @@ class FCServer:
             while not self._stop.is_set():
                 try:
                     data = conn.recv(4096)
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 if not data:
                     break
@@ -154,7 +154,7 @@ class FCServer:
             if req.code not in self._POLL_CODES:
                 print(f"[MSP] 0x{req.code:04X} -> ошибка: {exc}", flush=True)
             return msp.encode(req, b"", error=True)
-        except Exception as exc:  # noqa: BLE001 — не ронять линк из-за бага обработчика
+        except Exception as exc:
             self.fc._log(f"MSP 0x{req.code:04X}: внутренняя ошибка {exc!r}")
             print(f"[MSP] 0x{req.code:04X} -> ВНУТРЕННЯЯ ОШИБКА {exc!r}", flush=True)
             return msp.encode(req, b"", error=True)
@@ -186,6 +186,7 @@ class FCServer:
                 "motor_values": list(fc.motors[:8]),
                 "servo_values": fc.servo_values(),
             },
+            "rc": list(fc.rc_channels),
             "log": fc.log[-30:],
         }
 
@@ -212,7 +213,8 @@ def make_http_handler(server: FCServer):
             style = pages.NAV_STYLE
             page = {"monitor": pages.monitor_page,
                     "equipment": pages.equipment_page,
-                    "outputs": pages.outputs_page}[kind]
+                    "outputs": pages.outputs_page,
+                    "rc": pages.rc_page}[kind]
             self._send(page(nav, style).encode(), "text/html; charset=utf-8")
 
         def do_GET(self):
@@ -221,12 +223,16 @@ def make_http_handler(server: FCServer):
                 self._send_json(server.state_json())
             elif path == "/api/equipment":
                 self._send_json({"equipment": server.fc.get_equipment()})
+            elif path == "/api/rc":
+                self._send_json({"channels": list(server.fc.rc_channels)})
             elif path in ("/", "/index.html"):
                 self._page("monitor")
             elif path == "/equipment":
                 self._page("equipment")
             elif path == "/outputs":
                 self._page("outputs")
+            elif path == "/rc":
+                self._page("rc")
             else:
                 self._send(b"not found", "text/plain", 404)
 
@@ -236,6 +242,8 @@ def make_http_handler(server: FCServer):
                 self._post_equipment()
             elif path == "/api/outputs":
                 self._post_outputs()
+            elif path == "/api/rc":
+                self._post_rc()
             else:
                 self._send(b"not found", "text/plain", 404)
 
@@ -261,7 +269,7 @@ def make_http_handler(server: FCServer):
                         else:
                             server.fc.set_servos_connected(val)
                     except MSPError as exc:
-                        raise ValueError(str(exc))
+                        raise ValueError(str(exc)) from exc
             except (ValueError, json.JSONDecodeError) as exc:
                 self._send_json({"error": str(exc)}, 400)
                 return
@@ -281,6 +289,22 @@ def make_http_handler(server: FCServer):
                 self._send_json({"error": str(exc)}, 400)
                 return
             self._send_json({"equipment": server.fc.get_equipment()})
+
+        def _post_rc(self):
+            """Пульт: {"channels": [8..16 ints]} → rc_channels (видно в MSP_RC)."""
+            try:
+                payload = self._read_json()
+                vals = payload.get("channels")
+                if not isinstance(vals, list):
+                    raise ValueError("ожидается поле channels: список")
+                try:
+                    server.fc.set_rc_channels(vals)
+                except MSPError as exc:
+                    raise ValueError(str(exc)) from exc
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json({"error": str(exc)}, 400)
+                return
+            self._send_json({"channels": list(server.fc.rc_channels)})
 
     return Handler
 

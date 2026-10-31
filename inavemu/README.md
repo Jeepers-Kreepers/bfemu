@@ -32,7 +32,7 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 | Failsafe | `MSP_FAILSAFE_CONFIG` / `MSP_SET_FAILSAFE_CONFIG` (20 байт) — вкладка Failsafe |
 | Программирование | `MSP2_INAV_LOGIC_CONDITIONS_SINGLE`/`SET` (64 условия + маска `CONFIGURED`), `MSP2_INAV_LOGIC_CONDITIONS_STATUS`, `MSP2_INAV_GVAR_STATUS`, `MSP2_INAV_PROGRAMMING_PID` (+SET/STATUS) — вкладки Programming |
 | Blackbox | `MSP2_BLACKBOX_CONFIG` / `MSP2_SET_BLACKBOX_CONFIG` (9 байт), `MSP_DATAFLASH_SUMMARY`/`READ`/`ERASE`, `MSP_SDCARD_SUMMARY` — вкладка Onboard Logging (Blackbox) |
-| Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c` |
+| Режимы | 55 боксов INAV (ARM, ANGLE, NAV RTH, NAV WP, POSHOLD, CRUISE…) из `fc_msp_box.c`; слоты `aux`/`adjrange` (40 + 20) с `MSP_MODE_RANGES`/`MSP_ADJUSTMENT_RANGES` — вкладки Modes и Adjustments |
 | CLI | «сырой» CLI-порт (`#`, эхо, приглашение `# `, TAB-автодополнение, CTRL-D/CTRL-L): **62 команды `cmdTable[]` прошивки** — `help`, `version`, `status`, `tasks`, `get`, `set`, `dump`, `diff`, `defaults`, `save`, `exit`, `feature`, `serial`, `aux`, `adjrange`, `map`, `mmix`, `smix`, `servo`, `motor`, `pid`, `wp`, `resource`, `batch`…; `save`/`exit`/`defaults` печатают «Rebooting» и рвут линк |
 | «Флеш» | `MSP_EEPROM_WRITE` и CLI `save` пишут конфигурацию в `inav_eeprom.json`; после перезагрузки (`MSP_SET_REBOOT` — линк рвётся) она поднимается обратно |
 
@@ -41,6 +41,43 @@ $ python3 -m inavemu --tcp 127.0.0.1:5761 --http 8088
 inav-configurator 9.1.1: обрабатываются **все 163 MSP-кода**, которые
 конфигуратор умеет отправлять (вкладки Calibration, LED Strip, Mixer,
 Outputs, Advanced Tuning и остальные).
+
+Батарейный блок `MSP2_INAV_MISC`/`MSP2_INAV_BATTERY_CONFIG` связан с базой
+настроек в единый источник (как в прошивке: `batteryMetersConfig` /
+`batteryProfile`): CLI `set bat_voltage_src = SAG_COMP` переключает
+«Voltage source» на вкладке Configuration, а Save вкладки меняет значение
+CLI (`get`). То же для `vbat_scale`, `bat_cells`, `vbat_cell_*_voltage`,
+`battery_capacity*`, `failsafe_throttle`, `mag_declination`, `min_command`,
+`current_meter_*`. Единицы провода — как в `MSPHelper.js`: напряжение ячеек
+в сотых вольта (425 = 4.25 В), `mag_declination` в десятых градуса
+(настройка — в сотых). Значения по умолчанию — стоковые INAV 9.1.0
+(`bat_voltage_src = RAW`, `bat_cells = 0` — автоопределение ячеек).
+
+Вкладка Receiver — так же: `MSP_RX_CONFIG`/`MSP_RC_DEADBAND`/
+`MSP2_INAV_RATE_PROFILE` читают и пишут те же настройки (`rssi_channel`,
+`deadband`, `yaw_deadband`, `3d_deadband_throttle`, `serialrx_provider`,
+`min_check`/`max_check`, `rx_min_usec`/`rx_max_usec`, `receiver_type`,
+`thr_mid`/`thr_expo`, `rc_expo`, `tpa_rate`/`tpa_breakpoint`, rates):
+`set rssi_channel = 5` переключает RSSI channel, `set deadband` — поле
+Deadband, Save вкладки меняет значения CLI.
+
+Команды `aux` и `adjrange` (как printAux()/cliAux()/printAdjustmentRange()/
+cliAdjustmentRange() в `cli.c`) печатают **все** слоты — 40 режимов и 20
+корректировок, пустые включая (`aux 3 0 0 900 900`, `adjrange 3 0 0 900 900 0 0`),
+диапазоны в микросекундах с сеткой 25 мкс. Слот режима хранит permanentId
+(`aux 1 2 1 1300 1700` — HORIZON на AUX1), слот корректировки — `adjustmentIndex`;
+те же слоты уходят в `MSP_MODE_RANGES`/`MSP_ADJUSTMENT_RANGES`, поэтому вкладки
+Modes и Adjustments показывают ровно то, что настроено в CLI. Неполные аргументы
+обнуляют слот (как в прошивке), `dump` печатает секции `# aux` и `# adjrange`,
+`diff` — только настроенные.
+
+Стенд поднимается со стоковой конфигурацией режимов («заливка
+производителя» — вкладка Modes не пустая): ARM на AUX1 (1700–2100),
+ANGLE/HORIZON на AUX2 (1300–1700 / 900–1300), NAV ALTHOLD/NAV RTH на AUX3
+(1300–1700 / 1700–2100). Сток переживает `defaults` и показывается в `diff`
+только с правками пользователя; старый `inav_eeprom.json` без поля `mode`
+поднимается так же (пустые слоты заменяются стоком, настройки юзера
+сохраняются).
 
 ## Куда смотреть
 
@@ -108,6 +145,22 @@ INAV уже запущен`. Блокировка снимается автом�
 * API: `POST /api/outputs` с JSON вида `{"motors": 6, "servos": 3}`
   (частичные обновления, диапазоны проверяются).
 
+Страница **«Пульт»** (`/rc`) — управление каналами RC из браузера:
+
+* **8 каналов (CH1–CH8)** — слайдеры (875–2125), поля ввода и быстрые кнопки
+  1000/1500/2000; значения уходят в `rc_channels` и видны через `MSP_RC`,
+  поэтому полосы каналов вкладки Receiver в конфигураторе двигаются вместе
+  с ними (CH3 — газ, по умолчанию 1000);
+* **аппаратура по USB** (например Radiomaster Zorro) — браузер читает её через
+  Gamepad API (режим USB Joystick в EdgeTX) и передаёт каналы сюда: стики —
+  оси 0–3, тумблеры/кнопки — кнопки джойстика; для каждой кнопки доступны
+  режимы «2 позиции» и «пара кнопок — 3 позиции» (кнопка N+1 = 2000,
+  N = 1000, иначе 1500), у осей есть инверсия; есть пресет привязок
+  Radiomaster Zorro и «Нейтраль: стики 1500, газ 1000»;
+* привязки осей/кнопок и включение управления хранятся в localStorage;
+* API: `GET/POST /api/rc` с JSON вида `{"channels": [8..16 чисел 300..2300]}`,
+  состояние каналов также в `/api/state` (ключ `rc`).
+
 Страница **«Монитор»** (`/`) — состояние FC и журнал запросов.
 
 Нужен доступ с другой машины — откройте адрес явно:
@@ -145,7 +198,10 @@ python3 tools/gen_data_inav.py /path/to/inav-9.1.0 \
 * определяет типы полей через gcc тем же трюком, что и `src/utils/settings.rb`
   прошивки (`поле.__type_detect_` → тип из сообщения об ошибке), — сверено:
   165 настроек с явным типом в YAML совпали с gcc, расхождений нет;
-* разрешает min/max/дефолты через константы из заголовков;
+* разрешает min/max/дефолты через константы из заголовков; `default_value:
+  :target` (дефолт задаёт `target.h`) берётся из таблицы `TARGET_DEFAULTS`
+  generic-таргета (`vbat_scale = 1100` — `battery.h`, `current_meter_scale
+  = 400`, `current_meter_offset = 0`);
 * берёт список боксов из `fc/fc_msp_box.c` и смысл битов `MSP_FEATURE` из
   исходников конфигуратора.
 

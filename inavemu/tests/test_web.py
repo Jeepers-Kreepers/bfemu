@@ -242,3 +242,4 @@ def test_web_outputs_bad_payload_is_400(web):
     assert code == 400
     code, body = _post(web + "/api/outputs", {})
     assert code == 400
+    assert "error" in body

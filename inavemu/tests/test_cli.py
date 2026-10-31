@@ -26,7 +26,7 @@ def test_echo_and_prompt(cli):
 
 def test_help_lists_all_commands(cli):
     text = cli.feed(b"help\r\n").decode()
-    for name, desc, _ in COMMANDS:
+    for name, _desc, _ in COMMANDS:
         assert name in text
 
 
@@ -142,8 +142,8 @@ def test_map_command(cli):
 
 def test_serial_and_aux(cli):
     assert "serial 0" in cli.feed(b"serial\r\n").decode()
-    cli.feed(b"aux 0 0 0 10 20\r\n")
-    assert "aux 0 0 0 10 20" in cli.feed(b"aux\r\n").decode()
+    cli.feed(b"aux 0 0 0 900 2100\r\n")
+    assert "aux 0 0 0 900 2100" in cli.feed(b"aux\r\n").decode()
 
 
 def test_profile_commands(cli):

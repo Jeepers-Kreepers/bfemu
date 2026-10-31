@@ -10,6 +10,13 @@ from __future__ import annotations
 
 import time
 
+from .fc import (
+    ADJUSTMENT_FUNCTION_COUNT,
+    ADJUSTMENT_RANGE_COUNT,
+    MAX_AUX_CHANNEL_COUNT,
+    MAX_SIMULTANEOUS_ADJUSTMENT_COUNT,
+    MODE_ACTIVATION_CONDITION_COUNT,
+)
 from .settings import MODE_LOOKUP, SettingsStore
 
 # таблица baudRates[] прошивки (индекс → бит/с; 0 = AUTO)
@@ -234,7 +241,7 @@ class CliSession:
         out += time.strftime("Current Time: %Y-%m-%d @ %H:%M:%S\r\n").encode()
         voltage = 1260
         out += (f"Voltage: {voltage // 100}.{voltage % 100:02d}V "
-                f"({fc.misc['battery_cells']}S battery - OK)\r\n").encode()
+                f"({fc.battery_cell_count()}S battery - OK)\r\n").encode()
         out += b"CPU Clock=216MHz, GYRO=MPU6000, ACC=MPU6000, MAG=HMC5883, BARO=MS5611\r\n"
         out += b"Stack size: 2048, Stack address: 0x1000fff0\r\n"
         out += b"I2C Errors: 0, config size: 5268, max available: 16384\r\n"
@@ -376,8 +383,6 @@ class CliSession:
                     continue
                 if showdefaults and not equals_default:
                     default = s.get("default", 0)
-                    shown = dict(s)
-                    shown_val = default
                     if s.get("mode") == MODE_LOOKUP:
                         values = s.get("values") or []
                         shown_text = values[default] if 0 <= default < len(values) else str(default)
@@ -409,13 +414,20 @@ class CliSession:
 
         def dump_aux():
             out.extend(b"\r\n# aux\r\n")
-            boxes = self.store.boxes
+            stock = self.fc._stock_mode_ranges()
             for i, mr in enumerate(self.fc.mode_ranges):
-                if mr["start"] == 900 and mr["end"] == 900:
+                if do_diff and mr == stock[i]:
                     continue
-                permanent = boxes[i]["permanent_id"] if i < len(boxes) else 0
-                out.extend((f"aux {i} {permanent} {mr['aux']} "
-                           f"{(mr['start'] - 900) // 25} {(mr['end'] - 900) // 25}\r\n").encode())
+                out.extend((self._aux_line(i, mr) + "\r\n").encode())
+
+        def dump_adjrange():
+            out.extend(b"\r\n# adjrange\r\n")
+            for i, ar in enumerate(self.fc.adjustment_ranges):
+                if do_diff and ar == {"slot": i, "adjustmentIndex": 0, "aux": 0,
+                                      "start": 900, "end": 900,
+                                      "function": 0, "switch": 0}:
+                    continue
+                out.extend((self._adjrange_line(i, ar) + "\r\n").encode())
 
         def dump_map():
             out.extend(b"\r\n# map\r\n")
@@ -431,6 +443,7 @@ class CliSession:
             dump_features()
             dump_serial()
             dump_aux()
+            dump_adjrange()
             dump_map()
         if scope in ("control_profile", "all"):
             out.extend(b"\r\n# control_profile\r\n")
@@ -464,6 +477,9 @@ class CliSession:
         out += b"Resetting to defaults"
         self.fc.store.reset_defaults()
         self.fc.features = 0
+        # «заливка производителя»: слоты режимов возвращаются к стоковой
+        # конфигурации стенда (как таблица VTX) — вкладка Modes не пустеет
+        self.fc.mode_ranges = self.fc._stock_mode_ranges()
         self.fc.save_eeprom()
         if "noreboot" not in args:
             out += b"\r\nRebooting"
@@ -514,7 +530,7 @@ class CliSession:
                         if len(parts) >= 2:
                             port["functions"] = int(parts[1])
                         keys = ("msp", "sensors", "telemetry", "peripherals")
-                        for key, text in zip(keys, parts[2:6]):
+                        for key, text in zip(keys, parts[2:6], strict=False):
                             try:
                                 want = int(text)
                             except ValueError:
@@ -532,50 +548,111 @@ class CliSession:
             out += f"serial {port['id']} {port['functions']} " \
                    f"{bauds[0]} {bauds[1]} {bauds[2]} {bauds[3]}\r\n".encode()
 
+    @staticmethod
+    def _range_us(value):
+        """Микросекунды → шаг 25 мкс вниз (CHANNEL_VALUE_TO_STEP) и обратно."""
+        step = (max(900, min(2100, int(value))) - 900) // 25
+        return 900 + step * 25
+
+    @staticmethod
+    def _aux_line(i, mr):
+        """'aux i permId aux start end' — printAux() из cli.c (start/end в мкс)."""
+        return f"aux {i} {mr['mode']} {mr['aux']} {mr['start']} {mr['end']}"
+
+    @staticmethod
+    def _adjrange_line(i, ar):
+        """'adjrange i adjIdx aux start end function switch' — printAdjustmentRange()."""
+        return (f"adjrange {i} {ar['adjustmentIndex']} {ar['aux']} "
+                f"{ar['start']} {ar['end']} {ar['function']} {ar['switch']}")
+
     def _cmd_aux(self, args, out):
+        """'aux' — слоты режимов: printAux()/cliAux() из cli.c INAV 9.1.0.
+
+        Без аргументов печатаются ВСЕ слоты (пустые тоже: 'aux 3 0 0 900 900').
+        Разбор: aux <index> <permanentId> <aux> <start мкс> <end мкс> — значения
+        приводятся к сетке 25 мкс вниз; если все четыре не распознаны, слот
+        обнуляется (как в cliAux(): memset слота).
+        """
         args = args.strip()
-        boxes = self.store.boxes
         if not args:
             for i, mr in enumerate(self.fc.mode_ranges):
-                if mr["start"] == 900 and mr["end"] == 900:
-                    continue
-                permanent = boxes[i]["permanent_id"] if i < len(boxes) else 0
-                out += (f"aux {i} {permanent} {mr['aux']} "
-                        f"{(mr['start'] - 900) // 25} {(mr['end'] - 900) // 25}\r\n").encode()
+                out += (self._aux_line(i, mr) + "\r\n").encode()
             return
         parts = args.split()
         try:
             idx = int(parts[0])
-            if idx < len(self.fc.mode_ranges) and len(parts) >= 5:
-                self.fc.mode_ranges[idx].update({
-                    "aux": int(parts[2]),
-                    "start": 900 + int(parts[3]) * 25,
-                    "end": 900 + int(parts[4]) * 25,
-                })
-            elif len(parts) < 5 and idx < len(self.fc.mode_ranges):
-                self.fc.mode_ranges[idx].update({"start": 900, "end": 900})
+            nums = [int(v) for v in parts[1:5]]
         except ValueError:
             out += b"### ERROR: Parse error\r\n"
+            return
+        if not 0 <= idx < MODE_ACTIVATION_CONDITION_COUNT:
+            out += (f"### ERROR: index must be between 0 and "
+                    f"{MODE_ACTIVATION_CONDITION_COUNT - 1}\r\n").encode()
+            return
+        slot = self.fc.mode_ranges[idx]
+        valid = 0
+        if nums and nums[0] in self.fc.box_permanent_ids():
+            slot["mode"] = nums[0]
+            valid += 1
+        if len(nums) > 1 and 0 <= nums[1] < MAX_AUX_CHANNEL_COUNT:
+            slot["aux"] = nums[1]
+            valid += 1
+        if len(nums) > 2:
+            slot["start"] = self._range_us(nums[2])
+            valid += 1
+        if len(nums) > 3:
+            slot["end"] = self._range_us(nums[3])
+            valid += 1
+        if valid != 4:
+            slot.update({"mode": 0, "aux": 0, "start": 900, "end": 900})
 
     def _cmd_adjrange(self, args, out):
+        """'adjrange' — слоты корректировок: printAdjustmentRange()/cliAdjustmentRange().
+
+        Без аргументов печатаются ВСЕ слоты ('adjrange 3 0 0 900 900 0 0').
+        Разбор: adjrange <index> <adjustmentIndex> <aux> <start мкс> <end мкс>
+        <function> <switch>; при неполных данных слот обнуляется и печатается
+        '### ERROR: Parse error'.
+        """
         args = args.strip()
         if not args:
             for i, ar in enumerate(self.fc.adjustment_ranges):
-                if ar["start"] == 900 and ar["end"] == 900:
-                    continue
-                out += (f"adjrange {i} {ar['aux']} "
-                        f"{(ar['start'] - 900) // 25} {(ar['end'] - 900) // 25} "
-                        f"{ar['function']} {ar['switch']}\r\n").encode()
+                out += (self._adjrange_line(i, ar) + "\r\n").encode()
             return
         parts = args.split()
         try:
             idx = int(parts[0])
-            if idx < len(self.fc.adjustment_ranges) and len(parts) >= 6:
-                self.fc.adjustment_ranges[idx].update({
-                    "aux": int(parts[1]), "start": 900 + int(parts[2]) * 25,
-                    "end": 900 + int(parts[3]) * 25, "function": int(parts[4]),
-                    "switch": int(parts[5])})
+            nums = [int(v) for v in parts[1:7]]
         except ValueError:
+            out += b"### ERROR: Parse error\r\n"
+            return
+        if not 0 <= idx < ADJUSTMENT_RANGE_COUNT:
+            out += (f"### ERROR: index must be between 0 and "
+                    f"{ADJUSTMENT_RANGE_COUNT - 1}\r\n").encode()
+            return
+        slot = self.fc.adjustment_ranges[idx]
+        valid = 0
+        if nums and 0 <= nums[0] < MAX_SIMULTANEOUS_ADJUSTMENT_COUNT:
+            slot["adjustmentIndex"] = nums[0]
+            valid += 1
+        if len(nums) > 1 and 0 <= nums[1] < MAX_AUX_CHANNEL_COUNT:
+            slot["aux"] = nums[1]
+            valid += 1
+        if len(nums) > 2:
+            slot["start"] = self._range_us(nums[2])
+            valid += 1
+        if len(nums) > 3:
+            slot["end"] = self._range_us(nums[3])
+            valid += 1
+        if len(nums) > 4 and 0 <= nums[4] < ADJUSTMENT_FUNCTION_COUNT:
+            slot["function"] = nums[4]
+            valid += 1
+        if len(nums) > 5 and 0 <= nums[5] < MAX_AUX_CHANNEL_COUNT:
+            slot["switch"] = nums[5]
+            valid += 1
+        if valid != 6:
+            slot.update({"adjustmentIndex": 0, "aux": 0, "start": 900,
+                         "end": 900, "function": 0, "switch": 0})
             out += b"### ERROR: Parse error\r\n"
 
     def _cmd_rxrange(self, args, out):
