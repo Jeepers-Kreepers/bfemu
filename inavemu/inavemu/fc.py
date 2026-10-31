@@ -580,11 +580,10 @@ class InavFC:
         self.output_mapping[-1] = (8, 1 << 24, 1)     # LED-выход
 
         # режимы (mode ranges / adjustment ranges) — как modeActivationConditions[]
-        # и adjustmentRanges[] в прошивке: пустой слот — 900/900
-        self.mode_ranges = [
-            {"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
-            for i in range(MODE_ACTIVATION_CONDITION_COUNT)
-        ]
+        # и adjustmentRanges[] в прошивке: пустой слот — 900/900.
+        # Стенд поднимается с «заливкой производителя»: слоты режимов настроены
+        # как у типичного квада — вкладка Modes не пустая (см. _stock_mode_ranges).
+        self.mode_ranges = self._stock_mode_ranges()
         self.adjustment_ranges = [
             {"slot": i, "adjustmentIndex": 0, "aux": 0, "start": 900,
              "end": 900, "function": 0, "switch": 0}
@@ -740,7 +739,8 @@ class InavFC:
                 self.rate_profile.update(data.get("rate_profile", {}))
                 self.mixer.update(data.get("mixer", {}))
                 self.mode_ranges = self._merge_slots(
-                    self.mode_ranges, data.get("mode_ranges"))
+                    self.mode_ranges,
+                    self._legacy_slots(data.get("mode_ranges")))
                 self.adjustment_ranges = self._merge_slots(
                     self.adjustment_ranges, data.get("adjustment_ranges"))
                 self.waypoints = data.get("waypoints", self.waypoints)
@@ -2575,6 +2575,48 @@ class InavFC:
                 lo, hi = groups[pg]
                 out += u16(pg) + u16(lo) + u16(hi)
         return out
+
+    @staticmethod
+    def _default_mode_ranges() -> list:
+        """Заводские слоты режимов — pgResetFn: все пустые (900/900)."""
+        return [{"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
+                for i in range(MODE_ACTIVATION_CONDITION_COUNT)]
+
+    @classmethod
+    def _stock_mode_ranges(cls) -> list:
+        """Слоты «настроенного квада» — заливка производителя, как _stock_vtx_table().
+
+        Mode 2, четыре AUX-канала: ARM — тумблер AUX1, ANGLE/HORIZON — трёх-
+        позиционный AUX2 (середина/низ), NAV ALTHOLD/NAV RTH — AUX3. Чтобы
+        вкладка Modes сразу показывала активированные режимы.
+        """
+        slots = cls._default_mode_ranges()
+        stock = [
+            {"mode": 0, "aux": 0, "start": 1700, "end": 2100},   # ARM — AUX1
+            {"mode": 1, "aux": 1, "start": 1300, "end": 1700},   # ANGLE — AUX2
+            {"mode": 2, "aux": 1, "start": 900, "end": 1300},    # HORIZON — AUX2
+            {"mode": 3, "aux": 2, "start": 1300, "end": 1700},   # NAV ALTHOLD — AUX3
+            {"mode": 10, "aux": 2, "start": 1700, "end": 2100},  # NAV RTH — AUX3
+        ]
+        for i, item in enumerate(stock):
+            slots[i].update(item)
+        return slots
+
+    @staticmethod
+    def _legacy_slots(loaded):
+        """Старый «флеш» (слоты без поля mode): пустые слоты заменяет сток.
+
+        Их никто не настраивал — вкладка Modes должна показать стоковую
+        конфигурацию, а не пустоту; настройки юзера сохраняются. Новый «флеш»
+        (с полем mode) честно хранит и очищенные слоты.
+        """
+        if not isinstance(loaded, list) or not loaded:
+            return loaded
+        items = [i for i in loaded if isinstance(i, dict)]
+        if not items or any("mode" in i for i in items):
+            return loaded
+        return [i if i.get("start", 900) != i.get("end", 900) else None
+                for i in loaded]
 
     @staticmethod
     def _merge_slots(defaults, loaded):

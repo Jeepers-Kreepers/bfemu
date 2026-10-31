@@ -42,8 +42,8 @@ def test_aux_lists_all_slots(cli):
     lines = cli.feed(b"aux\r\n").decode().splitlines()
     slots = [ln for ln in lines if ln.startswith("aux ")]
     assert len(slots) == MODE_ACTIVATION_CONDITION_COUNT
-    assert slots[0] == "aux 0 0 0 900 900", "пустой слот тоже печатается"
-    assert slots[3] == "aux 3 0 0 900 900"
+    assert slots[0] == "aux 0 0 0 1700 2100", "сток: ARM на AUX1"
+    assert slots[5] == "aux 5 0 0 900 900", "пустой слот тоже печатается"
 
 
 def test_adjrange_lists_all_slots(cli):
@@ -183,16 +183,84 @@ def test_diff_sections_show_only_changed(cli):
     assert adj == [], "пустые слоты корректировок в diff не печатаются"
 
 
-# ---------------- старый eeprom без mode/adjustmentIndex ----------------
+# ---------------- стоковая конфигурация Modes (заливка производителя) ----------------
 
-def test_old_eeprom_slots_load(tmp_path):
+STOCK = [
+    {"mode": 0, "aux": 0, "start": 1700, "end": 2100},   # ARM — AUX1
+    {"mode": 1, "aux": 1, "start": 1300, "end": 1700},   # ANGLE — AUX2
+    {"mode": 2, "aux": 1, "start": 900, "end": 1300},    # HORIZON — AUX2
+    {"mode": 3, "aux": 2, "start": 1300, "end": 1700},   # NAV ALTHOLD — AUX3
+    {"mode": 10, "aux": 2, "start": 1700, "end": 2100},  # NAV RTH — AUX3
+]
+
+
+def test_boot_stock_mode_ranges(fc):
+    for i, item in enumerate(STOCK):
+        slot = fc.mode_ranges[i]
+        assert (slot["mode"], slot["aux"], slot["start"], slot["end"]) == \
+            (item["mode"], item["aux"], item["start"], item["end"]), item
+    assert fc.mode_ranges[5]["start"] == 900, "слоты дальше пустые"
+    raw = ask(fc, MSP_MODE_RANGES)
+    assert list(raw[0:4]) == [0, 0, 32, 48], "ARM виден в MSP сразу"
+    assert list(raw[16:20]) == [10, 2, 32, 48], "NAV RTH в 5-м слоте"
+
+
+def test_cli_shows_stock_modes(cli):
+    text = cli.feed(b"aux\r\n").decode()
+    assert "aux 0 0 0 1700 2100" in text
+    assert "aux 1 1 1 1300 1700" in text
+    assert "aux 4 10 2 1700 2100" in text
+
+
+def test_defaults_restores_stock_modes(cli, fc):
+    cli.feed(b"aux 0 0 0 900 2100\r\n")
+    cli.feed(b"aux 9 1 0 900 2100\r\n")
+    cli.feed(b"defaults noreboot\r\n")
+    for i, item in enumerate(STOCK):
+        slot = fc.mode_ranges[i]
+        assert (slot["mode"], slot["aux"], slot["start"], slot["end"]) == \
+            (item["mode"], item["aux"], item["start"], item["end"])
+    assert fc.mode_ranges[9]["start"] == 900, "лишние слоты убраны"
+
+
+# ---------------- старый/новый eeprom и сток ----------------
+
+def test_old_eeprom_all_empty_keeps_stock(tmp_path):
     path = tmp_path / "eeprom.json"
     path.write_text(json.dumps({
         "mode_ranges": [{"id": i, "aux": 0, "start": 900, "end": 900}
                         for i in range(40)],
+    }))
+    fc2 = InavFC(eeprom_path=path)
+    assert fc2.mode_ranges[0]["end"] == 2100, "старый пустой флеш → сток"
+    assert fc2.mode_ranges[4]["mode"] == 10
+
+
+def test_old_eeprom_configured_slots_kept(tmp_path):
+    path = tmp_path / "eeprom.json"
+    saved = [{"id": i, "aux": 0, "start": 900, "end": 900} for i in range(40)]
+    saved[5] = {"id": 5, "aux": 3, "start": 1000, "end": 1500}
+    path.write_text(json.dumps({"mode_ranges": saved}))
+    fc2 = InavFC(eeprom_path=path)
+    assert (fc2.mode_ranges[5]["aux"], fc2.mode_ranges[5]["start"],
+            fc2.mode_ranges[5]["end"]) == (3, 1000, 1500), "настройки юзера сохранены"
+    assert fc2.mode_ranges[0]["start"] == 1700, "остальные слоты — сток"
+
+
+def test_new_eeprom_cleared_slots_preserved(tmp_path):
+    path = tmp_path / "eeprom.json"
+    saved = [{"id": i, "mode": 0, "aux": 0, "start": 900, "end": 900}
+             for i in range(40)]
+    path.write_text(json.dumps({"mode_ranges": saved}))
+    fc2 = InavFC(eeprom_path=path)
+    assert fc2.mode_ranges[0]["start"] == 900, "юзер очистил слоты — так и остаётся"
+
+
+def test_old_eeprom_slots_load(tmp_path):
+    path = tmp_path / "eeprom.json"
+    path.write_text(json.dumps({
         "adjustment_ranges": [{"slot": i, "aux": 0, "start": 900, "end": 900,
                                "function": 0, "switch": 0} for i in range(20)],
     }))
     fc2 = InavFC(eeprom_path=path)
-    assert fc2.mode_ranges[5]["mode"] == 0
     assert fc2.adjustment_ranges[5]["adjustmentIndex"] == 0

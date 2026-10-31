@@ -414,9 +414,9 @@ class CliSession:
 
         def dump_aux():
             out.extend(b"\r\n# aux\r\n")
+            stock = self.fc._stock_mode_ranges()
             for i, mr in enumerate(self.fc.mode_ranges):
-                if do_diff and mr["mode"] == 0 and mr["aux"] == 0 \
-                        and mr["start"] == 900 and mr["end"] == 900:
+                if do_diff and mr == stock[i]:
                     continue
                 out.extend((self._aux_line(i, mr) + "\r\n").encode())
 
@@ -477,6 +477,9 @@ class CliSession:
         out += b"Resetting to defaults"
         self.fc.store.reset_defaults()
         self.fc.features = 0
+        # «заливка производителя»: слоты режимов возвращаются к стоковой
+        # конфигурации стенда (как таблица VTX) — вкладка Modes не пустеет
+        self.fc.mode_ranges = self.fc._stock_mode_ranges()
         self.fc.save_eeprom()
         if "noreboot" not in args:
             out += b"\r\nRebooting"
