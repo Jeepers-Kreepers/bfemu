@@ -11,8 +11,10 @@ def test_analysis_direction_axis_and_model_limits(fc):
     assert set(changes) == {"p_roll", "d_pitch", "anti_gravity_gain"}
     assert changes["p_roll"]["before"] == "45" and changes["p_roll"]["after"] == "65"
     assert "колебан" in changes["p_roll"]["guidance"]
-    assert changes["d_pitch"]["model"].startswith("другая ось")
-    assert changes["anti_gravity_gain"]["model"] == "не моделируется"
+    assert "относится к оси PITCH" in changes["d_pitch"]["model"]
+    assert "но его влияние не рассчитывается" in changes["anti_gravity_gain"]["model"]
+    assert "разнице между заданной и текущей угловой скоростью" in changes["p_roll"]["model"]
+    assert "поведение реальной прошивки Betaflight" in changes["p_roll"]["model"]
     assert result["max_gyro_delta"] > 0
     assert result["before_metrics"] != result["after_metrics"]
     assert result["observations"] and all("реального полёта" in text or "модел" in text or
@@ -28,8 +30,9 @@ def test_analysis_different_context_and_warnings(fc):
     assert any("Высокий газ" in warning for warning in report["warnings"])
     assert not any("Высокий газ" in warning for warning in analyze_change(fc, before, after, "roll", "throttle")["warnings"])
     mode = analyze_change(fc, before, {**before, "simplified_pids_mode": 0}, "roll", "step")["changes"][0]
-    assert mode["before"] == "RPY" and mode["after"] == "OFF"
-    assert "косвенно" in mode["model"]
+    assert mode["before"] == "RPY (крен, тангаж и рыскание)" and mode["after"] == "OFF (выключено)"
+    assert "не используется в расчёте графика напрямую" in mode["model"]
+    assert "пересчитать коэффициенты PID и Feedforward" in mode["model"]
 
 
 def test_unmodeled_field_does_not_change_model(fc):
@@ -38,4 +41,26 @@ def test_unmodeled_field_does_not_change_model(fc):
     assert result["max_gyro_delta"] == 0
     assert result["before_metrics"] == result["after_metrics"]
     assert "не доказывает" in result["observations"][0]
-    assert result["changes"][0]["model"] == "не моделируется"
+    assert "его влияние не рассчитывается учебной моделью" in result["changes"][0]["model"]
+
+
+def test_all_parameters_have_complete_explanations(fc):
+    from bfemu.pid_trainer import AXES, FIELD_NAMES, MODELED_NAMES
+
+    before = all_settings(fc)
+    # Меняем все поля в снимке, чтобы проверить полное текстовое покрытие без записи в FC.
+    after = {name: value + 1 for name, value in before.items()}
+    for axis in AXES:
+        report = analyze_change(fc, before, after, axis, "step")
+        assert {change["name"] for change in report["changes"]} == FIELD_NAMES
+        for change in report["changes"]:
+            assert change["effect"].endswith(".") and len(change["effect"]) > 50
+            assert change["guidance"].endswith(".") and len(change["guidance"]) > 50
+            assert change["model"].endswith(".") and len(change["model"]) > 100
+            assert change["label"] in change["model"]
+            if change["name"] in MODELED_NAMES and (
+                not change["name"].endswith(tuple("_" + other for other in AXES if other != axis))
+            ):
+                assert "В учебной модели" in change["model"]
+        for observation in report["observations"]:
+            assert "п.п." not in observation and "°/с" not in observation
