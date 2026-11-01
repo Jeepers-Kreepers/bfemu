@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "provenance": "Синтетические входы для теста, не данные реального аппарата",
+  "motors": [
+    {
+      "motor": 1,
+      "time_constant_up_s": 0.1,
+      "time_constant_down_s": 0.2,
+      "curve": [
+        {
+          "command": 0,
+          "thrust_n": 0,
+          "reaction_nm": 0
+        },
+        {
+          "command": 0.5,
+          "thrust_n": 3,
+          "reaction_nm": -0.1
+        },
+        {
+          "command": 1,
+          "thrust_n": 8,
+          "reaction_nm": -0.2
+        }
+      ]
+    },
+    {
+      "motor": 2,
+      "time_constant_up_s": 0.1,
+      "time_constant_down_s": 0.2,
+      "curve": [
+        {
+          "command": 0,
+          "thrust_n": 0,
+          "reaction_nm": 0
+        },
+        {
+          "command": 0.5,
+          "thrust_n": 3,
+          "reaction_nm": -0.1
+        },
+        {
+          "command": 1,
+          "thrust_n": 8,
+          "reaction_nm": -0.2
+        }
+      ]
+    },
+    {
+      "motor": 3,
+      "time_constant_up_s": 0.1,
+      "time_constant_down_s": 0.2,
+      "curve": [
+        {
+          "command": 0,
+          "thrust_n": 0,
+          "reaction_nm": 0
+        },
+        {
+          "command": 0.5,
+          "thrust_n": 3,
+          "reaction_nm": -0.1
+        },
+        {
+          "command": 1,
+          "thrust_n": 8,
+          "reaction_nm": -0.2
+        }
+      ]
+    },
+    {
+      "motor": 4,
+      "time_constant_up_s": 0.1,
+      "time_constant_down_s": 0.2,
+      "curve": [
+        {
+          "command": 0,
+          "thrust_n": 0,
+          "reaction_nm": 0
+        },
+        {
+          "command": 0.5,
+          "thrust_n": 3,
+          "reaction_nm": -0.1
+        },
+        {
+          "command": 1,
+          "thrust_n": 8,
+          "reaction_nm": -0.2
+        }
+      ]
+    }
+  ]
+}
