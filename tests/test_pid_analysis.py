@@ -95,3 +95,19 @@ def test_all_parameters_have_complete_relevant_explanations(fc):
             assert not change["model"] or change["model"].endswith(".")
         for observation in report["observations"]:
             assert "п.п." not in observation and "°/с" not in observation
+
+
+def test_integral_explanation_identifies_rate_error_and_gain_consequences(fc):
+    before = all_settings(fc)
+    for name, axis in (("i_roll", "roll"), ("i_pitch", "pitch"), ("i_yaw", "yaw"),
+                       ("simplified_i_gain", "roll")):
+        for difference in (-1, 1):
+            result = analyze_change(fc, before, {**before, name: before[name] + difference}, axis, "step")
+            change = next(item for item in result["changes"] if item["name"] == name)
+            assert "ошибку угловой скорости" in change["effect"]
+            assert "заданной скоростью вращения" in change["effect"]
+            assert "измеренной гироскопом" in change["effect"]
+            assert "длительной ошибки угловой скорости" in change["guidance"]
+            assert "накопление интеграла" not in change["guidance"]
+            assert "накопленной ошибки" not in change["guidance"]
+            assert ("ослабляет" if difference < 0 else "усиливает") in change["guidance"]
