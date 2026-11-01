@@ -319,7 +319,8 @@ def test_pid_trainer_reports_first_zero_error_time(fc, monitor):
 
 def test_pid_trainer_has_separate_resultant_signal_graph(monitor):
     page = get(monitor + "/pid-trainer")[1].decode()
-    assert page.index('id="terms"') < page.index('id="result-graph"')
+    assert page.index('id="term-p"') < page.index('id="term-i"') < page.index('id="term-d"') < page.index('id="term-f"') < page.index('id="result-graph"')
+    assert "вертикальные шкалы подбираются независимо" in page
     assert 'aria-label="График результирующего управляющего сигнала выбранной оси"' in page
     assert "сумма составляющих P, I, D и Feedforward после ограничения" in page
     assert "Вертикальный масштаб автоматически подстраивается под сигнал" in page

@@ -1,4 +1,4 @@
-"""Результирующий график отрисовывает отдельную кривую тех же данных, что общая диаграмма."""
+"""Раздельная отрисовка составляющих и результирующего управляющего сигнала."""
 from __future__ import annotations
 
 import shutil
@@ -9,7 +9,7 @@ import pytest
 from bfemu.pid_trainer_page import PID_TRAINER_PAGE
 
 
-def test_resultant_graph_renders_control_signal():
+def test_separate_term_and_result_graphs_render_the_correct_series():
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js не установлен: отрисовку JavaScript проверить нельзя")
@@ -47,8 +47,32 @@ for (let i = 0; i < samples.length; i++) {
   const expectedY = 12 + (max - samples[i][6]) / (2 * max) * (190 - 12 - 25);
   assert(Math.abs(resultLines[0].path[i][1] - expectedY) < 1e-8);
 }
-const combined = strokes.find(s => s.id === 'terms' && s.color === '#e6edf3' && s.path.length === samples.length);
-assert(combined, 'совмещённый график по-прежнему содержит ту же результирующую кривую');
+const terms = [
+  ['term-p', 3, '#65d6b3'], ['term-i', 4, '#e3b45b'],
+  ['term-d', 5, '#ae9dfc'], ['term-f', 7, '#fb8c8c']
+];
+function checkTerms(rows) {
+  for (const [id, col, color] of terms) {
+    const paths = strokes.filter(s => s.id === id && s.path.length === rows.length);
+    assert.strictEqual(paths.length, 1, id + ': только одна кривая');
+    assert.strictEqual(paths[0].color, color);
+    const scale = Math.max(0.05, ...rows.map(row => Math.abs(row[col]))) * 1.1;
+    for (let i = 0; i < rows.length; i++) {
+      const expectedY = 12 + (scale - rows[i][col]) / (2 * scale) * (190 - 12 - 25);
+      const expectedX = 46 + rows[i][0] / 3 * (600 - 46 - 12);
+      assert(Math.abs(paths[0].path[i][1] - expectedY) < 1e-8, id + ': собственная шкала и столбец');
+      assert(Math.abs(paths[0].path[i][0] - expectedX) < 1e-8, id + ': единая шкала времени');
+    }
+  }
+}
+checkTerms(samples);
+// После обновления данных все четыре графика строятся заново. Нулевая серия
+// тоже получает конечную шкалу и располагается на нулевой линии.
+strokes.length = 0;
+latest.points = samples.map((row, i) => [row[0], row[1], row[2], row[3] * 2, 0, row[5] / 2, row[6], -row[7], row[8]]);
+drawAll();
+checkTerms(latest.points);
+assert(!strokes.some(s => s.id === 'terms'), 'совмещённый график удалён');
 '''
     result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10, check=False)
     assert result.returncode == 0, result.stderr
