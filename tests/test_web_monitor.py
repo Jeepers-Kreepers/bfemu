@@ -192,7 +192,8 @@ def test_pid_trainer_bidirectional_msp_and_profiles(fc, monitor):
     status, body = get(url + "?axis=roll&scenario=step")
     state = json.loads(body)
     assert status == 200 and state["profile"] == 0
-    assert len(state["points"]) == 301
+    assert len(state["points"]) == len(state["reference_points"]) == 301
+    assert state["reference_points"][76] == [0.76, 190.04]
     payload = {"axis": "roll", "profile": state["profile"], "expected": state["values"],
                "values": {"p": 75, "i": 90, "d": 50}}
     assert post(url, payload)[0] == 200
@@ -220,6 +221,8 @@ def test_pid_trainer_validation_and_page(fc, monitor):
     url = monitor + "/api/pid-trainer"
     status, page = get(monitor + "/pid-trainer")
     assert status == 200 and "Почувствуйте PID" in page.decode()
+    assert "Идеальный отклик · учебный ориентир" in page.decode()
+    assert "без перерегулирования и влияния возмущений" in page.decode()
     assert b'href="/pid-trainer"' in get(monitor + "/")[1]
     assert get(url + "?axis=bogus")[0] == 400
     assert get(url + "?scenario=bogus")[0] == 400

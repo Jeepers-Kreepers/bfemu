@@ -1,8 +1,31 @@
 """Учебная модель одной оси. Это не код PID Betaflight и не модель реального FC."""
 from __future__ import annotations
 
+import math
+
 AXES = ("roll", "pitch", "yaw")
 SCENARIOS = ("step", "disturbance", "reverse", "throttle")
+REFERENCE_TIME_CONSTANT_S = 0.12
+
+
+def reference_response(points):
+    """Учебный отклик без перерегулирования и возмущений, не настройка реального FC.
+
+    Эталон следует тому же заданию, что и сценарий, с постоянной времени 0,12 с.
+    На интервале между отсчётами действует задание с предыдущего отсчёта.
+    """
+    if not points:
+        return []
+    response = 0.0
+    previous_time, previous_target = points[0][:2]
+    result = []
+    for sample in points:
+        time, target = sample[:2]
+        alpha = 1.0 - math.exp(-(time - previous_time) / REFERENCE_TIME_CONSTANT_S)
+        response += (previous_target - response) * alpha
+        result.append([time, round(response, 2)])
+        previous_time, previous_target = time, target
+    return result
 
 
 def profile_state(fc, axis):
@@ -73,7 +96,8 @@ def simulate(values, scenario="step", settings=None, axis="roll"):
     outside = [row[0] for row in window if abs(row[2] - 200) > 10]
     settling = None if outside and outside[-1] >= window[-1][0] else (
         round((outside[-1] + 0.01 if outside else 0.4) - 0.4, 2))
-    return {"points": points, "metrics": {"overshoot_pct": round(overshoot, 1),
+    return {"points": points, "reference_points": reference_response(points),
+            "metrics": {"overshoot_pct": round(overshoot, 1),
             "settling_s": settling, "end_error": round(200 - window[-1][2], 1)}}
 
 # Схема только для полей видимой вкладки PID Configurator 4.5.4. Границы и

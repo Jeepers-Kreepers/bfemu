@@ -1,4 +1,6 @@
 """Проверки учебной модели PID; это не тесты реальной прошивки."""
+from itertools import pairwise
+
 from bfemu.pid_trainer import simulate
 
 
@@ -37,3 +39,27 @@ def test_extended_model_parameters_are_effective():
     assert all(abs(point[6]) <= .35 for point in simulate(values, settings=limited)["points"])
     assert simulate(values, settings={**zero_ff, "d_min_roll": 0})["points"] != simulate(
         values, settings=zero_ff)["points"]
+
+
+def test_reference_is_fixed_monotonic_and_independent_of_pid():
+    step = simulate({"p": 45, "i": 80, "d": 40}, "step")
+    bad_pid = simulate({"p": 0, "i": 0, "d": 0}, "step")
+    reference = step["reference_points"]
+    assert reference == bad_pid["reference_points"]
+    assert len(reference) == len(step["points"]) == 301
+    assert reference[40] == [0.4, 0.0]
+    assert reference[52][1] == 126.42
+    assert reference[76][1] == 190.04  # 95% через 0,36 секунды после ступени.
+    assert all(0 <= a[1] <= b[1] <= 200 for a, b in pairwise(reference))
+    assert simulate({"p": 45, "i": 80, "d": 40}, "disturbance")["reference_points"] == reference
+
+
+def test_reference_tracks_each_scenario_without_overshoot():
+    values = {"p": 45, "i": 80, "d": 40}
+    reverse = simulate(values, "reverse")["reference_points"]
+    assert reverse[150][1] > 199 and reverse[200][1] < -190
+    assert all(-200 <= row[1] <= 200 for row in reverse)
+    throttle = simulate(values, "throttle")["reference_points"]
+    assert throttle[170][1] == 200
+    assert 290 < throttle[200][1] < 300
+    assert 200 < throttle[250][1] < 220
