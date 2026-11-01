@@ -45,6 +45,7 @@ _ITEMS = (
     ("tx", "/tx", "Аппаратура (TX)"),
     ("aux", "/aux", "Режимы (AUX)"),
     ("failsafe", "/failsafe", "Failsafe (демо)"),
+    ("pid", "/pid-trainer", "PID тренажёр"),
     ("msc", "/msc", "Чёрный ящик (MSC)"),
     ("nav", "/nav", "Переходы"),
 )
@@ -62,6 +63,7 @@ _ICONS = {
     "failsafe": '<path d="M8 1.8l5.6 2.6v4c0 3.2-2.3 5.4-5.6 6.3-3.3-.9-5.6-3.1-5.6-6.3v-4z" '
                 'fill="none" stroke="currentColor" stroke-width="1.5"/>'
                 '<path d="M8 5.4v3.2M8 10.6v.8" stroke="currentColor" stroke-width="1.6"/>',
+    "pid": '<path d="M2 12V4m0 8h12M4 10l3-5 2 4 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>',
     "nav": '<path d="M3 7.6 8 3.4l5 4.2V13H3z" fill="none" stroke="currentColor" stroke-width="1.6"/>'
            '<path d="M6.6 13V9.4h2.8V13" fill="none" stroke="currentColor" stroke-width="1.6"/>',
 }
@@ -122,6 +124,7 @@ __NAV__
   <span class="what">20 слотов режимов: какие каналы и диапазоны что включают, логика И/ИЛИ,
   связи, маска MSP_STATUS. Обновляется живьём, пока вы щёлкаете тумблерами.</span>
   <span class="url">/aux</span></a>
+ <a class="big" href="/pid-trainer"><b>PID тренажёр</b><span class="what">Настройка профиля и реакция учебной модели.</span><span class="url">/pid-trainer</span></a>
  <a class="big" href="/msc"><b>Чёрный ящик (MSC)</b>
   <span class="what">Содержимое «флеша» файлами: LOG0000N.BBL по пролётам и BLACKBOX_ALL.BBL —
   то, что Configurator сохраняет кнопкой «Сохранено в файл…». Выход — кнопкой на странице.</span>

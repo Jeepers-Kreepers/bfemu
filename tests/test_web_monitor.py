@@ -183,3 +183,51 @@ def test_msc_page_says_no_flights_after_erase(fc, monitor):
     fc.handle(MSP_DATAFLASH_ERASE, b"", 1)
     page = get(monitor + "/msc")[1].decode()
     assert "пролётов нет" in page and "пролётов: -1" not in page
+
+
+def test_pid_trainer_bidirectional_msp_and_profiles(fc, monitor):
+    from bfemu.fc import MSP_PID, MSP_SET_PID
+
+    url = monitor + "/api/pid-trainer"
+    status, body = get(url + "?axis=roll&scenario=step")
+    state = json.loads(body)
+    assert status == 200 and state["profile"] == 0
+    assert len(state["points"]) == 301
+    payload = {"axis": "roll", "profile": state["profile"], "expected": state["values"],
+               "values": {"p": 75, "i": 90, "d": 50}}
+    assert post(url, payload)[0] == 200
+    assert list(fc.handle(MSP_PID, b"", 1)[:3]) == [75, 90, 50]
+    before_graph = state["points"]
+    updated = json.loads(get(url)[1])
+    assert updated["points"] != before_graph
+    raw = bytearray(fc.handle(MSP_PID, b"", 1))
+    raw[:3] = bytes([30, 40, 20])
+    fc.handle(MSP_SET_PID, bytes(raw), 1)
+    assert json.loads(get(url)[1])["values"] == {"p": 30, "i": 40, "d": 20}
+    # Старая форма не перезапишет изменения из Configurator.
+    assert post(url, payload)[0] == 409
+    fc.select_profile(1)
+    assert post(url, payload)[0] == 409
+    fc.select_profile(0)
+    assert list(fc.handle(MSP_PID, b"", 1)[:3]) == [30, 40, 20]
+    fc.save_to_eeprom()
+    from bfemu.fc import VirtualFC
+    restored = VirtualFC(eeprom_path=fc.eeprom_path)
+    assert list(restored.handle(MSP_PID, b"", 1)[:3]) == [30, 40, 20]
+
+
+def test_pid_trainer_validation_and_page(fc, monitor):
+    url = monitor + "/api/pid-trainer"
+    status, page = get(monitor + "/pid-trainer")
+    assert status == 200 and "Почувствуйте PID" in page.decode()
+    assert b'href="/pid-trainer"' in get(monitor + "/")[1]
+    assert get(url + "?axis=bogus")[0] == 400
+    assert get(url + "?scenario=bogus")[0] == 400
+    current = json.loads(get(url)[1])
+    payload = {"axis": "roll", "profile": current["profile"], "expected": current["values"],
+               "values": {"p": 80, "i": 80, "d": 80}}
+    for invalid in (-1, 251, True, 1.5, "20", None):
+        payload["values"]["d"] = invalid
+        assert post(url, payload)[0] == 400
+        assert json.loads(get(url)[1])["values"] == current["values"]
+    assert post(url, payload, {"Origin": "http://evil.example"})[0] == 403

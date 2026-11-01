@@ -30,6 +30,8 @@ from .fc import BUILD_OPTIONS, MSC_SECONDS, VirtualFC
 from .tx_page import TX_PAGE as _TX_PAGE
 from . import __build__ as _BUILD, __tx_page__ as _TX_PAGE_VERSION
 from . import pages as _pages
+from . import pid_trainer as _pid_trainer
+from .pid_trainer_page import PID_TRAINER_PAGE as _PID_TRAINER_PAGE
 from .failsafe_page import failsafe_page as _failsafe_page
 from .msp import ERROR_REPLY, FROM_FC, ErrorReply, MspParser, encode_v1, encode_v2
 
@@ -655,6 +657,24 @@ class HttpMonitor:
                 if (path.startswith(("/failsafe/", "/sim_flight/")) or path == "/msc/exit") \
                         and self._deny_foreign():
                     return
+                if path == "/pid-trainer":
+                    body = _PID_TRAINER_PAGE.replace("__NAV_STYLE__", _pages.NAV_STYLE) \
+                        .replace("__NAV__", _pages.nav_html("pid", _BUILD)).encode()
+                    self._send(body, "text/html; charset=utf-8")
+                    return
+                if path == "/api/pid-trainer":
+                    from urllib.parse import parse_qs, urlsplit
+                    params = parse_qs(urlsplit(self.path).query)
+                    axis = params.get("axis", ["roll"])[0]
+                    scenario = params.get("scenario", ["step"])[0]
+                    if axis not in _pid_trainer.AXES or scenario not in _pid_trainer.SCENARIOS:
+                        self._send(self._json_bytes({"error": "Неизвестная ось или сценарий"}),
+                                   "application/json; charset=utf-8", 400)
+                        return
+                    state = _pid_trainer.profile_state(fc, axis)
+                    state.update(_pid_trainer.simulate(state["values"], scenario))
+                    self._send(self._json_bytes(state), "application/json; charset=utf-8")
+                    return
                 if path == "/api/rc":
                     body = _json.dumps(fc.rc_state(), ensure_ascii=False).encode()
                     self._send(body, "application/json; charset=utf-8")
@@ -802,6 +822,38 @@ class HttpMonitor:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _post_pid_trainer(self):
+                import json as _json
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 4096:
+                        raise ValueError("Недопустимый размер запроса")
+                    data = _json.loads(self.rfile.read(length))
+                    if not isinstance(data, dict) or set(data) != {"axis", "profile", "expected", "values"}:
+                        raise ValueError("Нужны axis, profile, expected и values")
+                    axis, profile = data["axis"], data["profile"]
+                    if axis not in _pid_trainer.AXES or type(profile) is not int:
+                        raise ValueError("Неверная ось или профиль")
+                    for key in ("expected", "values"):
+                        vals = data[key]
+                        if (not isinstance(vals, dict) or set(vals) != set("pid") or
+                                any(type(vals[t]) is not int or not 0 <= vals[t] <= 250 for t in "pid")):
+                            raise ValueError("P, I и D должны быть целыми числами от 0 до 250")
+                except (ValueError, TypeError, _json.JSONDecodeError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                current = _pid_trainer.profile_state(fc, axis)
+                if profile != current["profile"] or data["expected"] != current["values"]:
+                    self._send(self._json_bytes({"error": "Профиль или значения изменились; загрузите их заново."}),
+                               "application/json; charset=utf-8", 409)
+                    return
+                for term in "pid":
+                    fc._store_setting(f"{term}_{axis}", data["values"][term])
+                fc._save_active_pid_profile()
+                fc._log(f"[PID trainer] профиль {profile}, {axis}: {data['values']}")
+                self._send(self._json_bytes(_pid_trainer.profile_state(fc, axis)),
+                           "application/json; charset=utf-8")
+
             def do_POST(self):
                 """Виртуальная аппаратура: POST /api/rc — каналы из страницы /tx или скрипта."""
                 try:
@@ -814,6 +866,9 @@ class HttpMonitor:
                 if self._deny_foreign():
                     return
                 path = self.path.split("?")[0].rstrip("/") or "/"
+                if path == "/api/pid-trainer":
+                    self._post_pid_trainer()
+                    return
                 if path != "/api/rc":
                     self._send(b'{"error":"only POST /api/rc is supported"}',
                                "application/json; charset=utf-8", 404)
