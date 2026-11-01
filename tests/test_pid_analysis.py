@@ -12,7 +12,7 @@ def test_analysis_direction_axis_and_model_limits(fc):
     assert changes["p_roll"]["before"] == "45" and changes["p_roll"]["after"] == "65"
     assert "колебан" in changes["p_roll"]["guidance"]
     assert "относится к оси тангажа" in changes["d_pitch"]["model"]
-    assert "не рассчитывает влияние этой настройки" in changes["anti_gravity_gain"]["model"]
+    assert "влияние этой настройки на график не рассчитывается" in changes["anti_gravity_gain"]["model"]
     assert changes["p_roll"]["model"] == ""  # Не повторяем устройство модели для каждой настройки.
     assert result["max_gyro_delta"] > 0
     assert result["before_metrics"] != result["after_metrics"]
@@ -79,7 +79,7 @@ def test_unmodeled_field_does_not_claim_model_observation(fc):
     assert result["max_gyro_delta"] == 0
     assert result["before_metrics"] == result["after_metrics"]
     assert result["observations"] == []
-    assert "не рассчитывает влияние этой настройки" in result["changes"][0]["model"]
+    assert "влияние этой настройки на график не рассчитывается" in result["changes"][0]["model"]
 
 
 def test_all_parameters_have_complete_relevant_explanations(fc):
@@ -111,3 +111,74 @@ def test_integral_explanation_identifies_rate_error_and_gain_consequences(fc):
             assert "накопление интеграла" not in change["guidance"]
             assert "накопленной ошибки" not in change["guidance"]
             assert ("ослабляет" if difference < 0 else "усиливает") in change["guidance"]
+
+
+def test_every_field_has_individual_actionable_guidance_in_both_directions(fc):
+    from bfemu.pid_trainer import FIELD_NAMES
+
+    before = all_settings(fc)
+    for name in FIELD_NAMES:
+        # Этот тест проверяет пояснения каждого направления, даже если граница
+        # реального диапазона не допускает одно из них для заводского значения.
+        changes = []
+        for delta in (-1, 1):
+            old = {**before, name: 1 if name == "auto_profile_cell_count" else before[name]}
+            new = {**old, name: old[name] + delta}
+            change = analyze_change(fc, old, new, "roll", "step")["changes"][0]
+            assert change["effect"].endswith(".")
+            assert change["guidance"].endswith(".")
+            assert "Проверьте результат на подходящем сценарии" not in change["guidance"]
+            assert "Эффект зависит от газа, команды и оси" not in change["guidance"]
+            changes.append(change["guidance"])
+        # Переключатели и выбор осей могут иметь особые значения вне диапазона;
+        # валидные варианты отдельно проверяются ниже.
+        if name not in {"use_integrated_yaw", "iterm_rotation", "iterm_relax_type", "tpa_mode"}:
+            assert changes[0] != changes[1], name
+
+
+def test_unmodeled_options_and_direction_explain_real_effects(fc):
+    before = all_settings(fc)
+
+    def change(name, old, new, **context):
+        snapshot = {**before, **context, name: old}
+        return analyze_change(fc, snapshot, {**snapshot, name: new}, "roll", "step")["changes"][0]
+
+    higher = change("feedforward_smooth_factor", 25, 35)
+    lower = change("feedforward_smooth_factor", 25, 15)
+    assert "задержку" in higher["guidance"] and "отзывчивее" in lower["guidance"]
+    assert "реальному Betaflight" in higher["model"] and "график не рассчитывается" in higher["model"]
+    for old, new, phrase in [(0, 20, "включён"), (20, 0, "выключен"), (20, 30, "Большее"), (30, 20, "Меньшее")]:
+        guidance = change("feedforward_max_rate_limit", old, new)["guidance"]
+        assert phrase in guidance
+        assert "крен" in guidance and "тангаж" in guidance
+    assert "SETPOINT" in change("iterm_relax_type", 0, 1)["guidance"]
+    assert "GYRO" in change("iterm_relax_type", 1, 0)["guidance"]
+    assert "не действует" in change("iterm_relax_type", 1, 0, iterm_relax=0)["guidance"]
+    assert "не влияет" in change("iterm_relax_cutoff", 15, 20, iterm_relax=0)["guidance"]
+    assert "не действует" in change("abs_control_gain", 0, 1, iterm_relax=0)["guidance"]
+    assert "данные об оборотах" in change("dyn_idle_min_rpm", 0, 30)["guidance"]
+    assert "не жёсткая гарантия" in change("acro_trainer_angle_limit", 20, 30)["guidance"]
+    assert "ограничение команды" in change("angle_limit", 30, 40)["guidance"]
+    assert "свежем аккумуляторе" in change("vbat_sag_compensation", 0, 10)["guidance"]
+
+
+def test_modes_and_profile_special_values_have_specific_meaning(fc):
+    before = all_settings(fc)
+
+    def change(name, old, new):
+        snapshot = {**before, name: old}
+        return analyze_change(fc, snapshot, {**snapshot, name: new}, "yaw", "step")["changes"][0]
+
+    assert "выключен" in change("iterm_relax", 1, 0)["guidance"]
+    assert "рыскания" in change("iterm_relax", 1, 2)["guidance"]
+    inc = change("iterm_relax", 1, 3)
+    assert "только увеличение" in inc["guidance"]
+    assert "INC отдельно не воспроизводится" in inc["model"]
+    assert "только D" in change("tpa_mode", 0, 1)["guidance"]
+    assert "P и D" in change("tpa_mode", 1, 0)["guidance"]
+    assert "накопленной I-коррекции" in change("iterm_rotation", 0, 1)["guidance"]
+    assert "обычный прямой выход" in change("use_integrated_yaw", 1, 0)["guidance"]
+    assert "оставаться на профиле" in change("auto_profile_cell_count", -1, 0)["after"]
+    assert "переключаться на подходящий профиль" in change("auto_profile_cell_count", 0, -1)["after"]
+    assert "с 4 элементами" in change("auto_profile_cell_count", 0, 4)["guidance"]
+    assert "вне диапазона" in change("auto_profile_cell_count", 0, -2)["guidance"]
