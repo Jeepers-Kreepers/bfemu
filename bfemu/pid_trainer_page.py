@@ -15,7 +15,7 @@ label{display:block;color:#adb8c7;font-size:13px;margin-bottom:5px}select,input,
 __NAV_STYLE__
 </style></head><body>__NAV__<main>
 <div class="eyebrow">Интерактивная лаборатория · Betaflight 4.5</div><h1>Почувствуйте PID</h1>
-<p class="subtitle">Меняйте параметры активного профиля здесь или в Betaflight Configurator и наблюдайте реакцию учебной модели одной оси. <a href="/sitl-data">Открыть данные Betaflight SITL</a>.</p>
+<p class="subtitle">Меняйте параметры активного профиля здесь или в Betaflight Configurator и наблюдайте реакцию учебной модели одной оси. <a href="/sitl-data">Открыть данные Betaflight SITL</a> · <a href="/aircraft">Параметры аппарата</a>.</p>
 <div class="layout"><div><section class="card"><h2>Настройки эксперимента</h2>
 <div class="field"><label for="axis">Ось</label><select id="axis"><option value="roll">Roll · крен</option><option value="pitch">Pitch · тангаж</option><option value="yaw">Yaw · рыскание</option></select></div>
 <div class="field"><label for="scenario">Сценарий</label><select id="scenario"><option value="step">Ступень · реакция на стик</option><option value="disturbance">Возмущение · порыв ветра</option><option value="reverse">Реверс · смена направления</option><option value="throttle">Высокий газ · TPA</option></select><p class="small">Для TPA газ повышается в 1,5 с, затем следует команда на 300 °/с и возврат к 200 °/с.</p></div>

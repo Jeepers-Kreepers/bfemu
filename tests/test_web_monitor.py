@@ -382,3 +382,17 @@ def test_sitl_data_page_offers_recorded_raw_msp_not_generated_graphs(monitor):
     assert "MSP_RAW_IMU" in page and "MSP_MOTOR" in page
     assert "в этих MSP-ответах не передаются" in page
     assert "JSON.parse" in page and "payload_hex" in page
+
+
+def test_aircraft_page_is_reachable_and_does_not_claim_sitl_integration(monitor):
+    status, data = get(monitor + "/aircraft")
+    page = data.decode()
+    assert status == 200
+    assert "Параметры аппарата" in page
+    assert 'href="/aircraft"' in get(monitor + "/pid-trainer")[1].decode()
+    assert 'class="on" href="/aircraft"' in page
+    assert "пока не передаётся в Betaflight или симулятор" in page
+    assert 'name="mass_g"' in page and 'name="inertia_xx"' in page
+    assert 'name="motor_4_output"' in page and 'name="sensor_notes"' in page
+    assert 'name="motor_1_model" type="text"' in page
+    assert "localStorage" in page

@@ -34,6 +34,7 @@ from . import pid_trainer as _pid_trainer
 from . import pid_analysis as _pid_analysis
 from .pid_trainer_page import PID_TRAINER_PAGE as _PID_TRAINER_PAGE
 from .sitl_data_page import SITL_DATA_PAGE as _SITL_DATA_PAGE
+from .aircraft_page import aircraft_page as _aircraft_page
 from .failsafe_page import failsafe_page as _failsafe_page
 from .msp import ERROR_REPLY, FROM_FC, ErrorReply, MspParser, encode_v1, encode_v2
 
@@ -662,6 +663,11 @@ class HttpMonitor:
                 if path == "/pid-trainer":
                     body = _PID_TRAINER_PAGE.replace("__NAV_STYLE__", _pages.NAV_STYLE) \
                         .replace("__NAV__", _pages.nav_html("pid", _BUILD)).encode()
+                    self._send(body, "text/html; charset=utf-8")
+                    return
+                if path == "/aircraft":
+                    body = _aircraft_page().replace("__NAV_STYLE__", _pages.NAV_STYLE) \
+                        .replace("__NAV__", _pages.nav_html("aircraft", _BUILD)).encode()
                     self._send(body, "text/html; charset=utf-8")
                     return
                 if path == "/sitl-data":
