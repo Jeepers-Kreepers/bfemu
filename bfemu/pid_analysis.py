@@ -10,14 +10,14 @@ from .pid_trainer import AXES, FIELD_GROUPS, MODELED_NAMES, SLIDER_NAMES, simula
 # Для каждой настройки формулируем самостоятельное объяснение, а не сокращённую подпись из формы.
 _EFFECTS = {
     "simplified_pids_mode": "Этот режим определяет, применяются ли ползунки к осям крена и тангажа, ко всем трём осям или не применяются вовсе.",
-    "simplified_d_gain": "Этот ползунок изменяет общий множитель демпфирующего коэффициента D. Значение 100 соответствует множителю 1,00.",
-    "simplified_pi_gain": "Этот ползунок изменяет общий множитель пропорционального коэффициента P и интегрального коэффициента I. Значение 100 соответствует множителю 1,00.",
-    "simplified_feedforward_gain": "Этот ползунок изменяет множитель упреждающего управления Feedforward. Значение 100 соответствует множителю 1,00.",
-    "simplified_dmax_gain": "Этот ползунок влияет на соотношение между базовым значением D и его верхним значением D Max при пересчёте коэффициентов.",
-    "simplified_i_gain": "Этот ползунок задаёт дополнительный множитель интегрального коэффициента I и влияет на коррекцию длительной ошибки.",
-    "simplified_pitch_d_gain": "Этот ползунок задаёт дополнительный множитель демпфирующего коэффициента D для оси тангажа.",
-    "simplified_pitch_pi_gain": "Этот ползунок задаёт дополнительный множитель коэффициентов P, I и Feedforward для оси тангажа.",
-    "simplified_master_multiplier": "Этот ползунок задаёт общий множитель для пересчёта коэффициентов PID и Feedforward. Значение 100 соответствует множителю 1,00.",
+    "simplified_d_gain": "Настройка меняет базовый коэффициент D и верхнюю границу D Max, влияющие на подавление колебаний и отскока после манёвра.",
+    "simplified_pi_gain": "Настройка меняет коэффициенты P и I, которые влияют на следование команде и сопротивление длительным возмущениям.",
+    "simplified_feedforward_gain": "Настройка меняет коэффициент Feedforward, который влияет на реакцию аппарата на движение стика.",
+    "simplified_dmax_gain": "Настройка меняет верхнюю границу D Max относительно базового коэффициента D и влияет на демпфирование при манёврах.",
+    "simplified_i_gain": "Настройка меняет интегральный коэффициент I, который помогает исправлять длительную ошибку угловой скорости.",
+    "simplified_pitch_d_gain": "Настройка меняет демпфирующие коэффициенты D и D Max для оси тангажа.",
+    "simplified_pitch_pi_gain": "Настройка меняет коэффициенты P, I и Feedforward для оси тангажа.",
+    "simplified_master_multiplier": "Настройка меняет общий множитель коэффициентов PID и Feedforward одновременно.",
     "angle_p_gain": "Эта настройка задаёт силу стремления аппарата вернуться к заданному углу наклона в режиме Angle.",
     "horizon_level_strength": "Эта настройка задаёт силу самовыравнивания аппарата в режиме Horizon.",
     "horizon_limit_sticks": "Эта настройка влияет на переход между самовыравниванием и акробатическим управлением при отклонении стика в режиме Horizon.",
@@ -66,31 +66,59 @@ def _effect(name: str, axis: str | None) -> str:
     return _EFFECTS[name]
 
 
-_AXIS_MODEL_DETAILS = {
-    "p": "В учебной модели пропорциональная составляющая рассчитывается по разнице между заданной и текущей угловой скоростью с условным масштабированием.",
-    "i": "В учебной модели интегральная составляющая накапливает ошибку угловой скорости и ограничивается по величине, чтобы накопление не росло бесконечно.",
-    "d": "В учебной модели демпфирующая составляющая зависит от изменения угловой скорости и может увеличиваться от базового значения D до значения D Max.",
-    "d_min": "В учебной модели это базовое значение используется для расчёта демпфирующей составляющей, которая может возрастать до значения D Max.",
-    "f": "В учебной модели упреждающая составляющая реагирует на скорость изменения заданной угловой скорости и применяется с условным масштабированием.",
+# Коэффициенты, которые данный ползунок может пересчитать. Это не доказательство
+# причинной связи: снимок может содержать и независимые изменения из Configurator.
+_SLIDER_TARGETS = {
+    "simplified_pids_mode": ("p", "i", "d", "d_min", "f"),
+    "simplified_master_multiplier": ("p", "i", "d", "d_min", "f"),
+    "simplified_d_gain": ("d", "d_min"),
+    "simplified_pi_gain": ("p", "i"),
+    "simplified_feedforward_gain": ("f",),
+    "simplified_dmax_gain": ("d",),
+    "simplified_i_gain": ("i",),
+    "simplified_pitch_d_gain": ("d", "d_min"),
+    "simplified_pitch_pi_gain": ("p", "i", "f"),
 }
-_MODEL_DETAILS = {
-    "d_max_gain": "В учебной модели этот коэффициент влияет на увеличение D в зависимости от скорости изменения показаний гироскопа.",
-    "d_max_advance": "В учебной модели этот коэффициент влияет на увеличение D в зависимости от скорости изменения команды управления.",
-    "tpa_mode": "В учебной модели при высоком газе всегда ослабляется составляющая D, а в режиме PD дополнительно ослабляется составляющая P.",
-    "tpa_rate": "В учебной модели этот коэффициент определяет, насколько ослабляются выбранные составляющие при газе выше заданного порога.",
-    "tpa_breakpoint": "В учебной модели ослабление выбранных составляющих начинается, когда положение газа превышает этот порог.",
-    "motor_output_limit": "В учебной модели этот предел ограничивает общий управляющий момент. Модель не рассчитывает выход каждого двигателя по отдельности.",
-    "iterm_relax": "В учебной модели ослабление уменьшает накопление интегральной ошибки при быстром изменении задания и учитывает выбранные оси. Варианты с суффиксом INC отдельно не воспроизводятся.",
-    "iterm_relax_cutoff": "В учебной модели это значение влияет на силу ослабления накопления интегральной ошибки при изменении заданной угловой скорости.",
+_SLIDER_GUIDANCE = {
+    "simplified_d_gain": (
+        "Повышение демпфирования может уменьшить отскок после манёвра, но чрезмерный D усиливает реакцию на шум гироскопа и может нагревать двигатели.",
+        "Снижение демпфирования может уменьшить нагрев двигателей, но недостаточный D способен усилить отскок и колебания после манёвра."),
+    "simplified_pi_gain": (
+        "Повышение коэффициентов P и I может улучшить следование команде и сопротивление возмущениям, но увеличить колебания и отскок.",
+        "Снижение коэффициентов P и I может уменьшить колебания и отскок, но ухудшить точность следования команде и удержание при возмущениях."),
+    "simplified_feedforward_gain": (
+        "Повышение Feedforward может сделать реакцию на движение стика быстрее, но чрезмерное значение способно вызвать резкий отклик и перерегулирование.",
+        "Снижение Feedforward может смягчить реакцию на движение стика, но уменьшить отзывчивость управления."),
+    "simplified_dmax_gain": (
+        "Повышение D Max может усилить демпфирование при манёврах, но способно увеличить реакцию на шум и нагрев двигателей.",
+        "Снижение D Max может уменьшить реакцию на шум, но ослабить демпфирование при резких манёврах."),
+    "simplified_i_gain": (
+        "Повышение I может улучшить удержание при длительных возмущениях, но чрезмерное накопление интегральной составляющей способно вызвать отскок.",
+        "Снижение I может уменьшить отскок из-за накопленной ошибки, но увеличить дрейф при длительных возмущениях."),
+    "simplified_pitch_d_gain": (
+        "Повышение демпфирования по тангажу может уменьшить отскок на этой оси, но чрезмерный D способен усилить шум и нагрев двигателей.",
+        "Снижение демпфирования по тангажу может уменьшить реакцию на шум, но усилить отскок и колебания на этой оси."),
+    "simplified_pitch_pi_gain": (
+        "Повышение коэффициентов P, I и Feedforward по тангажу может улучшить отклик на этой оси, но увеличить колебания и отскок.",
+        "Снижение коэффициентов P, I и Feedforward по тангажу может уменьшить колебания, но ухудшить отклик и удержание на этой оси."),
+    "simplified_master_multiplier": (
+        "Повышение общего множителя может усилить реакцию на команды и возмущения, но одновременно повысить риск колебаний и нагрева двигателей.",
+        "Снижение общего множителя может уменьшить колебания и нагрузку на двигатели, но ослабить реакцию на команды и возмущения."),
 }
 
 
-def _model_detail(name: str, field_axis: str | None) -> str:
-    if field_axis:
-        prefix = name.removesuffix("_" + field_axis)
-        if prefix in _AXIS_MODEL_DETAILS:
-            return _AXIS_MODEL_DETAILS[prefix]
-    return _MODEL_DETAILS[name]
+def _slider_context(name: str, after: dict, axis: str, changed: set) -> str:
+    mode = after["simplified_pids_mode"]
+    if mode == 0:
+        return "В активном профиле упрощённая настройка выключена, поэтому применение ползунков не пересчитывает коэффициенты PID."
+    if name in ("simplified_pitch_d_gain", "simplified_pitch_pi_gain") and axis != "pitch":
+        return "Эта настройка относится к оси тангажа. Для оценки её влияния выберите ось тангажа."
+    if axis == "yaw" and mode == 1:
+        return "В текущем режиме ползунки применяются только к крену и тангажу. Значения для оси рыскания не пересчитываются."
+    if name != "simplified_pids_mode" and not any(f"{prefix}_{axis}" in changed for prefix in _SLIDER_TARGETS[name]):
+        return ("При последнем опросе связанные коэффициенты выбранной оси остались прежними. "
+                "По этому снимку нельзя подтвердить влияние изменения; проверьте сохранение настроек и ограничения коэффициентов.")
+    return ""
 
 
 _GROUP_GUIDANCE = {
@@ -107,6 +135,14 @@ _GROUP_GUIDANCE = {
 def _guidance(name: str, group: str, before: int, after: int) -> str:
     prefix = name.rsplit("_", 1)[0]
     increased = after > before
+    if name in _SLIDER_GUIDANCE:
+        return _SLIDER_GUIDANCE[name][0 if increased else 1]
+    if name == "simplified_pids_mode":
+        if after == 0:
+            return "Выключение упрощённой настройки прекращает пересчёт коэффициентов ползунками. Ранее установленные коэффициенты остаются в профиле."
+        if after == 1:
+            return "В этом режиме пересчитываются коэффициенты крена и тангажа. Коэффициенты рыскания сохраняются без пересчёта."
+        return "В этом режиме упрощённая настройка распространяется на крен, тангаж и рыскание. Проверьте полученные коэффициенты всех трёх осей."
     if prefix == "p":
         return ("Повышение P может ускорить коррекцию, но увеличить риск колебаний и нагрузку на моторы."
                 if increased else "Снижение P может уменьшить колебания, но ухудшить следование заданию.")
@@ -153,6 +189,15 @@ def _display(value, options):
 def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> dict:
     """Проверить разницу снимков и сравнить один и тот же сценарий до/после."""
     changes = []
+    changed = {name for name in before if before[name] != after[name]}
+    slider_changes = changed & SLIDER_NAMES
+    related_coefficients = {
+        f"{prefix}_{item_axis}"
+        for slider in slider_changes
+        for prefix in _SLIDER_TARGETS[slider]
+        for item_axis in AXES
+        if not slider.startswith("simplified_pitch_") or item_axis == "pitch"
+    }
     for group, fields in FIELD_GROUPS:
         for name, label, _note in fields:
             if before[name] == after[name]:
@@ -161,28 +206,19 @@ def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> d
             field_axis = next((item for item in AXES if name.endswith("_" + item)), None)
             is_modeled = name in MODELED_NAMES and (field_axis is None or field_axis == axis)
             if name in SLIDER_NAMES:
-                applicability = (f"Положение ползунка «{label}» не используется в расчёте графика напрямую. "
-                                 "Если режим ползунков включён и параметры применены, ползунок может пересчитать "
-                                 "коэффициенты PID и Feedforward. Учебная модель реагирует на полученные коэффициенты, "
-                                 "а не на положение ползунка само по себе.")
+                applicability = _slider_context(name, after, axis, changed)
             elif is_modeled:
-                applicability = (f"Влияние параметра «{label}» на выбранную ось учитывается в учебной модели "
-                                 "приближённо. " + _model_detail(name, field_axis) +
-                                 " Его эффект зависит от выбранного сценария и других настроек. "
-                                 "Этот расчёт не воспроизводит в точности поведение реальной прошивки Betaflight "
-                                 "и не позволяет оценить последствия для конкретного дрона.")
+                applicability = ""
             elif field_axis and name in MODELED_NAMES:
-                applicability = (f"Параметр «{label}» относится к оси {field_axis.upper()}, а сейчас выбрана ось "
-                                 f"{axis.upper()}. Поэтому изменение этого параметра не влияет на текущий график. "
-                                 "Чтобы увидеть его возможное влияние в учебной модели, выберите соответствующую ось.")
+                applicability = (f"Эта настройка относится к оси {_AXIS_NAMES[field_axis]}. "
+                                 f"Её влияние не отображается на выбранном графике оси {_AXIS_NAMES[axis]}.")
             else:
-                applicability = (f"Параметр «{label}» сохраняется в активном профиле эмулятора, "
-                                 "но его влияние не рассчитывается учебной моделью. "
-                                 "По текущему графику нельзя сделать вывод о последствиях изменения этого параметра.")
+                applicability = ("Учебная модель не рассчитывает влияние этой настройки. "
+                                 "По текущим графикам нельзя оценить последствия её изменения.")
             changes.append({"name": name, "label": label, "before": _display(before[name], options),
                             "after": _display(after[name], options), "effect": _effect(name, field_axis),
                             "guidance": _guidance(name, group, before[name], after[name]),
-                            "model": applicability})
+                            "model": applicability, "related": name in related_coefficients})
 
     def run(settings):
         values = {term: settings[f"{term}_{axis}"] for term in "pid"}
@@ -191,39 +227,43 @@ def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> d
     previous, current = run(before), run(after)
     max_difference = max(abs(a[2] - b[2]) for a, b in zip(previous["points"], current["points"], strict=True))
     warnings = []
-    if after[f"d_min_{axis}"] > after[f"d_{axis}"]:
+    if ({f"d_min_{axis}", f"d_{axis}"} & changed and
+            after[f"d_min_{axis}"] > after[f"d_{axis}"]):
         warnings.append("Базовый D выше D Max на выбранной оси. Модель ограничивает его значением D Max; проверьте профиль.")
-    if after[f"p_{axis}"] == 0:
+    if f"p_{axis}" in changed and after[f"p_{axis}"] == 0:
         warnings.append("P выбранной оси равен нулю: пропорциональная коррекция ошибки отключена.")
-    if after[f"i_{axis}"] == 0:
+    if f"i_{axis}" in changed and after[f"i_{axis}"] == 0:
         warnings.append("I выбранной оси равен нулю: интегральная коррекция постоянного возмущения отключена.")
     if scenario != "throttle" and any(name.startswith("tpa_") for name in (c["name"] for c in changes)):
         warnings.append("Для оценки TPA попробуйте сценарий «Высокий газ»: в других сценариях газа может не хватать для TPA.")
     before_metrics, after_metrics = previous["metrics"], current["metrics"]
     observations = []
-    overshoot_diff = round(after_metrics["overshoot_pct"] - before_metrics["overshoot_pct"], 1)
-    if overshoot_diff:
-        direction = "выросло" if overshoot_diff > 0 else "снизилось"
-        observations.append(f"Перерегулирование в учебной модели {direction}. Разница между прежним и новым значением, "
-                            f"выраженная в процентных пунктах, составляет {abs(overshoot_diff)}. "
-                            "Эти значения не описывают реальный полёт.")
-    old_time, new_time = before_metrics["settling_s"], after_metrics["settling_s"]
-    if old_time is None and new_time is not None:
-        observations.append("В модели отклик начал укладываться в полосу отклонения в пять процентов до конца рассматриваемого интервала.")
-    elif old_time is not None and new_time is None:
-        observations.append("В модели отклик перестал укладываться в полосу отклонения в пять процентов до конца рассматриваемого интервала.")
-    elif old_time is not None and new_time is not None and abs(new_time - old_time) >= 0.01:
-        direction = "увеличилось" if new_time > old_time else "уменьшилось"
-        observations.append(f"Время установления в учебной модели {direction}. Разница между прежним и новым временем, "
-                            f"выраженная в секундах, составляет {abs(new_time - old_time):.2f}.")
-    old_error, new_error = abs(before_metrics["end_error"]), abs(after_metrics["end_error"])
-    if abs(new_error - old_error) >= 0.1:
-        direction = "выросла" if new_error > old_error else "снизилась"
-        observations.append(f"Абсолютная ошибка угловой скорости в конце рассматриваемого интервала {direction}. "
-                            f"Разница между прежней и новой ошибкой, выраженная в градусах в секунду, "
-                            f"составляет {abs(new_error - old_error):.1f}.")
-    if not observations:
-        observations.append("Округлённые метрики первой ступени не изменились; это не доказывает отсутствие эффекта или безопасность.")
+    # Ползунки сами не входят в модель; реакцию сравниваем только если изменился
+    # хотя бы один учитываемый коэффициент выбранной оси или общая настройка модели.
+    modeled_changes = [item for item in changes if item["name"] in MODELED_NAMES and
+                       (not any(item["name"].endswith("_" + other) for other in AXES if other != axis))]
+    if modeled_changes:
+        old_overshoot, new_overshoot = before_metrics["overshoot_pct"], after_metrics["overshoot_pct"]
+        if old_overshoot != new_overshoot:
+            direction = "выросло" if new_overshoot > old_overshoot else "снизилось"
+            observations.append(f"В учебной модели перерегулирование {direction} с {old_overshoot} до {new_overshoot} процентов.")
+        old_time, new_time = before_metrics["settling_s"], after_metrics["settling_s"]
+        if old_time is None and new_time is not None:
+            observations.append(f"Отклик начал удерживаться в пределах пяти процентов от заданной скорости за {new_time} секунды.")
+        elif old_time is not None and new_time is None:
+            observations.append("Отклик больше не удерживается в пределах пяти процентов от заданной скорости до конца рассматриваемого интервала.")
+        elif old_time is not None and new_time is not None and abs(new_time - old_time) >= 0.009:
+            direction = "увеличилось" if new_time > old_time else "уменьшилось"
+            observations.append(f"Время установления в учебной модели {direction} с {old_time} до {new_time} секунды.")
+        old_error, new_error = abs(before_metrics["end_error"]), abs(after_metrics["end_error"])
+        if abs(new_error - old_error) >= 0.1:
+            direction = "выросла" if new_error > old_error else "снизилась"
+            observations.append(f"Абсолютная ошибка угловой скорости в конце интервала {direction} с {old_error} до {new_error} градусов в секунду.")
+        if not observations:
+            if max_difference >= 0.1:
+                observations.append(f"Показатели первой ступени не изменились. Максимальное различие угловой скорости за весь сценарий составило {max_difference:.1f} градуса в секунду.")
+            else:
+                observations.append("Расчётная реакция выбранной оси в этом сценарии не изменилась. Это не доказывает отсутствие эффекта в других условиях.")
     return {"axis": axis, "scenario": scenario, "changes": changes, "warnings": warnings,
             "observations": observations, "before_metrics": before_metrics, "after_metrics": after_metrics,
             "max_gyro_delta": round(max_difference, 1)}
