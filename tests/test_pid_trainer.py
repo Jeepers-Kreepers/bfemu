@@ -92,3 +92,18 @@ def test_first_zero_error_metric_in_real_scenarios(fc):
         assert result["metrics"]["first_zero_error_s"] is None
     stopped = simulate({"p": 0, "i": 0, "d": 0})
     assert stopped["metrics"]["first_zero_error_s"] is None
+
+
+def test_resultant_signal_matches_sum_after_output_limit():
+    """Отдельный график показывает ограниченную сумму, а не отдельную составляющую."""
+    values = {"p": 110, "i": 80, "d": 45}
+    limit = 0.35
+    settings = {"motor_output_limit": 35, "f_roll": 120, "d_min_roll": 25,
+                "d_max_gain": 37, "d_max_advance": 20}
+    points = simulate(values, "reverse", settings, "roll")["points"]
+    assert any(abs(row[6]) == limit for row in points)
+    for row in points:
+        rounded_sum = row[3] + row[4] + row[5] + row[7]
+        expected = max(-limit, min(limit, rounded_sum))
+        # В кадре каждая составляющая и сумма округлены отдельно до 0,001.
+        assert abs(row[6] - expected) <= 0.0025
