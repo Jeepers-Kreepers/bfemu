@@ -122,7 +122,7 @@ AIRCRAFT_PAGE = r'''<!doctype html>
 #sitl-graph{width:100%;height:300px;display:block;border:1px solid #30363d;border-radius:8px}.parameter{position:relative;min-width:0}.field-title{display:flex;align-items:center;min-height:44px;padding-right:52px}.parameter .help-toggle{position:absolute;right:0;top:0;width:44px;height:44px;padding:0;border-radius:50%;color:#79c0ff;font-size:15px;line-height:1}.parameter .help-toggle:focus-visible{outline:2px solid #79c0ff;outline-offset:2px}.help-tip{margin-top:9px;padding:10px 12px;color:#d6dee8;background:#1b2633;border:1px solid #39536b;border-radius:8px;font-size:13px;line-height:1.5}.help-tip[hidden]{display:none}
 __NAV_STYLE__
 </style></head><body>__NAV__<main><h1>Параметры аппарата</h1>
-<p>Выберите пример аппарата с пропеллерами от 1,5″ до 10″. Паспортные данные реальных сборок не являются физическими моделями; неизвестные параметры не подставляются из других размеров.</p>
+<p>Выберите пример аппарата с пропеллерами от 1,5″ до 10″. Паспортные данные реальных сборок не являются физическими моделями; неизвестные параметры не подставляются из других размеров. <a href="#sitl-experiment">Перейти к запуску примера 7″</a>.</p>
 <section class="card"><h2>Загрузить конфигурацию</h2><div class="grid">__PICKER__</div><p id="preset-info" class="hint"></p><div class="actions"><button id="defaults" type="button">Загрузить выбранный пример</button><button id="export" type="button">Скачать профиль JSON</button></div>__IMPORT__<p id="preset-status" class="status" role="status" aria-live="polite"></p></section>
 <p class="note">Профиль сохраняется в этом браузере. Сохранённые параметры можно передать в эксперимент SITL ниже. Основной учебный график PID и подбор коэффициентов пока не используют профиль аппарата.</p>
 <form id="aircraft-form" novalidate><section class="card"><h2>Профиль и масса</h2>
@@ -136,10 +136,11 @@ __NAV_STYLE__
 <section class="card"><div class="actions"><button class="primary" type="submit">Сохранить профиль</button><button type="button" id="restore">Вернуть сохранённое</button><button type="button" id="clear">Очистить поля</button></div>
 <p class="hint">Хранится один профиль для этого адреса в браузере. Очистка полей не удаляет сохранённый профиль, пока вы не нажмёте «Сохранить профиль».</p><p id="status" class="status" role="status" aria-live="polite"></p></section></form>
 <section class="card" id="sitl-experiment"><h2>Эксперимент с Betaflight SITL и аппаратом</h2>
-<p>Проверка выполняется на сохранённом профиле в отдельной временной копии Betaflight 4.5.4 SITL с заводскими настройками PID. Она не меняет настройки вашего FC. В ходе эксперимента подаются газ и короткая команда крена; график показывает угловую скорость физической модели, а не показания MSP.</p>
+<p>Запустите готовый пример 7″ без заполнения и сохранения полей или выберите запуск сохранённого профиля. Готовый пример не изменяет вашу форму и сохранённый профиль.</p>
+<p>Проверка выполняется в отдельной временной копии Betaflight 4.5.4 SITL с заводскими настройками PID. Она не меняет настройки вашего FC. В ходе эксперимента подаются газ и короткая команда крена; график показывает угловую скорость физической модели, а не показания MSP.</p>
 <p>В расчёте участвуют масса, центр масс, матрица инерции, координаты и выходы моторов, направление вращения, максимальная тяга и времена отклика.</p>
 <p class="note">Доступна теоретическая модель приводов Build 03: команда SITL условно пропорциональна оборотам, тяга — квадрату команды. Постоянные времени применяются к тяге, а не к оборотам. Инерция взята для base_link без отдельных роторов. Земля, сопротивление воздуха, батарея, шум и задержка IMU не моделируются. Результат не является измерением реального аппарата.</p>
-<div class="actions"><button class="primary" type="button" id="run-sitl">Запустить эксперимент SITL</button></div>
+<div class="actions"><button class="primary" type="button" id="run-sitl-example">Запустить готовый пример 7″</button><button type="button" id="run-sitl">Запустить сохранённый профиль</button></div>
 <p class="status" id="sitl-status" role="status" aria-live="polite"></p>
 <canvas id="sitl-graph" width="1000" height="300" role="img" aria-label="Угловые скорости физической модели: крен, тангаж и рыскание"></canvas>
 <p id="sitl-summary" class="hint"></p><p class="hint">Зелёный — крен, голубой — тангаж, жёлтый — рыскание. Вертикальные линии показывают отправку и возврат команды крена. Горизонтальная ось: секунды; вертикальная: градусы в секунду. Это отдельный эксперимент: он не использует PID из учебной панели и не выполняет подбор PID.</p></section></main>
@@ -201,7 +202,7 @@ function checked(data){
  if(new Set(outputs).size!==outputs.length)throw Error('Один выход FC указан у двух моторов.');return values;
 }
 function load(){const raw=localStorage.getItem(STORAGE_KEY);if(raw===null)return false;defaults(checked(JSON.parse(raw)));return true}
-form.addEventListener('submit',event=>{event.preventDefault();try{validate();localStorage.setItem(STORAGE_KEY,JSON.stringify({schema:1,values:current()}));baseline=JSON.stringify(current());show('Профиль сохранён в этом браузере. Для передачи в эксперимент нажмите «Запустить эксперимент SITL».')}catch(error){show('Не удалось сохранить профиль: '+error.message,true)}});
+form.addEventListener('submit',event=>{event.preventDefault();try{validate();localStorage.setItem(STORAGE_KEY,JSON.stringify({schema:1,values:current()}));baseline=JSON.stringify(current());show('Профиль сохранён в этом браузере. Для передачи в эксперимент нажмите «Запустить сохранённый профиль».')}catch(error){show('Не удалось сохранить профиль: '+error.message,true)}});
 document.getElementById('restore').addEventListener('click',()=>{try{if(baseline!==JSON.stringify(current())&&!window.confirm('Отменить несохранённые изменения и вернуть сохранённый профиль?'))return;if(load()){baseline=JSON.stringify(current());show('Сохранённый профиль восстановлен.')}else show('Сохранённого профиля пока нет.')}catch(error){show('Не удалось восстановить профиль: '+error.message,true)}});
 document.getElementById('defaults').addEventListener('click',()=>{const item=hardware.find(p=>p.id===choice.value);if(choice.value!=='7'&&!item){show('Выберите известный пример.',true);return}if(!window.confirm('Заменить значения в форме выбранным примером? Сохранённый профиль не изменится до нажатия «Сохранить профиль».'))return;defaults(item?hardwareValues(item):PRESET);show('Выбранный пример загружен. Изменения ещё не сохранены.')});
 document.getElementById('export').addEventListener('click',()=>{try{validate();const blob=new Blob([JSON.stringify({schema:1,values:current()},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='bfemu-aircraft-profile.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);show('Профиль скачивается как JSON. Сохранённый в браузере профиль не изменён.')}catch(error){show('Не удалось скачать профиль: '+error.message,true)}});
@@ -221,7 +222,31 @@ baseline=JSON.stringify(current());window.addEventListener('beforeunload',event=
 </script>
 <script>
 'use strict';
-const sitlButton=document.getElementById('run-sitl'),sitlStatus=document.getElementById('sitl-status'),sitlSummary=document.getElementById('sitl-summary'),sitlCanvas=document.getElementById('sitl-graph');
+const sitlButton=document.getElementById('run-sitl'),sitlExample=document.getElementById('run-sitl-example'),sitlStatus=document.getElementById('sitl-status'),sitlSummary=document.getElementById('sitl-summary'),sitlCanvas=document.getElementById('sitl-graph');
 function drawSitl(points,windowS=[]){const ctx=sitlCanvas.getContext('2d'),w=sitlCanvas.width,h=sitlCanvas.height,p=40;ctx.clearRect(0,0,w,h);ctx.fillStyle='#0d1117';ctx.fillRect(0,0,w,h);if(!points.length)return;const max=Math.max(10,...points.flatMap(row=>row.rates.map(Math.abs))),end=points[points.length-1].t||1;ctx.strokeStyle='#465362';ctx.beginPath();ctx.moveTo(p,h/2);ctx.lineTo(w-p,h/2);ctx.stroke();ctx.fillStyle='#a8b3c2';ctx.font='14px sans-serif';ctx.fillText('+'+max.toFixed(0),2,p);ctx.fillText('0',18,h/2);ctx.fillText('-'+max.toFixed(0),2,h-p);ctx.fillText('0 с',p,h-10);ctx.fillText(end.toFixed(1)+' с',w-85,h-10);ctx.strokeStyle='#8194a8';for(const t of windowS){const x=p+t/end*(w-2*p);ctx.beginPath();ctx.moveTo(x,p);ctx.lineTo(x,h-p);ctx.stroke()}['#65d6b3','#79c0ff','#e3b45b'].forEach((color,axis)=>{ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();points.forEach((row,i)=>{const x=p+row.t/end*(w-2*p),y=h/2-row.rates[axis]/max*(h/2-p);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.stroke()})}
-sitlButton.addEventListener('click',async()=>{sitlButton.disabled=true;sitlStatus.className='status';sitlSummary.textContent='';drawSitl([]);try{const raw=localStorage.getItem('bfemu.aircraft-profile.v1');if(!raw)throw Error('Сначала нажмите «Сохранить профиль».');const profile=JSON.parse(raw);sitlStatus.textContent='Запуск отдельного SITL и выполнение эксперимента. Это займёт около 15 секунд.';const response=await fetch('/api/aircraft-sitl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});const result=await response.json();if(!response.ok)throw Error(result.error||'Ошибка эксперимента.');drawSitl(result.samples,result.command_window_s);const peaks=[0,1,2].map(i=>Math.max(...result.samples.map(row=>Math.abs(row.rates[i]))).toFixed(1));sitlStatus.textContent='Эксперимент завершён: '+result.firmware+'. Профиль: '+result.profile+'.';sitlSummary.textContent='Максимальные абсолютные скорости: крен '+peaks[0]+', тангаж '+peaks[1]+', рыскание '+peaks[2]+' °/с. '+result.note}catch(error){sitlStatus.className='status error';sitlStatus.textContent='Эксперимент не выполнен: '+error.message}finally{sitlButton.disabled=false}});
+function explainSitlError(message){
+ const labels={mass_g:'Полная взлётная масса, г',cg_x:'Центр масс X, мм',cg_y:'Центр масс Y, мм',cg_z:'Центр масс Z, мм',inertia_xx:'Элемент IXX, кг·м²',inertia_yy:'Элемент IYY, кг·м²',inertia_zz:'Элемент IZZ, кг·м²',inertia_xy:'Элемент IXY, кг·м²',inertia_xz:'Элемент IXZ, кг·м²',inertia_yz:'Элемент IYZ, кг·м²'};
+ const match=message.match(/\b(mass_g|cg_[xyz]|inertia_(?:xx|yy|zz|xy|xz|yz)|motor_[1-4]_[xyz])\b/);
+ if(match){const key=match[1],motor=key.match(/^motor_([1-4])_([xyz])$/),label=labels[key]||(motor?'Мотор '+motor[1]+': положение '+motor[2].toUpperCase()+', мм':key);return 'Проверьте числовое значение поля «'+label+'» в сохранённом профиле. Можно также нажать «Запустить готовый пример 7″». Кнопка не изменит ваш профиль.'}
+ return message;
+}
+async function runSitl(useExample){
+ sitlButton.disabled=true;sitlExample.disabled=true;sitlStatus.className='status';sitlSummary.textContent='';
+ try{
+  drawSitl([]);let profile;
+  if(useExample){profile={schema:1,values:{...PRESET}}}
+  else{
+   const raw=localStorage.getItem(STORAGE_KEY);if(!raw)throw Error('Нет сохранённого профиля. Сохраните его в форме или нажмите «Запустить готовый пример 7″».');
+   profile=JSON.parse(raw);
+   if(JSON.stringify(current())!==JSON.stringify(checked(profile)))throw Error('В форме есть несохранённые изменения. Сохраните профиль или запустите готовый пример 7″.');
+  }
+  sitlStatus.textContent='Эксперимент выполняется: запускается отдельный SITL. Подождите около 15 секунд.';
+  const response=await fetch('/api/aircraft-sitl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});const result=await response.json();if(!response.ok)throw Error(result.error||'Ошибка эксперимента.');
+  drawSitl(result.samples,result.command_window_s);const peaks=[0,1,2].map(i=>Math.max(...result.samples.map(row=>Math.abs(row.rates[i]))).toFixed(1));
+  sitlStatus.textContent='Эксперимент завершён: '+result.firmware+'. Профиль: '+result.profile+'.';
+  sitlSummary.textContent='Максимальные абсолютные скорости: крен '+peaks[0]+', тангаж '+peaks[1]+', рыскание '+peaks[2]+' °/с. '+result.note
+ }catch(error){sitlStatus.className='status error';sitlStatus.textContent='Эксперимент не выполнен: '+explainSitlError(error.message)}finally{sitlButton.disabled=false;sitlExample.disabled=false}
+}
+sitlButton.addEventListener('click',()=>runSitl(false));
+sitlExample.addEventListener('click',()=>runSitl(true));
 </script></body></html>'''

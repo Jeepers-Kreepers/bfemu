@@ -393,7 +393,8 @@ def test_aircraft_page_is_reachable_and_explains_sitl_experiment(monitor):
     assert "Параметры аппарата" in page
     assert 'href="/aircraft"' in get(monitor + "/pid-trainer")[1].decode()
     assert 'class="on" href="/aircraft"' in page
-    assert "Запустить эксперимент SITL" in page
+    assert "Запустить готовый пример 7″" in page
+    assert "Запустить сохранённый профиль" in page
     assert "Основной учебный график PID и подбор коэффициентов пока не используют профиль аппарата" in page
     assert "не использует PID из учебной панели" in page
     assert 'name="mass_g"' in page and 'name="inertia_xx"' in page

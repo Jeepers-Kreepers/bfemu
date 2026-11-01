@@ -86,7 +86,7 @@ def test_listening_port_must_belong_to_child():
             process.wait(timeout=2)
 
 
-def test_sitl_page_uses_saved_profile_and_shows_errors():
+def test_sitl_page_allows_example_without_overwriting_and_explains_errors():
     import shutil
     import subprocess
 
@@ -97,17 +97,25 @@ def test_sitl_page_uses_saved_profile_and_shows_errors():
     script = aircraft_page().rsplit('<script>', 1)[1].split('</script>', 1)[0]
     harness = r'''
 const vm=require('vm'),assert=require('assert');
-let handler, sent, profile={schema:1,values:{mass_g:'931'}};
+let handlers={}, sent, stored={schema:1,values:{mass_g:''}}, form={mass_g:''},fail=false;
 const ctx={clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fillText(){}};
-const button={disabled:false,addEventListener(_,fn){handler=fn}},status={},summary={},canvas={width:1000,height:300,getContext(){return ctx}};
-const nodes={'run-sitl':button,'sitl-status':status,'sitl-summary':summary,'sitl-graph':canvas};
-const document={getElementById(id){return nodes[id]}};
-const localStorage={getItem(){return profile&&JSON.stringify(profile)}};
-const fetch=async (url,opts)=>{sent={url,body:JSON.parse(opts.body)};return {ok:true,json:async()=>({samples:[{t:1,rates:[10,2,1]}],command_window_s:[.2,.8],firmware:'SITL',profile:'7',note:'модель'})}};
-vm.runInNewContext(process.argv[1],{document,localStorage,fetch,JSON,Math,Error});
-(async()=>{await handler();assert.strictEqual(sent.url,'/api/aircraft-sitl');assert.deepStrictEqual(sent.body.profile,profile);
-assert(status.textContent.includes('Эксперимент завершён'));assert(summary.textContent.includes('крен 10.0'));
-profile=null;await handler();assert(status.textContent.includes('Сначала нажмите'));assert.strictEqual(button.disabled,false)})().catch(err=>{console.error(err);process.exit(1)});
+function button(id){return {disabled:false,addEventListener(_,fn){handlers[id]=fn}}}
+const saved=button('saved'),example=button('example'),status={},summary={},canvas={width:1000,height:300,getContext(){return ctx}};
+const nodes={'run-sitl':saved,'run-sitl-example':example,'sitl-status':status,'sitl-summary':summary,'sitl-graph':canvas};
+const document={getElementById(id){return nodes[id]}},STORAGE_KEY='test',PRESET={mass_g:'931',profile_name:'7'};
+const localStorage={getItem(){return stored&&JSON.stringify(stored)}};
+const current=()=>form,checked=profile=>profile.values;
+const fetch=async (url,opts)=>{sent={url,body:JSON.parse(opts.body)};return fail?{ok:false,json:async()=>({error:'Для физики необходимо числовое значение mass_g; «» не подходит.'})}:{ok:true,json:async()=>({samples:[{t:1,rates:[10,2,1]}],command_window_s:[.2,.8],firmware:'SITL',profile:'7',note:'модель'})}};
+vm.runInNewContext(process.argv[1],{document,localStorage,fetch,JSON,Math,Error,STORAGE_KEY,PRESET,current,checked});
+(async()=>{
+ await handlers.example();assert.strictEqual(sent.url,'/api/aircraft-sitl');assert.strictEqual(sent.body.profile.values.mass_g,'931');
+ assert.strictEqual(stored.values.mass_g,'');assert.strictEqual(form.mass_g,'');assert(status.textContent.includes('Эксперимент завершён'));
+ assert(summary.textContent.includes('крен 10.0'));assert(!saved.disabled&&!example.disabled);
+ fail=true;await handlers.saved();assert(status.textContent.includes('Полная взлётная масса'));assert(status.textContent.includes('Запустить готовый пример 7″'));assert(!status.textContent.includes('mass_g'));
+ form={mass_g:'931'};sent=null;await handlers.saved();assert(status.textContent.includes('несохранённые изменения'));assert.strictEqual(sent,null);
+ stored=null;await handlers.saved();assert(status.textContent.includes('Нет сохранённого профиля'));
+ fail=false;await handlers.example();assert.strictEqual(sent.body.profile.values.mass_g,'931');assert.strictEqual(stored,null);
+})().catch(err=>{console.error(err);process.exit(1)});
 '''
     result = subprocess.run([node, '-e', harness, script], capture_output=True, text=True, timeout=10, check=False)
     assert result.returncode == 0, result.stderr
