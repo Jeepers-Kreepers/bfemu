@@ -63,3 +63,32 @@ def test_reference_tracks_each_scenario_without_overshoot():
     assert throttle[170][1] == 200
     assert 290 < throttle[200][1] < 300
     assert 200 < throttle[250][1] < 220
+
+
+def test_first_zero_error_is_sampled_after_step_and_can_be_transient():
+    from bfemu.pid_trainer import first_zero_error_time
+
+    points = [
+        [0.0, 0.0, 0.0],        # Совпадение до ступени не считается.
+        [0.4, 200.0, 0.0],
+        [0.5, 200.0, 199.99],   # Близко к нулю, но не равно нулю.
+        [0.6, 200.0, 200.0],    # Первое совпадение.
+        [0.7, 200.0, 205.0],    # После совпадения возможен отскок.
+        [1.5, 200.0, 200.0],
+    ]
+    assert first_zero_error_time(points, 0.4, 1.5) == 0.2
+    assert first_zero_error_time(points[:3], 0.4, 1.5) is None
+    assert first_zero_error_time(points[4:], 0.4, 1.5) is None  # Граница следующего события исключается.
+    # Пересечение между отсчётами не является совпадением на отсчёте.
+    assert first_zero_error_time([[0.4, 200.0, 199.0], [0.41, 200.0, 201.0]], 0.4, 1.5) is None
+
+
+def test_first_zero_error_metric_in_real_scenarios(fc):
+    values = {term: fc.settings[f"{term}_roll"] for term in "pid"}
+    step = simulate(values, "step", fc.settings, "roll")
+    assert step["metrics"]["first_zero_error_s"] == 2.16
+    for scenario in ("reverse", "disturbance", "throttle"):
+        result = simulate(values, scenario, fc.settings, "roll")
+        assert result["metrics"]["first_zero_error_s"] is None
+    stopped = simulate({"p": 0, "i": 0, "d": 0})
+    assert stopped["metrics"]["first_zero_error_s"] is None

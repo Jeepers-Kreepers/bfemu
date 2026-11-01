@@ -299,3 +299,19 @@ def test_pid_analysis_api_is_stateless_and_validated(fc, monitor):
         assert post(url + "/analysis", broken)[0] == 400
     assert post(url + "/analysis", request, {"Origin": "http://evil.example"})[0] == 403
     assert "Анализ действий" in get(monitor + "/pid-trainer")[1].decode()
+
+
+def test_pid_trainer_reports_first_zero_error_time(fc, monitor):
+    url = monitor + "/api/pid-trainer"
+    state = json.loads(get(url + "?axis=roll&scenario=step")[1])
+    assert state["metrics"]["first_zero_error_s"] == 2.16
+    assert state["points"][256][1] == state["points"][256][2]
+    assert all(point[1] != point[2] for point in state["points"][40:256])
+    payload = {"axis": "roll", "profile": state["profile"], "expected": state["values"],
+               "values": {"p": 0, "i": 0, "d": 0}}
+    assert post(url, payload)[0] == 200
+    assert json.loads(get(url)[1])["metrics"]["first_zero_error_s"] is None
+    page = get(monitor + "/pid-trainer")[1].decode()
+    assert 'id="zero-error-time"' in page
+    assert "Первое совпадение с заданием" in page
+    assert "После первого совпадения ошибка может появиться снова" in page

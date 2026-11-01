@@ -28,6 +28,18 @@ def reference_response(points):
     return result
 
 
+def first_zero_error_time(points, start, end):
+    """Первый нулевой отсчёт после ступени, с точностью отображаемых данных.
+
+    Задание и гироскоп в points округлены до 0,01 градуса в секунду, а отсчёты
+    идут каждые 0,01 секунды. Между ними пересечение не интерполируется.
+    """
+    for time, target, gyro, *_ in points:
+        if start <= time < end and target == gyro:
+            return round(time - start, 2)
+    return None
+
+
 def profile_state(fc, axis):
     return {"profile": fc.current_profile, "axis": axis,
             "values": {term: int(fc.settings[f"{term}_{axis}"]) for term in "pid"}}
@@ -98,7 +110,8 @@ def simulate(values, scenario="step", settings=None, axis="roll"):
         round((outside[-1] + 0.01 if outside else 0.4) - 0.4, 2))
     return {"points": points, "reference_points": reference_response(points),
             "metrics": {"overshoot_pct": round(overshoot, 1),
-            "settling_s": settling, "end_error": round(200 - window[-1][2], 1)}}
+            "settling_s": settling, "first_zero_error_s": first_zero_error_time(points, 0.4, end),
+            "end_error": round(200 - window[-1][2], 1)}}
 
 # Схема только для полей видимой вкладки PID Configurator 4.5.4. Границы и
 # варианты читаются из общей базы CLI, а не дублируются в браузере.
