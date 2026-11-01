@@ -50,16 +50,26 @@ function setup(initial=null,fail=false){
  const form={querySelectorAll(){return fields},addEventListener(n,f){listeners[n]=f}};
  const status={textContent:'',className:''},presetStatus={textContent:'',className:''},info={textContent:'',appendChild(){}};
  const choice={value:'7',options:[{value:'7'}],appendChild(o){this.options=this.options.filter(x=>x!==o);this.options.push(o)},addEventListener(n,f){listeners.choice=f}};
+ const panels={'help-inertia_yy':{hidden:true}};
  const buttons={};for(const id of ['restore','clear','defaults','import','export'])buttons[id]={addEventListener(n,f){listeners[id]=f}};
- const document={getElementById(id){return id==='aircraft-form'?form:id==='status'?status:id==='preset-status'?presetStatus:id==='preset-choice'?choice:id==='preset-info'?info:buttons[id]},createElement(){return {click(){}}}};
+ const document={addEventListener(n,f){listeners['document-'+n]=f},getElementById(id){return id==='aircraft-form'?form:id==='status'?status:id==='preset-status'?presetStatus:id==='preset-choice'?choice:id==='preset-info'?info:panels[id]||buttons[id]},createElement(){return {click(){}}}};
  const localStorage={getItem(){return storage},setItem(key,value){if(fail)throw Error('хранилище недоступно');storage=value}};
  const window={confirm(){return accept},addEventListener(n,f){listeners[n]=f}};
  const Blob=function(parts){this.parts=parts};const URL={createObjectURL(){return 'blob:fake'},revokeObjectURL(){}};
  vm.runInNewContext(script,{document,window,localStorage,Blob,URL,setTimeout(){}});
- return {fields,status,listeners,choice,get storage(){return storage},get focus(){return focus},set accept(v){accept=v},field(n){return fields.find(f=>f.name===n)},submit(){listeners.submit({preventDefault(){}})}};
+ return {fields,status,listeners,choice,panels,get storage(){return storage},get focus(){return focus},set accept(v){accept=v},field(n){return fields.find(f=>f.name===n)},submit(){listeners.submit({preventDefault(){}})}};
 }
 (async()=>{
-let s=setup();assert(s.status.textContent.includes('пример 7'));assert(s.fields.every(f=>f.value!==''),s.fields.filter(f=>f.value==='').map(f=>f.name));
+let s=setup();
+const attrs={'aria-controls':'help-inertia_yy','aria-expanded':'false'};
+const help={getAttribute(n){return attrs[n]},setAttribute(n,v){attrs[n]=v}};
+const click={target:{closest(){return help}}};
+const before=s.field('inertia_yy').value;s.listeners['document-click'](click);
+assert.strictEqual(s.panels['help-inertia_yy'].hidden,false);assert.strictEqual(attrs['aria-expanded'],'true');
+assert.strictEqual(s.field('inertia_yy').value,before);assert.strictEqual(s.storage,null);
+s.listeners['document-click'](click);assert.strictEqual(s.panels['help-inertia_yy'].hidden,true);assert.strictEqual(attrs['aria-expanded'],'false');
+s.listeners['document-click']({target:{closest(){return null}}});
+assert(s.status.textContent.includes('пример 7'));assert(s.fields.every(f=>f.value!==''),s.fields.filter(f=>f.value==='').map(f=>f.name));
 for(const f of s.fields.filter(f=>f.tagName==='SELECT'))assert(f.options.some(o=>o.value===f.value),f.name);
 assert.strictEqual(s.field('mass_g').value,'931');assert.strictEqual(s.field('battery_resistance').value,'Неизвестно');assert.strictEqual(s.field('sensor_delay').value,'Неизвестно');
 assert.deepStrictEqual([1,2,3,4].map(i=>s.field('motor_'+i+'_output').value),['1','2','3','4']);
@@ -72,8 +82,8 @@ s.field('motor_1_output').value='1';s.field('sensor_delay').value='0x10';s.submi
 s.field('sensor_delay').value='Неизвестно';s.submit();const stored=s.storage;assert(s.status.textContent.includes('сохранён'));let data=JSON.parse(stored);assert.strictEqual(data.values.cg_x,'-10');assert.strictEqual(data.values.inertia_xx,'0.00711');
 s.field('mass_g').value='600';s.listeners.input();s.accept=false;s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'600');s.accept=true;s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'931');assert.strictEqual(s.storage,stored);
 s.listeners.restore();assert.strictEqual(s.field('mass_g').value,'500');s.listeners.clear();assert.strictEqual(s.field('mass_g').value,'');assert.strictEqual(s.storage,stored);s.listeners.restore();assert.strictEqual(s.field('mass_g').value,'500');
-assert.deepStrictEqual(s.choice.options.map(x=>x.value),['1.5','2','2.5','3','3.5','4','5','6','7','8','9','10']);
-for(const id of ['1.5','2','2.5','3','3.5','4','5','6','8','9','10']){s.choice.value=id;s.listeners.defaults();assert(s.field('profile_name').value.includes('″'));assert.strictEqual(s.field('inertia_xx').value,'Неизвестно');assert.strictEqual(s.field('motor_1_output').value,'');assert.strictEqual(s.field('motor_1_max_thrust').value,'Неизвестно');assert.strictEqual(s.storage,stored);}
+assert.deepStrictEqual(s.choice.options.map(x=>x.value),['1.5','1.6','2','2.5','3','3.5','4','5','6','7','8','9','10']);
+for(const id of ['1.5','1.6','2','2.5','3','3.5','4','5','6','8','9','10']){s.choice.value=id;s.listeners.defaults();assert(s.field('profile_name').value.includes('″'));assert.strictEqual(s.field('inertia_xx').value,'Неизвестно');assert.strictEqual(s.field('motor_1_output').value,'');assert.strictEqual(s.field('motor_1_max_thrust').value,'Неизвестно');assert.strictEqual(s.storage,stored);}
 s.choice.value='3';s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'204');s.choice.value='2';s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'Неизвестно');
 let imported={schema:1,values:{mass_g:'720',cg_x:'-3'}};await s.listeners.import({target:{files:[{size:50,text:async()=>JSON.stringify(imported)}],value:'x'}});assert.strictEqual(s.field('mass_g').value,'720');assert.strictEqual(s.field('cg_x').value,'-3');assert.strictEqual(s.storage,stored);
 await s.listeners.import({target:{files:[{size:50,text:async()=>'{oops'}],value:'x'}});assert(s.status.textContent.includes('Не удалось загрузить файл'));assert.strictEqual(s.field('mass_g').value,'720');
@@ -99,12 +109,63 @@ def test_catalog_sources_and_units_are_explicit():
     from bfemu.aircraft_presets import HARDWARE_PRESETS
 
     assert [p['id'] for p in HARDWARE_PRESETS] == [
-        '1.5', '2', '2.5', '3', '3.5', '4', '5', '6', '8', '9', '10',
+        '1.5', '1.6', '2', '2.5', '3', '3.5', '4', '5', '6', '8', '9', '10',
     ]
     for preset in HARDWARE_PRESETS:
         assert urlparse(preset['url']).scheme == 'https'
         assert preset['title'] and preset['notes'] and preset['motor'] and preset['prop']
         assert preset['kv'].isdigit()
         assert 'inertia_xx' not in preset and 'max_thrust' not in preset
-    assert '40 мм' in HARDWARE_PRESETS[0]['title']
-    assert 'не ровно 1,5' in HARDWARE_PRESETS[0]['notes']
+    assert '38,1 мм' in HARDWARE_PRESETS[0]['title']
+    aurora = HARDWARE_PRESETS[0]
+    assert aurora['kv'] == '11500' and aurora['cells'] == '2' and aurora['capacity'] == '400'
+    assert 'mass_g' not in aurora and 'без батареи' in aurora['notes']
+    assert '40 мм' in HARDWARE_PRESETS[1]['title']
+
+
+def test_every_control_has_its_own_accessible_explanation():
+    class HelpParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.controls = []
+            self.buttons = []
+            self.panels = {}
+            self.panel = None
+
+        def handle_starttag(self, tag, attrs):
+            attr = dict(attrs)
+            if tag in ('input', 'select', 'textarea'):
+                self.controls.append(attr)
+            elif tag == 'button' and attr.get('class') == 'help-toggle':
+                self.buttons.append(attr)
+            elif tag == 'div' and attr.get('class') == 'help-tip':
+                self.panel = attr['id']
+                assert self.panel not in self.panels
+                assert 'hidden' in attr
+                self.panels[self.panel] = ''
+
+        def handle_data(self, data):
+            if self.panel:
+                self.panels[self.panel] += data
+
+        def handle_endtag(self, tag):
+            if tag == 'div' and self.panel:
+                self.panel = None
+
+    page = HelpParser()
+    page.feed(aircraft_page())
+    described = [c.get('aria-describedby') for c in page.controls]
+    assert len(described) == len(set(described)) == len(page.buttons) == len(page.panels)
+    assert all(described)
+    for button in page.buttons:
+        assert button['type'] == 'button'
+        assert button['aria-expanded'] == 'false'
+        assert button['aria-label']
+        assert button['aria-controls'] in described
+        assert len(page.panels[button['aria-controls']]) > 60
+    pitch = page.panels['help-inertia_yy']
+    for word in ('IYY', 'оси Y', 'центр масс', 'кг·м²', 'тангаж', 'ускорение', 'массе', 'роторов'):
+        assert word in pitch
+    assert page.panels['help-inertia_xx'] != pitch != page.panels['help-inertia_zz']
+    for i in range(1, 5):
+        assert f'Мотор {i}:' in next(b['aria-label'] for b in page.buttons if b['aria-controls'] == f'help-motor_{i}_kv')

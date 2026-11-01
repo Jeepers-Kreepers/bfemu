@@ -3,7 +3,12 @@
 # Размер здесь — диаметр пропеллера. Ссылки указывают на документацию конкретной сборки;
 # вес без батареи помещается в примечания, а не в поле полной взлётной массы.
 HARDWARE_PRESETS = [
-    dict(id='1.5', title='1,5–1,6″ · EMAX Tinyhawk (пропеллер 40 мм)',
+    dict(id='1.5', title='1,5″ · Eachine Aurora 68 (пропеллер 38,1 мм)',
+         url='https://www.multirotorguide.com/news/eachine-aurora-68mm-brushless-quad/',
+         motor='Eachine 1102', kv='11500', prop='38,1 мм × 4', cells='2', capacity='400', voltage='7.4',
+         battery='2S LiPo 400 мА·ч', esc='4-in-1 10A BLHeli_S 16.5', sensor='MPU6000',
+         notes='Источник: 48 г без батареи, диагональ 68 мм; взлётная масса неизвестна. Указанная прошивка аппарата — Betaflight 3.1, совместимость с SITL 4.5.4 не проверена.'),
+    dict(id='1.6', title='1,6″ · EMAX Tinyhawk (пропеллер 40 мм)',
          url='https://www.getfpv.com/emax-tinyhawk-micro-brushless-fpv-drone-bnf.html',
          mass_g='42', motor='EMAX 0802.5', kv='15000', prop='40 мм × 3', cells='1', capacity='450',
          battery='1S LiHV 450 мА·ч', esc='Встроенный ESC; модель не указана',

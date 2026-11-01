@@ -3,6 +3,25 @@ from html import escape
 import json
 
 from .aircraft_presets import HARDWARE_PRESETS
+from .aircraft_help import explanation
+
+
+def _wrap(name, label, control, *, hint='', wide=False):
+    """Связать поле с открываемым объяснением."""
+    safe_label = escape(label)
+    tooltip_id = f'help-{name}'
+    control = control.replace('<input ', f'<input aria-describedby="{tooltip_id}" ', 1)
+    control = control.replace('<select ', f'<select aria-describedby="{tooltip_id}" ', 1)
+    control = control.replace('<textarea ', f'<textarea aria-describedby="{tooltip_id}" ', 1)
+    hint_html = f'<small>{escape(hint)}</small>' if hint else ''
+    motor = name.split('_') if name.startswith('motor_') else []
+    context = f'Мотор {motor[1]}: ' if len(motor) > 2 else ''
+    aria = escape(f'Объяснение: {context}{label}', quote=True)
+    wide_class = ' wide' if wide else ''
+    return (f'<div class="parameter{wide_class}"><label><span class="field-title">{safe_label}</span>{control}{hint_html}</label>'
+            f'<button type="button" class="help-toggle" aria-label="{aria}" aria-expanded="false" '
+            f'aria-controls="{tooltip_id}">?</button><div id="{tooltip_id}" class="help-tip" hidden>'
+            f'{escape(explanation(name))}</div></div>')
 
 
 def _input(name, label, *, kind="number", rule="", hint="", placeholder=""):
@@ -15,20 +34,19 @@ def _input(name, label, *, kind="number", rule="", hint="", placeholder=""):
         attributes += ' maxlength="200"'
     if placeholder:
         attributes += f' placeholder="{escape(placeholder, quote=True)}"'
-    text = f'<small>{escape(hint)}</small>' if hint else ''
-    return f'<label>{escape(label)}<input {attributes}>{text}</label>'
+    return _wrap(name, label, f'<input {attributes}>', hint=hint)
 
 
 def _source(name):
-    return (f'<label>Источник данных<select name="{name}"><option value="">Не указан</option>'
-            '<option value="measured">Измерены</option><option value="model">Из модели симулятора</option>'
-            '<option value="manual">Введены вручную</option>'
-            '<option value="vendor">Данные производителя или продавца</option></select></label>')
+    return _wrap(name, 'Источник данных',
+                 f'<select name="{name}"><option value="">Не указан</option>'
+                 '<option value="measured">Измерены</option><option value="model">Из модели симулятора</option>'
+                 '<option value="manual">Введены вручную</option>'
+                 '<option value="vendor">Данные производителя или продавца</option></select>')
 
 
 def _textarea(name, label, hint):
-    return (f'<label class="wide">{escape(label)}<textarea name="{name}" maxlength="12000" rows="4"></textarea>'
-            f'<small>{escape(hint)}</small></label>')
+    return _wrap(name, label, f'<textarea name="{name}" maxlength="12000" rows="4"></textarea>', hint=hint, wide=True)
 
 
 def _motor(index):
@@ -37,10 +55,10 @@ def _motor(index):
     return (f'<details><summary>Мотор {index}</summary><div class="grid">'
             + _input(prefix + 'model', 'Модель мотора', kind='text')
             + _input(prefix + 'prop', 'Модель и размер пропеллера', kind='text')
-            + f'<label>Выход FC<select name="{prefix}output"><option value="">Не указан</option>{output}</select></label>'
-            + f'<label>Направление вращения, вид сверху<select name="{prefix}direction">'
-              '<option value="">Не указано</option><option value="cw">По часовой стрелке</option>'
-              '<option value="ccw">Против часовой стрелки</option></select></label>'
+            + _wrap(prefix + 'output', 'Выход FC', f'<select name="{prefix}output"><option value="">Не указан</option>{output}</select>')
+            + _wrap(prefix + 'direction', 'Направление вращения, вид сверху', f'<select name="{prefix}direction">'
+                    '<option value="">Не указано</option><option value="cw">По часовой стрелке</option>'
+                    '<option value="ccw">Против часовой стрелки</option></select>')
             + ''.join(_input(prefix + axis, f'Положение {axis.upper()}, мм') for axis in ('x', 'y', 'z'))
             + _input(prefix + 'kv', 'KV, об/мин на В', rule='positive')
             + _input(prefix + 'max_thrust', 'Максимальная тяга, Н', rule='positive',
@@ -74,8 +92,8 @@ def aircraft_page():
                       hint='Уточните, измерено ли напряжение под нагрузкой или указано номинальное значение.')
              + _input('battery_resistance', 'Внутреннее сопротивление батареи, мОм', rule='nonnegative')
              + _input('esc_model', 'Модель и прошивка ESC', kind='text')
-             + '<label>RPM-телеметрия ESC<select name="esc_rpm"><option value="">Не указана</option>'
-               '<option value="yes">Доступна</option><option value="no">Недоступна</option><option value="unknown">Неизвестно</option></select></label>'
+             + _wrap('esc_rpm', 'RPM-телеметрия ESC', '<select name="esc_rpm"><option value="">Не указана</option>'
+                     '<option value="yes">Доступна</option><option value="no">Недоступна</option><option value="unknown">Неизвестно</option></select>')
              + _source('power_source')
              + _textarea('power_notes', 'Дополнительные сведения о питании и ESC',
                          'Например, измеренное изменение напряжения под нагрузкой или условия измерения.'))
@@ -85,7 +103,11 @@ def aircraft_page():
               + _source('sensor_source')
               + _textarea('sensor_notes', 'Ориентация, шум и вибрации',
                           'Укажите ориентацию IMU относительно рамы и, при наличии, измерения шума или вибраций с единицами.'))
-    return (AIRCRAFT_PAGE.replace('__BASIC__', basic).replace('__CENTER__', center)
+    picker = _wrap('preset-choice', 'Пример аппарата',
+                   '<select id="preset-choice"><option value="7">7″ · Gazebo Build 03</option></select>')
+    importer = _wrap('import', 'Загрузить сохранённый файл профиля',
+                     '<input id="import" type="file" accept=".json,application/json">')
+    return (AIRCRAFT_PAGE.replace('__PICKER__', picker).replace('__IMPORT__', importer).replace('__BASIC__', basic).replace('__CENTER__', center)
             .replace('__INERTIA__', inertia).replace('__MOTORS__', ''.join(_motor(i) for i in range(1, 5)))
             .replace('__POWER__', power).replace('__SENSOR__', sensor)
             .replace('__CATALOG__', json.dumps(HARDWARE_PRESETS, ensure_ascii=True).replace('<', r'\u003c')))
@@ -95,10 +117,11 @@ AIRCRAFT_PAGE = r'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Параметры аппарата — bfemu</title><style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0d1117;color:#e6edf3;font:15px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:28px}h1{font-size:28px;margin:0 0 8px}h2{font-size:19px;margin:0 0 7px}p{color:#a8b3c2;margin:5px 0 14px}a{color:#79c0ff}.card{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:20px;margin:0 0 15px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}.wide{grid-column:1/-1}label{display:block;color:#d6dee8;font-size:14px}input,select,textarea{display:block;width:100%;margin-top:5px;background:#0d1117;color:#e6edf3;border:1px solid #465362;border-radius:7px;padding:9px;font:inherit}textarea{resize:vertical}small{display:block;color:#a8b3c2;font-size:12px;line-height:1.4;margin-top:5px}details{border:1px solid #30363d;border-radius:8px;padding:12px;margin-top:10px}summary{cursor:pointer;font-weight:600}details .grid{margin-top:15px}button{font:600 14px system-ui;padding:10px 14px;border:1px solid #465362;border-radius:8px;background:#21262d;color:#e6edf3;cursor:pointer}button.primary{background:#1f6feb;border-color:#1f6feb}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{min-height:1.5em;margin:10px 0 0}.error{color:#ffb4a9}.note{border-left:3px solid #d29922;padding-left:12px}.hint{font-size:13px}.required-note{color:#8de3c4}
+.parameter{position:relative;min-width:0}.field-title{display:flex;align-items:center;min-height:44px;padding-right:52px}.parameter .help-toggle{position:absolute;right:0;top:0;width:44px;height:44px;padding:0;border-radius:50%;color:#79c0ff;font-size:15px;line-height:1}.parameter .help-toggle:focus-visible{outline:2px solid #79c0ff;outline-offset:2px}.help-tip{margin-top:9px;padding:10px 12px;color:#d6dee8;background:#1b2633;border:1px solid #39536b;border-radius:8px;font-size:13px;line-height:1.5}.help-tip[hidden]{display:none}
 __NAV_STYLE__
 </style></head><body>__NAV__<main><h1>Параметры аппарата</h1>
-<p>Выберите пример аппарата с пропеллерами от 1,5–1,6″ до 10″. Паспортные данные реальных сборок не являются физическими моделями; неизвестные параметры не подставляются из других размеров.</p>
-<section class="card"><h2>Загрузить конфигурацию</h2><div class="grid"><label>Пример аппарата<select id="preset-choice"><option value="7">7″ · Gazebo Build 03</option></select></label></div><p id="preset-info" class="hint"></p><div class="actions"><button id="defaults" type="button">Загрузить выбранный пример</button><button id="export" type="button">Скачать профиль JSON</button></div><label>Загрузить сохранённый файл профиля <input id="import" type="file" accept=".json,application/json"></label><p id="preset-status" class="status" role="status" aria-live="polite"></p></section>
+<p>Выберите пример аппарата с пропеллерами от 1,5″ до 10″. Паспортные данные реальных сборок не являются физическими моделями; неизвестные параметры не подставляются из других размеров.</p>
+<section class="card"><h2>Загрузить конфигурацию</h2><div class="grid">__PICKER__</div><p id="preset-info" class="hint"></p><div class="actions"><button id="defaults" type="button">Загрузить выбранный пример</button><button id="export" type="button">Скачать профиль JSON</button></div>__IMPORT__<p id="preset-status" class="status" role="status" aria-live="polite"></p></section>
 <p class="note">Профиль сохраняется только в этом браузере. Он пока не передаётся в Betaflight или симулятор и не влияет на графики или подбор PID. Название симулятора и данные ниже не создают физическую модель.</p>
 <form id="aircraft-form" novalidate><section class="card"><h2>Профиль и масса</h2>
 <p>Взлётная масса включает батарею и полезную нагрузку. Источник описывает данные этой группы и геометрию рамы.</p><div class="grid">__BASIC__</div></section>
@@ -115,6 +138,7 @@ __NAV_STYLE__
 const STORAGE_KEY='bfemu.aircraft-profile.v1',form=document.getElementById('aircraft-form'),status=document.getElementById('status');
 const hardware=__CATALOG__,choice=document.getElementById('preset-choice'),info=document.getElementById('preset-info');
 const fields=Array.from(form.querySelectorAll('input,select,textarea'));let baseline='';
+document.addEventListener('click',event=>{const button=event.target.closest('.help-toggle');if(!button)return;const panel=document.getElementById(button.getAttribute('aria-controls'));if(!panel)return;panel.hidden=!panel.hidden;button.setAttribute('aria-expanded',String(!panel.hidden))});
 // Build 03: значения из зафиксированной модели; неизвестные данные не заменяются числами.
 const PRESET={profile_name:'Build 03 · пример 7″',model_source:'Gazebo Build 03 · Safwanny/my_drone',mass_g:'931',frame_source:'model',
  cg_x:'0',cg_y:'0',cg_z:'0',inertia_xx:'0.00711',inertia_yy:'0.00754',inertia_zz:'0.01362',inertia_xy:'0',inertia_xz:'0',inertia_yz:'0',
