@@ -231,3 +231,50 @@ def test_pid_trainer_validation_and_page(fc, monitor):
         assert post(url, payload)[0] == 400
         assert json.loads(get(url)[1])["values"] == current["values"]
     assert post(url, payload, {"Origin": "http://evil.example"})[0] == 403
+
+
+def test_pid_trainer_full_settings_and_sliders(fc, monitor):
+    from bfemu.fc import MSP_PID, MSP_PID_ADVANCED, MSP_SIMPLIFIED_TUNING
+
+    url = monitor + "/api/pid-trainer"
+    full_url = url + "/settings"
+    state = json.loads(get(url)[1])
+    assert sum(len(group["fields"]) for group in state["groups"]) == 53
+    before_filters = {name: fc.settings[name] for name in ("dterm_lpf1_static_hz", "gyro_lpf1_static_hz")}
+    request = {"profile": state["profile"], "expected": state["settings"],
+               "changes": {"tpa_rate": 42, "f_roll": 250, "d_min_roll": 23, "angle_p_gain": 70}}
+    assert post(full_url, request)[0] == 200
+    advanced = fc.handle(MSP_PID_ADVANCED, b"", 1)
+    assert advanced[58] == 42 and int.from_bytes(advanced[32:34], "little") == 250
+    assert advanced[39] == 23 and fc.handle(MSP_PID, b"", 1)[9] == 70
+    # Не теряем изменения из MSP или другой вкладки и не допускаем частичных записей.
+    assert post(full_url, request)[0] == 409
+    state = json.loads(get(url)[1])
+    expected = state["settings"]
+    assert post(full_url, {"profile": state["profile"], "expected": expected,
+                           "changes": {"tpa_rate": 25, "f_roll": 1001}})[0] == 400
+    assert fc.settings["tpa_rate"] == 42
+    assert post(full_url, {"profile": state["profile"], "expected": expected,
+                           "changes": {"tpa_rate": 25, "simplified_pi_gain": 120}})[0] == 400
+    sliders = {"profile": state["profile"], "expected": expected,
+               "changes": {"simplified_pids_mode": 1, "simplified_pi_gain": 150}}
+    yaw_before = [fc.settings[f"{prefix}_yaw"] for prefix in "pidf"]
+    assert post(full_url, sliders)[0] == 200
+    assert fc.settings["p_roll"] == 67 and fc.settings["i_roll"] == 120
+    assert [fc.settings[f"{prefix}_yaw"] for prefix in "pidf"] == yaw_before
+    assert fc.handle(MSP_SIMPLIFIED_TUNING, b"", 1)[5] == 150
+    assert {name: fc.settings[name] for name in before_filters} == before_filters
+    state = json.loads(get(url)[1])
+    sliders = {"profile": state["profile"], "expected": state["settings"],
+               "changes": {"simplified_pids_mode": 0, "simplified_pi_gain": 50}}
+    assert post(full_url, sliders)[0] == 200
+    assert fc.settings["p_roll"] == 67  # OFF не пересчитывает PID
+    fc.select_profile(1)
+    assert post(full_url, sliders)[0] == 409
+
+
+def test_pid_trainer_extended_settings_reject_cross_origin(fc, monitor):
+    state = json.loads(get(monitor + "/api/pid-trainer")[1])
+    body = {"profile": state["profile"], "expected": state["settings"], "changes": {"tpa_rate": 0}}
+    assert post(monitor + "/api/pid-trainer/settings", body, {"Origin": "http://evil.example"})[0] == 403
+    assert fc.settings["tpa_rate"] == state["settings"]["tpa_rate"]

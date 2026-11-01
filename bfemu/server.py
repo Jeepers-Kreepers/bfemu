@@ -672,7 +672,10 @@ class HttpMonitor:
                                    "application/json; charset=utf-8", 400)
                         return
                     state = _pid_trainer.profile_state(fc, axis)
-                    state.update(_pid_trainer.simulate(state["values"], scenario))
+                    settings = _pid_trainer.all_settings(fc)
+                    state["settings"] = settings
+                    state["groups"] = _pid_trainer.field_definitions(fc)
+                    state.update(_pid_trainer.simulate(state["values"], scenario, settings, axis))
                     self._send(self._json_bytes(state), "application/json; charset=utf-8")
                     return
                 if path == "/api/rc":
@@ -854,6 +857,47 @@ class HttpMonitor:
                 self._send(self._json_bytes(_pid_trainer.profile_state(fc, axis)),
                            "application/json; charset=utf-8")
 
+            def _post_pid_settings(self):
+                import json as _json
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 16384:
+                        self.close_connection = True
+                        raise ValueError("Недопустимый размер запроса")
+                    data = _json.loads(self.rfile.read(length))
+                    if not isinstance(data, dict) or set(data) != {"profile", "expected", "changes"}:
+                        raise ValueError("Нужны profile, expected и changes")
+                    if type(data["profile"]) is not int or not isinstance(data["expected"], dict):
+                        raise ValueError("Неверный профиль или снимок настроек")
+                    changes = data["changes"]
+                    if not isinstance(changes, dict) or not changes or not set(changes) <= _pid_trainer.FIELD_NAMES:
+                        raise ValueError("Неизвестные или отсутствующие настройки")
+                    slider_changes = set(changes) & _pid_trainer.SLIDER_NAMES
+                    if slider_changes and set(changes) - _pid_trainer.SLIDER_NAMES:
+                        raise ValueError("Ползунки и ручные настройки применяются отдельно")
+                    for name, value in changes.items():
+                        entry = fc.settings_by_name[name]
+                        options = entry.get("values") if entry["mode"] == "MODE_LOOKUP" else None
+                        lo, hi = (0, len(options) - 1) if options else (entry["min"], entry["max"])
+                        if type(value) is not int or not lo <= value <= hi:
+                            raise ValueError(f"{name}: требуется целое число от {lo} до {hi}")
+                except (ValueError, TypeError, _json.JSONDecodeError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                if data["profile"] != fc.current_profile or data["expected"] != _pid_trainer.all_settings(fc):
+                    self._send(self._json_bytes({"error": "Профиль или настройки изменились; загрузите их заново."}),
+                               "application/json; charset=utf-8", 409)
+                    return
+                for name, value in changes.items():
+                    fc._store_setting(name, value)
+                if slider_changes and fc.settings["simplified_pids_mode"] != 0:
+                    # Только PID, без побочного пересчёта D-term/gyro-фильтров.
+                    fc.settings.update(fc._calculate_simplified_pids())
+                fc._save_active_pid_profile()
+                fc._log(f"[PID trainer] профиль {fc.current_profile}, настройки: {changes}")
+                self._send(self._json_bytes({"profile": fc.current_profile, "settings": _pid_trainer.all_settings(fc)}),
+                           "application/json; charset=utf-8")
+
             def do_POST(self):
                 """Виртуальная аппаратура: POST /api/rc — каналы из страницы /tx или скрипта."""
                 try:
@@ -868,6 +912,9 @@ class HttpMonitor:
                 path = self.path.split("?")[0].rstrip("/") or "/"
                 if path == "/api/pid-trainer":
                     self._post_pid_trainer()
+                    return
+                if path == "/api/pid-trainer/settings":
+                    self._post_pid_settings()
                     return
                 if path != "/api/rc":
                     self._send(b'{"error":"only POST /api/rc is supported"}',
