@@ -355,3 +355,20 @@ def test_pid_trainer_undo_restores_snapshot_and_rejects_external_changes(fc, mon
     assert json.loads(get(url + "?axis=roll")[1])["values"]["p"] == 101
     fc.select_profile(1)
     assert post(url, reverse)[0] == 409
+
+
+def test_pid_trainer_graph_follows_manually_selected_pid_profile(fc, monitor):
+    url = monitor + "/api/pid-trainer?axis=roll&scenario=step"
+    first = json.loads(get(url)[1])
+    fc.select_profile(1)
+    fc._store_setting("p_roll", first["values"]["p"] + 25)
+    fc._save_active_pid_profile()
+    second = json.loads(get(url)[1])
+    assert second["profile"] == 1
+    assert second["values"]["p"] == first["values"]["p"] + 25
+    assert second["points"] != first["points"]
+    fc.select_profile(0)
+    restored = json.loads(get(url)[1])
+    assert restored["profile"] == 0
+    assert restored["values"] == first["values"]
+    assert restored["points"] == first["points"]

@@ -322,6 +322,9 @@ def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> d
             is_modeled = name in MODELED_NAMES and (field_axis is None or field_axis == axis)
             if name in SLIDER_NAMES:
                 applicability = _slider_context(name, after, axis, changed)
+            elif name == "auto_profile_cell_count":
+                applicability = ("Само значение не меняет PID-коэффициенты и график. При ручном переключении на профиль с другими настройками график может измениться. "
+                                 "Автоматическое переключение профиля при подключении аккумулятора в эмуляторе пока не реализовано.")
             elif is_modeled:
                 applicability = ("В учебной модели I-term Relax приближённый: вариант INC отдельно не воспроизводится."
                                  if name == "iterm_relax" and (before[name] in (3, 4) or after[name] in (3, 4)) else "")

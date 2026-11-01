@@ -182,3 +182,18 @@ def test_modes_and_profile_special_values_have_specific_meaning(fc):
     assert "переключаться на подходящий профиль" in change("auto_profile_cell_count", 0, -1)["after"]
     assert "с 4 элементами" in change("auto_profile_cell_count", 0, 4)["guidance"]
     assert "вне диапазона" in change("auto_profile_cell_count", 0, -2)["guidance"]
+
+
+def test_cell_count_annotation_explains_indirect_effect_and_emulator_limit(fc):
+    before = all_settings(fc)
+    after = {**before, "auto_profile_cell_count": 6}
+    report = analyze_change(fc, before, after, "roll", "step")
+    assert report["max_gyro_delta"] == 0
+    assert report["before_metrics"] == report["after_metrics"]
+    assert report["observations"] == []
+    change = report["changes"][0]
+    assert "не меняет PID-коэффициенты и график" in change["model"]
+    assert "ручном переключении" in change["model"]
+    assert "график может измениться" in change["model"]
+    assert "при подключении аккумулятора" in change["model"]
+    assert "пока не реализовано" in change["model"]
