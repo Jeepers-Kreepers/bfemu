@@ -372,3 +372,13 @@ def test_pid_trainer_graph_follows_manually_selected_pid_profile(fc, monitor):
     assert restored["profile"] == 0
     assert restored["values"] == first["values"]
     assert restored["points"] == first["points"]
+
+
+def test_sitl_data_page_offers_recorded_raw_msp_not_generated_graphs(monitor):
+    status, data = get(monitor + "/sitl-data")
+    page = data.decode()
+    assert status == 200 and "Данные Betaflight SITL" in page
+    assert "файл обрабатывается в браузере" in page.lower()
+    assert "MSP_RAW_IMU" in page and "MSP_MOTOR" in page
+    assert "в этих MSP-ответах не передаются" in page
+    assert "JSON.parse" in page and "payload_hex" in page
