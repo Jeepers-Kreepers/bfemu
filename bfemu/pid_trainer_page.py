@@ -6,7 +6,7 @@ PID_TRAINER_PAGE = r'''<!doctype html>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0d1117;color:#e6edf3;font:15px/1.5 system-ui,sans-serif}
 main{max-width:1780px;margin:auto;padding:28px}h1{font-size:30px;letter-spacing:-.03em;margin:0}h2{font-size:17px;margin:0 0 14px}
 p{color:#a8b3c2;margin:8px 0}.field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;padding:12px 0}.param{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px}.param input,.param select{width:100%;padding:6px}.param input[type=range]{padding:0;accent-color:#65d6b3}.param small{display:block;color:#a8b3c2;min-height:3em;font-size:11px}.badge{color:#65d6b3;font-size:11px}.badge.static{color:#e3b45b}.eyebrow{color:#65d6b3;text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700}
-.subtitle{max-width:800px}.warning{background:#302414;border:1px solid #76582d;border-radius:10px;padding:12px 16px;margin:20px 0;color:#f3d19e}
+.subtitle{max-width:800px}
 .layout{display:grid;grid-template-columns:minmax(260px,300px) minmax(400px,1fr) minmax(300px,360px);gap:18px;align-items:start}.card{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:20px;margin-bottom:18px}
 label{display:block;color:#adb8c7;font-size:13px;margin-bottom:5px}select,input,button{font:inherit;color:#e6edf3;background:#0d1117;border:1px solid #465362;border-radius:8px;padding:9px}select{width:100%}button{cursor:pointer;font-weight:600}button:hover{border-color:#65d6b3}button.primary{background:#21856f;border-color:#21856f;color:white}button:disabled{opacity:.45;cursor:not-allowed}
 .field{margin-bottom:16px}.gain{display:grid;grid-template-columns:55px 1fr 64px;gap:8px;align-items:center;margin:12px 0}.gain b{color:#65d6b3}.gain input[type=range]{width:100%;padding:0;accent-color:#65d6b3}.gain input[type=number]{width:100%;padding:6px}.actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -16,7 +16,6 @@ __NAV_STYLE__
 </style></head><body>__NAV__<main>
 <div class="eyebrow">Интерактивная лаборатория · Betaflight 4.5</div><h1>Почувствуйте PID</h1>
 <p class="subtitle">Меняйте параметры активного профиля здесь или в Betaflight Configurator и наблюдайте реакцию учебной модели одной оси.</p>
-<div class="warning"><b>Учебная модель, не полётный симулятор.</b> Это не PID-код Betaflight: некоторые эффекты показаны приближённо, а остальные настройки доступны только для изучения и редактирования. Реальные рейты, вибрации и взаимодействие осей не моделируются. Не переносите результаты на реальный дрон без проверки.</div>
 <div class="layout"><div><section class="card"><h2>Настройки эксперимента</h2>
 <div class="field"><label for="axis">Ось</label><select id="axis"><option value="roll">Roll · крен</option><option value="pitch">Pitch · тангаж</option><option value="yaw">Yaw · рыскание</option></select></div>
 <div class="field"><label for="scenario">Сценарий</label><select id="scenario"><option value="step">Ступень · реакция на стик</option><option value="disturbance">Возмущение · порыв ветра</option><option value="reverse">Реверс · смена направления</option><option value="throttle">Высокий газ · TPA</option></select><p class="small">Для TPA газ повышается в 1,5 с, затем следует команда на 300 °/с и возврат к 200 °/с.</p></div>

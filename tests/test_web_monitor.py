@@ -221,6 +221,8 @@ def test_pid_trainer_validation_and_page(fc, monitor):
     url = monitor + "/api/pid-trainer"
     status, page = get(monitor + "/pid-trainer")
     assert status == 200 and "Почувствуйте PID" in page.decode()
+    assert "Учебная модель, не полётный симулятор" not in page.decode()
+    assert "Не переносите результаты на реальный дрон без проверки" not in page.decode()
     assert "Идеальный отклик · учебный ориентир" in page.decode()
     assert "без перерегулирования и влияния возмущений" in page.decode()
     assert b'href="/pid-trainer"' in get(monitor + "/")[1]
