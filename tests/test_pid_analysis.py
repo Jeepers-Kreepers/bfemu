@@ -197,3 +197,56 @@ def test_cell_count_annotation_explains_indirect_effect_and_emulator_limit(fc):
     assert "график может измениться" in change["model"]
     assert "при подключении аккумулятора" in change["model"]
     assert "пока не реализовано" in change["model"]
+
+
+def test_observation_classification_uses_each_metric_not_the_setting_direction(fc, monkeypatch):
+    import bfemu.pid_analysis as analysis
+
+    before = all_settings(fc)
+    after = {**before, 'p_roll': before['p_roll'] + 1}
+    old = {'overshoot_pct': 20, 'settling_s': 1.2, 'end_error': -12}
+    new = {'overshoot_pct': 10, 'settling_s': .8, 'end_error': -4}
+    curve_delta = [1]
+
+    def simulate(values, scenario, settings, axis):
+        is_before = settings['p_roll'] == before['p_roll']
+        return {'metrics': old if is_before else new, 'points': [[0, 0, 0 if is_before else curve_delta[0]]]}
+
+    monkeypatch.setattr(analysis, 'simulate', simulate)
+
+    def outcomes():
+        report = analysis.analyze_change(fc, before, after, 'roll', 'step')
+        assert report['observations'] == [item['text'] for item in report['observation_details']]
+        return [item['outcome'] for item in report['observation_details']]
+
+    assert outcomes() == ['positive', 'positive', 'positive']
+    # Результат может быть смешанным: не объявляем всё изменение настройки хорошим.
+    new.update(overshoot_pct=30, settling_s=.8, end_error=15)
+    assert outcomes() == ['negative', 'positive', 'negative']
+    # Знак ошибки не важен, важна её абсолютная величина.
+    new.update(overshoot_pct=20, settling_s=1.2, end_error=3)
+    assert outcomes() == ['positive']
+    new.update(end_error=-30)
+    assert outcomes() == ['negative']
+    # Отсутствие установления в окне и появление установления оцениваются отдельно.
+    old.update(settling_s=None, end_error=0)
+    new.update(overshoot_pct=20, settling_s=.8, end_error=0)
+    assert outcomes() == ['positive']
+    old.update(settling_s=.8)
+    new.update(settling_s=None)
+    assert outcomes() == ['negative']
+    old.update(settling_s=.8)
+    new.update(settling_s=1.1)
+    assert outcomes() == ['negative']
+    # Разница кривых сама по себе не говорит о том, лучше или хуже результат.
+    new.update(settling_s=.8)
+    assert outcomes() == ['neutral']
+    curve_delta[0] = 0
+    assert outcomes() == ['neutral']
+    assert 'не изменилась' in analysis.analyze_change(fc, before, after, 'roll', 'step')['observations'][0]
+
+
+def test_no_modeled_observation_is_not_given_a_sentiment(fc):
+    before = all_settings(fc)
+    report = analyze_change(fc, before, {**before, 'angle_limit': 45}, 'roll', 'step')
+    assert report['observations'] == [] and report['observation_details'] == []

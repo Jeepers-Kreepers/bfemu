@@ -295,6 +295,8 @@ def test_pid_analysis_api_is_stateless_and_validated(fc, monitor):
     result = json.loads(body)
     assert status == 200 and len(result["changes"]) == 2
     assert result["max_gyro_delta"] > 0 and fc.settings["p_roll"] == before["p_roll"]
+    assert result["observations"] == [item["text"] for item in result["observation_details"]]
+    assert all(item["outcome"] in {"positive", "negative", "neutral"} for item in result["observation_details"])
     for broken in ({**request, "axis": "bad"}, {**request, "after": {}},
                    {**request, "after": {**after, "p_roll": True}},
                    {**request, "scenario": "bad"}):

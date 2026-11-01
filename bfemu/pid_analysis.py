@@ -356,6 +356,14 @@ def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> d
         warnings.append("Для оценки TPA попробуйте сценарий «Высокий газ»: в других сценариях газа может не хватать для TPA.")
     before_metrics, after_metrics = previous["metrics"], current["metrics"]
     observations = []
+    observation_details = []
+
+    def observe(text, outcome):
+        # Сохраняем старый список строк для совместимости API; оценка относится
+        # только к отдельной метрике этого сценария, не к настройке в целом.
+        observations.append(text)
+        observation_details.append({"text": text, "outcome": outcome})
+
     # Ползунки сами не входят в модель; реакцию сравниваем только если изменился
     # хотя бы один учитываемый коэффициент выбранной оси или общая настройка модели.
     modeled_changes = [item for item in changes if item["name"] in MODELED_NAMES and
@@ -364,24 +372,27 @@ def analyze_change(fc, before: dict, after: dict, axis: str, scenario: str) -> d
         old_overshoot, new_overshoot = before_metrics["overshoot_pct"], after_metrics["overshoot_pct"]
         if old_overshoot != new_overshoot:
             direction = "выросло" if new_overshoot > old_overshoot else "снизилось"
-            observations.append(f"В учебной модели перерегулирование {direction} с {old_overshoot} до {new_overshoot} процентов.")
+            observe(f"В учебной модели перерегулирование {direction} с {old_overshoot} до {new_overshoot} процентов.",
+                    "negative" if new_overshoot > old_overshoot else "positive")
         old_time, new_time = before_metrics["settling_s"], after_metrics["settling_s"]
         if old_time is None and new_time is not None:
-            observations.append(f"Отклик начал удерживаться в пределах пяти процентов от заданной скорости за {new_time} секунды.")
+            observe(f"Отклик начал удерживаться в пределах пяти процентов от заданной скорости за {new_time} секунды.", "positive")
         elif old_time is not None and new_time is None:
-            observations.append("Отклик больше не удерживается в пределах пяти процентов от заданной скорости до конца рассматриваемого интервала.")
+            observe("Отклик больше не удерживается в пределах пяти процентов от заданной скорости до конца рассматриваемого интервала.", "negative")
         elif old_time is not None and new_time is not None and abs(new_time - old_time) >= 0.009:
             direction = "увеличилось" if new_time > old_time else "уменьшилось"
-            observations.append(f"Время установления в учебной модели {direction} с {old_time} до {new_time} секунды.")
+            observe(f"Время установления в учебной модели {direction} с {old_time} до {new_time} секунды.",
+                    "negative" if new_time > old_time else "positive")
         old_error, new_error = abs(before_metrics["end_error"]), abs(after_metrics["end_error"])
         if abs(new_error - old_error) >= 0.1:
             direction = "выросла" if new_error > old_error else "снизилась"
-            observations.append(f"Абсолютная ошибка угловой скорости в конце интервала {direction} с {old_error} до {new_error} градусов в секунду.")
+            observe(f"Абсолютная ошибка угловой скорости в конце интервала {direction} с {old_error} до {new_error} градусов в секунду.",
+                    "negative" if new_error > old_error else "positive")
         if not observations:
             if max_difference >= 0.1:
-                observations.append(f"Показатели первой ступени не изменились. Максимальное различие угловой скорости за весь сценарий составило {max_difference:.1f} градуса в секунду.")
+                observe(f"Показатели первой ступени не изменились. Максимальное различие угловой скорости за весь сценарий составило {max_difference:.1f} градуса в секунду.", "neutral")
             else:
-                observations.append("Расчётная реакция выбранной оси в этом сценарии не изменилась. Это не доказывает отсутствие эффекта в других условиях.")
+                observe("Расчётная реакция выбранной оси в этом сценарии не изменилась. Это не доказывает отсутствие эффекта в других условиях.", "neutral")
     return {"axis": axis, "scenario": scenario, "changes": changes, "warnings": warnings,
-            "observations": observations, "before_metrics": before_metrics, "after_metrics": after_metrics,
+            "observations": observations, "observation_details": observation_details, "before_metrics": before_metrics, "after_metrics": after_metrics,
             "max_gyro_delta": round(max_difference, 1)}
