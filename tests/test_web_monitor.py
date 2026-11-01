@@ -386,15 +386,33 @@ def test_sitl_data_page_offers_recorded_raw_msp_not_generated_graphs(monitor):
     assert "JSON.parse" in page and "payload_hex" in page
 
 
-def test_aircraft_page_is_reachable_and_does_not_claim_sitl_integration(monitor):
+def test_aircraft_page_is_reachable_and_explains_sitl_experiment(monitor):
     status, data = get(monitor + "/aircraft")
     page = data.decode()
     assert status == 200
     assert "Параметры аппарата" in page
     assert 'href="/aircraft"' in get(monitor + "/pid-trainer")[1].decode()
     assert 'class="on" href="/aircraft"' in page
-    assert "пока не передаётся в Betaflight или симулятор" in page
+    assert "Запустить эксперимент SITL" in page
+    assert "Основной учебный график PID и подбор коэффициентов пока не используют профиль аппарата" in page
+    assert "не использует PID из учебной панели" in page
     assert 'name="mass_g"' in page and 'name="inertia_xx"' in page
     assert 'name="motor_4_output"' in page and 'name="sensor_notes"' in page
     assert 'name="motor_1_model" type="text"' in page
     assert "localStorage" in page
+
+
+def test_aircraft_sitl_api_validates_origin_and_passes_saved_profile(monitor, monkeypatch):
+    from bfemu import aircraft_sitl
+    received = []
+    def fake_experiment(profile):
+        received.append(profile)
+        return {"samples": [], "firmware": "test"}
+    monkeypatch.setattr(aircraft_sitl, "experiment", fake_experiment)
+    profile = {"schema": 1, "values": {"mass_g": "931"}}
+    assert post(monitor + "/api/aircraft-sitl", {"profile": profile}, {"Origin": "http://evil.example"})[0] == 403
+    assert not received
+    assert post(monitor + "/api/aircraft-sitl", {"invalid": profile})[0] == 400
+    status, data = post(monitor + "/api/aircraft-sitl", {"profile": profile})
+    assert status == 200 and json.loads(data)["firmware"] == "test"
+    assert received == [profile]

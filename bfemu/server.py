@@ -838,6 +838,24 @@ class HttpMonitor:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _post_aircraft_sitl(self):
+                import json as _json
+                from .aircraft_sitl import experiment
+                from .flight_physics import PhysicsError
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 131072:
+                        self.close_connection = True
+                        raise ValueError("Недопустимый размер профиля")
+                    data = _json.loads(self.rfile.read(length))
+                    if not isinstance(data, dict) or set(data) != {"profile"}:
+                        raise ValueError("Ожидается сохранённый профиль аппарата")
+                    result = experiment(data["profile"])
+                except (ValueError, TypeError, _json.JSONDecodeError, PhysicsError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                self._send(self._json_bytes(result), "application/json; charset=utf-8")
+
             def _post_pid_trainer(self):
                 import json as _json
                 try:
@@ -947,6 +965,9 @@ class HttpMonitor:
                 if self._deny_foreign():
                     return
                 path = self.path.split("?")[0].rstrip("/") or "/"
+                if path == "/api/aircraft-sitl":
+                    self._post_aircraft_sitl()
+                    return
                 if path == "/api/pid-trainer":
                     self._post_pid_trainer()
                     return
