@@ -417,3 +417,16 @@ def test_aircraft_sitl_api_validates_origin_and_passes_saved_profile(monitor, mo
     status, data = post(monitor + "/api/aircraft-sitl", {"profile": profile})
     assert status == 200 and json.loads(data)["firmware"] == "test"
     assert received == [profile]
+
+
+def test_sitl_preparation_endpoint_is_explicit_and_same_origin(monitor, monkeypatch):
+    from bfemu import aircraft_sitl
+    starts = []
+    monkeypatch.setattr(aircraft_sitl, 'build_status', lambda: {'state': 'missing'})
+    monkeypatch.setattr(aircraft_sitl, 'start_sitl_build', lambda: starts.append(True) or {'state': 'building'})
+    url = monitor + '/api/aircraft-sitl/prepare'
+    status, data = get(url)
+    assert status == 200 and json.loads(data)['state'] == 'missing' and not starts
+    assert post(url, {}, {'Origin': 'http://evil.example'})[0] == 403 and not starts
+    status, data = post(url, {})
+    assert status == 200 and json.loads(data)['state'] == 'building' and starts == [True]

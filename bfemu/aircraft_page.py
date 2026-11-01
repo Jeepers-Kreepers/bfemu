@@ -136,7 +136,7 @@ __NAV_STYLE__
 <section class="card"><div class="actions"><button class="primary" type="submit">Сохранить профиль</button><button type="button" id="restore">Вернуть сохранённое</button><button type="button" id="clear">Очистить поля</button></div>
 <p class="hint">Хранится один профиль для этого адреса в браузере. Очистка полей не удаляет сохранённый профиль, пока вы не нажмёте «Сохранить профиль».</p><p id="status" class="status" role="status" aria-live="polite"></p></section></form>
 <section class="card" id="sitl-experiment"><h2>Эксперимент с Betaflight SITL и аппаратом</h2>
-<p>Запустите готовый пример 7″ без заполнения и сохранения полей или выберите запуск сохранённого профиля. Готовый пример не изменяет вашу форму и сохранённый профиль.</p>
+<p>Запустите готовый пример 7″ без заполнения и сохранения полей или выберите запуск сохранённого профиля. Готовый пример не изменяет вашу форму и сохранённый профиль. Если SITL ещё не собран, при первом запуске его исходники будут загружены с GitHub и собраны автоматически; это может занять несколько минут.</p>
 <p>Проверка выполняется в отдельной временной копии Betaflight 4.5.4 SITL с заводскими настройками PID. Она не меняет настройки вашего FC. В ходе эксперимента подаются газ и короткая команда крена; график показывает угловую скорость физической модели, а не показания MSP.</p>
 <p>В расчёте участвуют масса, центр масс, матрица инерции, координаты и выходы моторов, направление вращения, максимальная тяга и времена отклика.</p>
 <p class="note">Доступна теоретическая модель приводов Build 03: команда SITL условно пропорциональна оборотам, тяга — квадрату команды. Постоянные времени применяются к тяге, а не к оборотам. Инерция взята для base_link без отдельных роторов. Земля, сопротивление воздуха, батарея, шум и задержка IMU не моделируются. Результат не является измерением реального аппарата.</p>
@@ -230,6 +230,18 @@ function explainSitlError(message){
  if(match){const key=match[1],motor=key.match(/^motor_([1-4])_([xyz])$/),label=labels[key]||(motor?'Мотор '+motor[1]+': положение '+motor[2].toUpperCase()+', мм':key);return 'Проверьте числовое значение поля «'+label+'» в сохранённом профиле. Можно также нажать «Запустить готовый пример 7″». Кнопка не изменит ваш профиль.'}
  return message;
 }
+async function prepareSitl(){
+ let response=await fetch('/api/aircraft-sitl/prepare',{method:'POST'}),result=await response.json();
+ if(!response.ok)throw Error(result.error||'Не удалось начать подготовку SITL.');
+ const deadline=Date.now()+620000;
+ while(result.state==='building'){
+  sitlStatus.textContent='Первый запуск: загружаются исходники и собирается Betaflight SITL. Это может занять несколько минут; не закрывайте страницу.';
+  if(Date.now()>deadline)throw Error('Подготовка SITL заняла слишком много времени. Попробуйте снова позднее.');
+  await new Promise(resolve=>setTimeout(resolve,1000));response=await fetch('/api/aircraft-sitl/prepare',{cache:'no-store'});result=await response.json();
+  if(!response.ok)throw Error(result.error||'Не удалось проверить подготовку SITL.');
+ }
+ if(result.state!=='ready')throw Error(result.error||'SITL пока не подготовлен.');
+}
 async function runSitl(useExample){
  sitlButton.disabled=true;sitlExample.disabled=true;sitlStatus.className='status';sitlSummary.textContent='';
  try{
@@ -240,8 +252,15 @@ async function runSitl(useExample){
    profile=JSON.parse(raw);
    if(JSON.stringify(current())!==JSON.stringify(checked(profile)))throw Error('В форме есть несохранённые изменения. Сохраните профиль или запустите готовый пример 7″.');
   }
-  sitlStatus.textContent='Эксперимент выполняется: запускается отдельный SITL. Подождите около 15 секунд.';
-  const response=await fetch('/api/aircraft-sitl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});const result=await response.json();if(!response.ok)throw Error(result.error||'Ошибка эксперимента.');
+  sitlStatus.textContent='Проверяется готовность Betaflight SITL.';await prepareSitl();
+  sitlStatus.textContent='Эксперимент выполняется: запускается отдельный SITL. Обычно это занимает около 15 секунд.';
+  let result;
+  for(let attempt=0;attempt<3;attempt++){
+   const response=await fetch('/api/aircraft-sitl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile})});result=await response.json();
+   if(response.ok)break;
+   if(typeof result.error==='string'&&result.error.startsWith('Нарушен темп расчёта:')){if(attempt<2){sitlStatus.textContent='Сервер не успел обработать данные. Повторяем эксперимент с начала; подождите.';continue}throw Error('Сервер несколько раз не успел обработать данные. Попробуйте запустить эксперимент позднее.') }
+   throw Error(result.error||'Ошибка эксперимента.');
+  }
   drawSitl(result.samples,result.command_window_s);const peaks=[0,1,2].map(i=>Math.max(...result.samples.map(row=>Math.abs(row.rates[i]))).toFixed(1));
   sitlStatus.textContent='Эксперимент завершён: '+result.firmware+'. Профиль: '+result.profile+'.';
   sitlSummary.textContent='Максимальные абсолютные скорости: крен '+peaks[0]+', тангаж '+peaks[1]+', рыскание '+peaks[2]+' °/с. '+result.note

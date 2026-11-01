@@ -8,10 +8,13 @@ from __future__ import annotations
 import io
 import json
 import math
+import os
 from pathlib import Path
+import signal
 import socket
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -31,6 +34,75 @@ REVISION = '25356b59a96dc975d777844f896b7c7855ea90e6'
 CACHE = Path.home() / '.cache' / 'bfemu' / 'betaflight-sitl' / REVISION
 BINARY = CACHE / 'obj' / 'main' / 'betaflight_SITL.elf'
 SOURCE = 'https://github.com/Safwanny/my_drone/tree/8466ad7ecc4d9ce65bdc88671579314a73384746'
+
+_BUILD_GUARD = threading.Lock()
+_BUILD_THREAD = None
+_BUILD_ERROR = None
+BUILD_SCRIPT = Path(__file__).resolve().parent.parent / 'tools' / 'betaflight_sitl.py'
+
+
+def sitl_available():
+    """Проверить маркер проверенной сборки без запуска прошивки."""
+    try:
+        return BINARY.is_file() and json.loads((CACHE / 'bfemu-sitl.json').read_text()) == STAMP
+    except (OSError, ValueError):
+        return False
+
+
+def build_status():
+    with _BUILD_GUARD:
+        if sitl_available():
+            return {'state': 'ready'}
+        if _BUILD_THREAD is not None and _BUILD_THREAD.is_alive():
+            return {'state': 'building'}
+        if _BUILD_ERROR:
+            return {'state': 'error', 'error': _BUILD_ERROR}
+        return {'state': 'missing'}
+
+
+def _build_in_background():
+    """Один межпроцессный сборщик, чтобы не испортить общий кэш."""
+    global _BUILD_ERROR
+    try:
+        try:
+            import fcntl  # Официальный нативный SITL поддерживается на Linux.
+        except ImportError as exc:
+            raise RuntimeError('Автоматическая сборка SITL доступна только на Linux.') from exc
+        CACHE.parent.mkdir(parents=True, exist_ok=True)
+        with (CACHE.parent / '.web-build.lock').open('a') as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            if not sitl_available():
+                if not BUILD_SCRIPT.is_file():
+                    raise RuntimeError('В этой установке отсутствует скрипт сборки SITL. Нужна полная копия репозитория bfemu.')
+                proc = subprocess.Popen([sys.executable, str(BUILD_SCRIPT), 'build', '--jobs', '4'],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, start_new_session=True)
+                try:
+                    _, stderr = proc.communicate(timeout=600)
+                except subprocess.TimeoutExpired as exc:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate()
+                    raise RuntimeError('Сборка SITL заняла более 10 минут и была остановлена.') from exc
+                if proc.returncode or not sitl_available():
+                    detail = stderr.decode('utf-8', errors='replace').strip().splitlines()
+                    last = detail[-1][:500] if detail else 'Проверьте доступ к GitHub, наличие gcc и make.'
+                    raise RuntimeError('Не удалось подготовить SITL: '+last)
+    except Exception as exc:
+        with _BUILD_GUARD:
+            _BUILD_ERROR = str(exc)
+
+
+def start_sitl_build():
+    """Запускается только по явному действию пользователя, без ожидания HTTP."""
+    global _BUILD_THREAD, _BUILD_ERROR
+    with _BUILD_GUARD:
+        if sitl_available():
+            return {'state': 'ready'}
+        if _BUILD_THREAD is not None and _BUILD_THREAD.is_alive():
+            return {'state': 'building'}
+        _BUILD_ERROR = None
+        _BUILD_THREAD = threading.Thread(target=_build_in_background, name='sitl-build', daemon=True)
+        _BUILD_THREAD.start()
+        return {'state': 'building'}
 
 
 def theoretical_curves(profile):
@@ -162,12 +234,8 @@ def experiment(profile):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
     process = None
     try:
-        try:
-            built = BINARY.is_file() and json.loads((CACHE / 'bfemu-sitl.json').read_text()) == STAMP
-        except (OSError, ValueError):
-            built = False
-        if not built:
-            raise PhysicsError('Сначала соберите Betaflight SITL: python3 tools/betaflight_sitl.py build')
+        if not sitl_available():
+            raise PhysicsError('SITL ещё не подготовлен. Запустите эксперимент через страницу аппарата.')
         for kind, port in ((socket.SOCK_STREAM, 5761), (socket.SOCK_DGRAM, 9002),
                            (socket.SOCK_DGRAM, 9003), (socket.SOCK_DGRAM, 9004)):
             with socket.socket(socket.AF_INET, kind) as probe:

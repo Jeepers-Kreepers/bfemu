@@ -675,6 +675,10 @@ class HttpMonitor:
                         .replace("__NAV__", _pages.nav_html("pid", _BUILD)).encode()
                     self._send(body, "text/html; charset=utf-8")
                     return
+                if path == "/api/aircraft-sitl/prepare":
+                    from .aircraft_sitl import build_status
+                    self._send(self._json_bytes(build_status()), "application/json; charset=utf-8")
+                    return
                 if path == "/api/pid-trainer":
                     from urllib.parse import parse_qs, urlsplit
                     params = parse_qs(urlsplit(self.path).query)
@@ -965,6 +969,10 @@ class HttpMonitor:
                 if self._deny_foreign():
                     return
                 path = self.path.split("?")[0].rstrip("/") or "/"
+                if path == "/api/aircraft-sitl/prepare":
+                    from .aircraft_sitl import start_sitl_build
+                    self._send(self._json_bytes(start_sitl_build()), "application/json; charset=utf-8")
+                    return
                 if path == "/api/aircraft-sitl":
                     self._post_aircraft_sitl()
                     return
