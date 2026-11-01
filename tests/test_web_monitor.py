@@ -278,3 +278,21 @@ def test_pid_trainer_extended_settings_reject_cross_origin(fc, monitor):
     body = {"profile": state["profile"], "expected": state["settings"], "changes": {"tpa_rate": 0}}
     assert post(monitor + "/api/pid-trainer/settings", body, {"Origin": "http://evil.example"})[0] == 403
     assert fc.settings["tpa_rate"] == state["settings"]["tpa_rate"]
+
+
+def test_pid_analysis_api_is_stateless_and_validated(fc, monitor):
+    url = monitor + "/api/pid-trainer"
+    state = json.loads(get(url)[1])
+    before = state["settings"]
+    after = {**before, "p_roll": 70, "tpa_rate": 10}
+    request = {"axis": "roll", "scenario": "step", "before": before, "after": after}
+    status, body = post(url + "/analysis", request)
+    result = json.loads(body)
+    assert status == 200 and len(result["changes"]) == 2
+    assert result["max_gyro_delta"] > 0 and fc.settings["p_roll"] == before["p_roll"]
+    for broken in ({**request, "axis": "bad"}, {**request, "after": {}},
+                   {**request, "after": {**after, "p_roll": True}},
+                   {**request, "scenario": "bad"}):
+        assert post(url + "/analysis", broken)[0] == 400
+    assert post(url + "/analysis", request, {"Origin": "http://evil.example"})[0] == 403
+    assert "Анализ действий" in get(monitor + "/pid-trainer")[1].decode()

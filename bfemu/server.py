@@ -31,6 +31,7 @@ from .tx_page import TX_PAGE as _TX_PAGE
 from . import __build__ as _BUILD, __tx_page__ as _TX_PAGE_VERSION
 from . import pages as _pages
 from . import pid_trainer as _pid_trainer
+from . import pid_analysis as _pid_analysis
 from .pid_trainer_page import PID_TRAINER_PAGE as _PID_TRAINER_PAGE
 from .failsafe_page import failsafe_page as _failsafe_page
 from .msp import ERROR_REPLY, FROM_FC, ErrorReply, MspParser, encode_v1, encode_v2
@@ -857,6 +858,30 @@ class HttpMonitor:
                 self._send(self._json_bytes(_pid_trainer.profile_state(fc, axis)),
                            "application/json; charset=utf-8")
 
+            def _post_pid_analysis(self):
+                import json as _json
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 16384:
+                        self.close_connection = True
+                        raise ValueError("Недопустимый размер запроса")
+                    data = _json.loads(self.rfile.read(length))
+                    if not isinstance(data, dict) or set(data) != {"axis", "scenario", "before", "after"}:
+                        raise ValueError("Нужны axis, scenario, before и after")
+                    if data["axis"] not in _pid_trainer.AXES or data["scenario"] not in _pid_trainer.SCENARIOS:
+                        raise ValueError("Неизвестная ось или сценарий")
+                    for key in ("before", "after"):
+                        snapshot = data[key]
+                        if (not isinstance(snapshot, dict) or set(snapshot) != _pid_trainer.FIELD_NAMES or
+                                any(type(v) is not int or not -32768 <= v <= 65535 for v in snapshot.values())):
+                            raise ValueError("Неверный снимок настроек")
+                    result = _pid_analysis.analyze_change(fc, data["before"], data["after"],
+                                                          data["axis"], data["scenario"])
+                except (ValueError, TypeError, _json.JSONDecodeError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                self._send(self._json_bytes(result), "application/json; charset=utf-8")
+
             def _post_pid_settings(self):
                 import json as _json
                 try:
@@ -915,6 +940,9 @@ class HttpMonitor:
                     return
                 if path == "/api/pid-trainer/settings":
                     self._post_pid_settings()
+                    return
+                if path == "/api/pid-trainer/analysis":
+                    self._post_pid_analysis()
                     return
                 if path != "/api/rc":
                     self._send(b'{"error":"only POST /api/rc is supported"}',
