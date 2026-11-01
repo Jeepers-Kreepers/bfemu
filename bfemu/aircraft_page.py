@@ -88,8 +88,10 @@ def aircraft_page():
     power = (_input('battery_model', 'Модель аккумулятора', kind='text')
              + _input('battery_capacity', 'Ёмкость аккумулятора, мА·ч', rule='positive')
              + _input('battery_cells', 'Число последовательно соединённых банок', rule='positive_integer')
+             + _input('battery_cell_voltage', 'Напряжение одной банки для расчёта, В', rule='positive',
+                      hint='По умолчанию 3,7 В на банку LiPo. Укажите другое значение для вашего аккумулятора или условий измерения.')
              + _input('battery_voltage', 'Напряжение питания, В', rule='positive',
-                      hint='Уточните, измерено ли напряжение под нагрузкой или указано номинальное значение.')
+                      hint='При изменении числа банок или напряжения одной банки пересчитывается автоматически. При некорректном вводе расчёт очищается; общее напряжение можно ввести вручную.')
              + _input('battery_resistance', 'Внутреннее сопротивление батареи, мОм', rule='nonnegative')
              + _input('esc_model', 'Модель и прошивка ESC', kind='text')
              + _wrap('esc_rpm', 'RPM-телеметрия ESC', '<select name="esc_rpm"><option value="">Не указана</option>'
@@ -142,7 +144,7 @@ document.addEventListener('click',event=>{const button=event.target.closest('.he
 // Build 03: значения из зафиксированной модели; неизвестные данные не заменяются числами.
 const PRESET={profile_name:'Build 03 · пример 7″',model_source:'Gazebo Build 03 · Safwanny/my_drone',mass_g:'931',frame_source:'model',
  cg_x:'0',cg_y:'0',cg_z:'0',inertia_xx:'0.00711',inertia_yy:'0.00754',inertia_zz:'0.01362',inertia_xy:'0',inertia_xz:'0',inertia_yz:'0',
- battery_model:'6S LiPo · модель не указана',battery_capacity:'1800',battery_cells:'6',battery_voltage:'22.2',battery_resistance:'Неизвестно',
+ battery_model:'6S LiPo · модель не указана',battery_capacity:'1800',battery_cells:'6',battery_cell_voltage:'3.7',battery_voltage:'22.2',battery_resistance:'Неизвестно',
  esc_model:'В модели не указаны',esc_rpm:'unknown',power_source:'model',power_notes:'6S 1800 мА·ч указана в бюджете масс модели; 22,2 В — номинальное напряжение. Сопротивление и RPM-телеметрия в источнике не заданы.',
  sensor_model:'Виртуальный IMU Gazebo',sensor_rate:'250',sensor_delay:'Неизвестно',sensor_source:'model',sensor_notes:'IMU расположен на base_link. В исходной модели оси X вперёд, Y влево, Z вверх; координаты на этой странице преобразованы к X вперёд, Y вправо, Z вниз. Угловой шум: стандартное отклонение 0,009 рад/с в модели.',
 };
@@ -152,7 +154,7 @@ for(let i=0;i<4;i++){const [x,y,direction]=MOTOR_LAYOUT[i],p='motor_'+(i+1)+'_';
 function hardwareValues(item){
  const values={};for(const field of fields){if(field.tagName==='SELECT')values[field.name]='';else values[field.name]='Неизвестно'}
  Object.assign(values,{profile_name:item.title,model_source:'Паспортные данные · '+item.title,frame_source:'vendor',
-  mass_g:item.mass_g||'Неизвестно',battery_model:item.battery||'Неизвестно',battery_capacity:item.capacity||'Неизвестно',battery_cells:item.cells||'Неизвестно',battery_voltage:item.voltage||'Неизвестно',
+  mass_g:item.mass_g||'Неизвестно',battery_model:item.battery||'Неизвестно',battery_capacity:item.capacity||'Неизвестно',battery_cells:item.cells||'Неизвестно',battery_cell_voltage:'3.7',battery_voltage:item.voltage||'Неизвестно',
   esc_model:item.esc||'Неизвестно',esc_rpm:'unknown',power_source:'vendor',power_notes:item.notes+' Источник: '+item.url,
   sensor_model:item.sensor||'Неизвестно',sensor_source:'vendor',sensor_notes:'Источник: '+item.url+' Данные шума, ориентации и задержки не подтверждены.',
  });
@@ -182,7 +184,7 @@ function validate(){
 function checked(data){
  if(!data||data.schema!==1||!data.values||typeof data.values!=='object'||Array.isArray(data.values))throw Error('Формат профиля не распознан.');
  const names=new Set(fields.map(field=>field.name));if(Object.keys(data.values).some(name=>!names.has(name)))throw Error('Профиль содержит неизвестные поля.');
- const values={};for(const field of fields){const value=Object.hasOwn(data.values,field.name)?data.values[field.name]:'';if(typeof value!=='string')throw Error('Профиль содержит некорректные данные.');if(value.length>(field.maxLength>0?field.maxLength:100))throw Error('Значение слишком длинное.');
+ const values={};for(const field of fields){const value=Object.hasOwn(data.values,field.name)?data.values[field.name]:(field.name==='battery_cell_voltage'?'3.7':'');if(typeof value!=='string')throw Error('Профиль содержит некорректные данные.');if(value.length>(field.maxLength>0?field.maxLength:100))throw Error('Значение слишком длинное.');
   if(value&&field.tagName==='SELECT'&&!Array.from(field.options).some(option=>option.value===value))throw Error('Профиль содержит неизвестный вариант выбора.');
   if(value&&field.dataset.numeric==='true'&&value.trim().toLowerCase()!=='неизвестно'){const n=Number(value),rule=field.dataset.rule;if(!numeric(value)||(rule==='positive'&&n<=0)||(rule==='nonnegative'&&n<0)||(rule==='positive_integer'&&(!Number.isSafeInteger(n)||n<=0)))throw Error('Профиль содержит некорректное число.');}
   values[field.name]=value;
@@ -198,7 +200,14 @@ document.getElementById('export').addEventListener('click',()=>{try{validate();c
 let importGeneration=0;
 document.getElementById('import').addEventListener('change',async event=>{const ticket=++importGeneration,file=event.target.files[0];event.target.value='';if(!file)return;try{if(file.size>128*1024)throw Error('Файл больше 128 КБ.');const text=await file.text();if(ticket!==importGeneration)return;const values=checked(JSON.parse(text));if(!window.confirm('Заменить значения в форме профилем из файла? Сохранённый профиль не изменится до нажатия «Сохранить профиль».'))return;defaults(values);show('Профиль из файла загружен в форму. Изменения ещё не сохранены.')}catch(error){if(ticket===importGeneration)show('Не удалось загрузить файл: '+error.message,true)}});
 document.getElementById('clear').addEventListener('click',()=>{if(baseline!==JSON.stringify(current())&&!window.confirm('Очистить поля с несохранёнными изменениями?'))return;for(const field of fields)field.value='';show('Поля очищены. Сохранённый профиль пока не изменён.')});
-form.addEventListener('input',()=>show('Изменения ещё не сохранены.'));form.addEventListener('change',()=>show('Изменения ещё не сохранены.'));
+// Пересчёт вызывается только при пользовательском изменении исходных полей, не при загрузке профиля.
+function updateBatteryVoltage(){
+ const cells=fields.find(field=>field.name==='battery_cells'),cellVoltage=fields.find(field=>field.name==='battery_cell_voltage'),voltage=fields.find(field=>field.name==='battery_voltage');
+ const count=Number(cells.value),perCell=Number(cellVoltage.value),total=count*perCell;
+ voltage.value=numeric(cells.value)&&Number.isSafeInteger(count)&&count>0&&numeric(cellVoltage.value)&&perCell>0&&Number.isFinite(total)&&total>0?String(Number(total.toPrecision(12))):'';
+}
+function edited(event){if(event?.target&&(event.target.name==='battery_cells'||event.target.name==='battery_cell_voltage'))updateBatteryVoltage();show('Изменения ещё не сохранены.')}
+form.addEventListener('input',edited);form.addEventListener('change',edited);
 try{if(load())show('Сохранённый профиль загружен.');else{defaults();show('Загружен пример 7″. Профиль ещё не сохранён.')}}catch(error){defaults();show('Не удалось загрузить сохранённый профиль; показан пример 7″. '+error.message,true)}
 baseline=JSON.stringify(current());window.addEventListener('beforeunload',event=>{if(baseline!==JSON.stringify(current())){event.preventDefault();event.returnValue=''}});
 </script></body></html>'''

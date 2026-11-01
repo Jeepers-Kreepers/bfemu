@@ -70,6 +70,24 @@ assert.strictEqual(s.field('inertia_yy').value,before);assert.strictEqual(s.stor
 s.listeners['document-click'](click);assert.strictEqual(s.panels['help-inertia_yy'].hidden,true);assert.strictEqual(attrs['aria-expanded'],'false');
 s.listeners['document-click']({target:{closest(){return null}}});
 assert(s.status.textContent.includes('пример 7'));assert(s.fields.every(f=>f.value!==''),s.fields.filter(f=>f.value==='').map(f=>f.name));
+// Расчёт работает только при пользовательском изменении исходных полей.
+let voltage=setup();const cells=voltage.field('battery_cells'),perCell=voltage.field('battery_cell_voltage'),total=voltage.field('battery_voltage');
+assert.strictEqual(perCell.value,'3.7');assert.strictEqual(total.value,'22.2');
+for(const [n,expected] of [['1','3.7'],['2','7.4'],['4','14.8'],['6','22.2']]){cells.value=n;voltage.listeners.input({target:cells});assert.strictEqual(total.value,expected)}
+perCell.value='3.8';voltage.listeners.input({target:perCell});assert.strictEqual(total.value,'22.8');
+total.value='23.7';voltage.listeners.input({target:total});assert.strictEqual(total.value,'23.7');
+cells.value='4';voltage.listeners.change({target:cells});assert.strictEqual(total.value,'15.2');
+for(const bad of ['','0','-1','2.5','Неизвестно','1e999','0x10']){cells.value=bad;voltage.listeners.input({target:cells});assert.strictEqual(total.value,'',bad)}
+cells.value='3';perCell.value='0';voltage.listeners.input({target:perCell});assert.strictEqual(total.value,'');
+perCell.value='4.2';voltage.listeners.input({target:perCell});assert.strictEqual(total.value,'12.6');
+assert.strictEqual(voltage.storage,null);voltage.submit();assert.strictEqual(JSON.parse(voltage.storage).values.battery_voltage,'12.6');
+let restoredVoltage=setup(voltage.storage);assert.strictEqual(restoredVoltage.field('battery_cell_voltage').value,'4.2');assert.strictEqual(restoredVoltage.field('battery_voltage').value,'12.6');
+let legacyVoltage=setup('{"schema":1,"values":{"battery_cells":"4","battery_voltage":"16.45"}}');
+assert.strictEqual(legacyVoltage.field('battery_voltage').value,'16.45');assert.strictEqual(legacyVoltage.field('battery_cell_voltage').value,'3.7');
+await legacyVoltage.listeners.import({target:{files:[{size:50,text:async()=>JSON.stringify({schema:1,values:{battery_cells:'3',battery_voltage:'10.7'}})}],value:'x'}});
+assert.strictEqual(legacyVoltage.field('battery_voltage').value,'10.7');assert.strictEqual(legacyVoltage.field('battery_cell_voltage').value,'3.7');
+legacyVoltage.field('battery_cells').value='6';legacyVoltage.listeners.input({target:legacyVoltage.field('battery_cells')});assert.strictEqual(legacyVoltage.field('battery_voltage').value,'22.2');
+
 for(const f of s.fields.filter(f=>f.tagName==='SELECT'))assert(f.options.some(o=>o.value===f.value),f.name);
 assert.strictEqual(s.field('mass_g').value,'931');assert.strictEqual(s.field('battery_resistance').value,'Неизвестно');assert.strictEqual(s.field('sensor_delay').value,'Неизвестно');
 assert.deepStrictEqual([1,2,3,4].map(i=>s.field('motor_'+i+'_output').value),['1','2','3','4']);
@@ -84,6 +102,7 @@ s.field('mass_g').value='600';s.listeners.input();s.accept=false;s.listeners.def
 s.listeners.restore();assert.strictEqual(s.field('mass_g').value,'500');s.listeners.clear();assert.strictEqual(s.field('mass_g').value,'');assert.strictEqual(s.storage,stored);s.listeners.restore();assert.strictEqual(s.field('mass_g').value,'500');
 assert.deepStrictEqual(s.choice.options.map(x=>x.value),['1.5','1.6','2','2.5','3','3.5','4','5','6','7','8','9','10']);
 for(const id of ['1.5','1.6','2','2.5','3','3.5','4','5','6','8','9','10']){s.choice.value=id;s.listeners.defaults();assert(s.field('profile_name').value.includes('″'));assert.strictEqual(s.field('inertia_xx').value,'Неизвестно');assert.strictEqual(s.field('motor_1_output').value,'');assert.strictEqual(s.field('motor_1_max_thrust').value,'Неизвестно');assert.strictEqual(s.storage,stored);}
+s.choice.value='1.5';s.listeners.defaults();assert.strictEqual(s.field('battery_voltage').value,'7.4');s.choice.value='1.6';s.listeners.defaults();assert.strictEqual(s.field('battery_voltage').value,'Неизвестно');
 s.choice.value='3';s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'204');s.choice.value='2';s.listeners.defaults();assert.strictEqual(s.field('mass_g').value,'Неизвестно');
 let imported={schema:1,values:{mass_g:'720',cg_x:'-3'}};await s.listeners.import({target:{files:[{size:50,text:async()=>JSON.stringify(imported)}],value:'x'}});assert.strictEqual(s.field('mass_g').value,'720');assert.strictEqual(s.field('cg_x').value,'-3');assert.strictEqual(s.storage,stored);
 await s.listeners.import({target:{files:[{size:50,text:async()=>'{oops'}],value:'x'}});assert(s.status.textContent.includes('Не удалось загрузить файл'));assert.strictEqual(s.field('mass_g').value,'720');
