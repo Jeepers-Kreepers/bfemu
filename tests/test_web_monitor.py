@@ -324,3 +324,32 @@ def test_pid_trainer_has_separate_resultant_signal_graph(monitor):
     assert 'aria-label="График результирующего управляющего сигнала выбранной оси"' in page
     assert "сумма составляющих P, I, D и Feedforward после ограничения" in page
     assert "Вертикальный масштаб автоматически подстраивается под сигнал" in page
+
+
+def test_pid_trainer_undo_restores_snapshot_and_rejects_external_changes(fc, monitor):
+    from bfemu.fc import MSP_PID, MSP_SET_PID
+
+    url = monitor + "/api/pid-trainer"
+    original = json.loads(get(url + "?axis=roll&scenario=step")[1])
+    pitch = json.loads(get(url + "?axis=pitch&scenario=step")[1])["values"]
+    new_values = {"p": 75, "i": 92, "d": 55}
+    status, body = post(url, {"axis": "roll", "profile": original["profile"],
+                              "expected": original["values"], "values": new_values})
+    assert status == 200
+    applied = json.loads(body)
+    reverse = {"axis": applied["axis"], "profile": applied["profile"],
+               "expected": applied["values"], "values": original["values"]}
+    assert post(url, reverse)[0] == 200
+    restored = json.loads(get(url + "?axis=roll&scenario=step")[1])
+    assert restored["values"] == original["values"] and restored["points"] == original["points"]
+    assert json.loads(get(url + "?axis=pitch&scenario=step")[1])["values"] == pitch
+
+    assert post(url, {"axis": "roll", "profile": original["profile"],
+                      "expected": original["values"], "values": new_values})[0] == 200
+    raw = bytearray(fc.handle(MSP_PID, b"", 1))
+    raw[0] = 101
+    fc.handle(MSP_SET_PID, bytes(raw), 1)
+    assert post(url, reverse)[0] == 409
+    assert json.loads(get(url + "?axis=roll")[1])["values"]["p"] == 101
+    fc.select_profile(1)
+    assert post(url, reverse)[0] == 409
