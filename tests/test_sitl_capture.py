@@ -28,8 +28,10 @@ from tools import betaflight_sitl as sitl
 
 def test_decodes_only_actual_protocol_fields_and_preserves_signed_values():
     imu = struct.pack("<9h", -1, 2, -3, 12, -25, 150, -4, 5, -6)
-    assert decode_payload(MSP_RAW_IMU, imu) == {"acc_adc": [-1, 2, -3], "gyro_dps": [12, -25, 150],
-                                                 "mag_adc": [-4, 5, -6]}
+    decoded = decode_payload(MSP_RAW_IMU, imu)
+    assert decoded["acc_adc"] == [-1, 2, -3] and decoded["gyro_raw"] == [12, -25, 150]
+    assert decoded["gyro_dps"] == pytest.approx([12 * 2000 / 32768, -25 * 2000 / 32768, 150 * 2000 / 32768])
+    assert decoded["mag_adc"] == [-4, 5, -6]
     assert decode_payload(MSP_ATTITUDE, struct.pack("<hhh", -125, 90, -170)) == {
         "roll_decideg": -125, "pitch_decideg": 90, "yaw_deg": -170}
     assert decode_payload(MSP_MOTOR, struct.pack("<8H", *range(1000, 1008)))["motor_output_msp"][0] == 1000
@@ -127,3 +129,31 @@ def test_capture_reads_real_upstream_sitl(tmp_path):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+def test_sitl_viewer_scales_old_and_new_raw_payloads():
+    import shutil
+
+    from bfemu.sitl_data_page import SITL_DATA_PAGE
+
+    node = shutil.which('node')
+    if not node:
+        pytest.skip('Node.js не установлен')
+    script = SITL_DATA_PAGE.split('<script>', 1)[1].split('</script>', 1)[0]
+    identity = {'type': 'identity', 'variant': 'BTFL', 'version': '4.5.4', 'board': 'SITL',
+                'time_basis': 'host_monotonic_after_response'}
+    # Старые файлы могли ошибочно маркировать отсчёты как dps. Страница читает исходный payload.
+    packet = struct.pack('<9h', 0, 0, 256, 491, -327, 410, 0, 0, 0)
+    row = {'type': 'msp', 'received_s': 1, 'command': 'MSP_RAW_IMU', 'payload_hex': packet.hex(),
+           'decoded': {'gyro_dps': [491, -327, 410]}}
+    data = json.dumps(identity)+'\n'+json.dumps(row)+'\n'
+    harness = r'''
+const vm=require('vm'),assert=require('assert');
+const elements={};const document={getElementById(id){return elements[id]??=( {getContext(){return {clearRect(){}}},value:'0'} )}};
+const window={addEventListener(){},devicePixelRatio:1};
+const context={document,window};vm.createContext(context);vm.runInContext(process.argv[1],context);
+const result=vm.runInContext('parseData('+JSON.stringify(process.argv[2])+')',context);
+assert(Math.abs(result.gyro[0][1]-30)<.1);assert(Math.abs(result.gyro[0][2]+20)<.1);assert(Math.abs(result.gyro[0][3]-25)<.1);
+'''
+    result = subprocess.run([node, '-e', harness, script, data], capture_output=True, text=True, timeout=10, check=False)
+    assert result.returncode == 0, result.stderr

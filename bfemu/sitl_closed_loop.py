@@ -1,0 +1,159 @@
+"""Экспериментальная замкнутая связь свободного тела с Betaflight 4.5.4 SITL.
+
+Только localhost:9002 (моторы) и localhost:9003 (состояние/IMU); нет земли,
+батареи, ветра, шума, задержки IMU, GPS или автоматического управления RC.
+"""
+from __future__ import annotations
+
+import argparse
+from dataclasses import asdict
+import json
+import math
+from pathlib import Path
+import socket
+import struct
+import sys
+import time
+
+from .flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
+from .flight_physics import Aircraft, PhysicsError, State, step
+from .sitl_feedback import sensor_packet
+from .sitl_capture import CaptureError, SitlMspClient
+
+
+def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
+             clock=time.monotonic, sleep=time.sleep):
+    if not math.isfinite(duration) or not 0 < duration <= 60:
+        raise PhysicsError('Длительность должна быть больше нуля и не больше 60 секунд.')
+    if not math.isfinite(period) or not .002 <= period <= .01:
+        raise PhysicsError('Период датчиков должен быть от 0,002 до 0,01 секунды.')
+    if not math.isfinite(max_gap) or not .05 <= max_gap <= 1:
+        raise PhysicsError('Максимальный интервал без пакетов моторов должен быть от 0,05 до 1 секунды.')
+    aircraft, mapping, curves = Aircraft.from_profile(profile), output_mapping(profile), read_curves(model)
+    actuators, state = Actuators(curves), State()
+    # Валидируем давление и начальное состояние до отправки и записи.
+    first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa)
+    header = {'type': 'header', 'schema': 1, 'profile': profile, 'actuator_model': model,
+              'time_basis': 'host_monotonic', 'sensor_period_s': period, 'pressure_pa': pressure_pa,
+              'feedback_to_sitl': True, 'note': 'Эксперимент: идеальный IMU в центре масс, постоянное давление, '
+              'свободное тело без земли и сопротивления воздуха. UDP-отправитель не подтверждён.'}
+    stream.write(json.dumps(header, ensure_ascii=False, allow_nan=False)+'\n')
+    stream.flush()
+    motor_socket.setblocking(False)
+    start = clock()
+    previous = start
+    last_motor = None
+    commands = (0., 0., 0., 0.)
+    next_tick = start+period
+    state_socket.sendto(first, ('127.0.0.1', 9003))
+    count = 0
+    while True:
+        now = clock()
+        if now < next_tick:
+            sleep(next_tick-now)
+            now = clock()
+        elapsed = now-start
+        if elapsed >= duration:
+            break
+        dt = now-previous
+        # В updateState SITL обновляет simRate только при 0 < deltaSim < 0.02 s.
+        # Не пропускаем зависания и скачки времени как достоверный расчёт.
+        if not 0 < dt < .02:
+            raise PhysicsError('Нарушен темп расчёта: интервал датчиков вышел за предел 0–0,02 с; связь остановлена.')
+        latest = None
+        for _ in range(4096):
+            try:
+                packet, sender = motor_socket.recvfrom(65535)
+            except BlockingIOError:
+                break
+            if sender[0] != '127.0.0.1':
+                raise PhysicsError('Пакет моторов пришёл не с localhost.')
+            latest = decode_sitl_motors(packet, mapping)
+        else:
+            raise PhysicsError('Очередь моторов переполнена; связь остановлена.')
+        if latest is not None:
+            last_motor = now
+        if now-(last_motor if last_motor is not None else start) > max_gap:
+            raise PhysicsError('Нет пакетов моторов SITL: связь остановлена; проверьте выходы моторов.')
+        average_thrust, average_reaction = actuators.advance(commands, dt)
+        state = step(aircraft, state, average_thrust, average_reaction, dt)
+        state_socket.sendto(sensor_packet(aircraft, state, actuators.thrust_n, timestamp=elapsed, pressure_pa=pressure_pa),
+                            ('127.0.0.1', 9003))
+        stream.write(json.dumps({'type': 'sample', 'elapsed_s': elapsed, 'dt_s': dt,
+                                 'applied_commands': commands, 'next_commands': latest,
+                                 'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
+                                 'state': asdict(state)}, ensure_ascii=False, allow_nan=False)+'\n')
+        count += 1
+        if latest is not None:
+            commands = latest
+        previous = now
+        # При умеренном отставании не отправляем скопившиеся пакеты пачкой.
+        next_tick = max(next_tick+period, now+period)
+    stream.flush()
+    if not count or last_motor is None:
+        raise PhysicsError('Недостаточно данных от SITL для замкнутого расчёта.')
+    return count
+
+
+def check_ready(port=5761):
+    """Проверить идентификатор и инициализацию датчиков, затем освободить MSP-порт."""
+    client = SitlMspClient(port=port, timeout=2.)
+    try:
+        client.identify()
+        status = client.request(101)
+        if len(status) < 6:
+            raise CaptureError('Слишком короткий ответ MSP_STATUS.')
+        sensors = struct.unpack_from('<H', status, 4)[0]
+        if sensors & 0x21 != 0x21:
+            raise CaptureError('SITL ещё не инициализировал гироскоп и акселерометр; дождитесь запуска.')
+    finally:
+        client.close()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--profile', type=Path, required=True, help='экспортированный JSON профиля аппарата')
+    parser.add_argument('--actuators', type=Path, required=True, help='JSON кривых и постоянных времени приводов')
+    parser.add_argument('--output', type=Path, required=True, help='новый файл результата JSONL')
+    parser.add_argument('--pressure-pa', type=float, required=True, help='постоянное давление для виртуального барометра, Па')
+    parser.add_argument('--duration', type=float, default=10, help='продолжительность, с (до 60)')
+    parser.add_argument('--period', type=float, default=.004, help='целевой период пакетов датчиков, с')
+    parser.add_argument('--max-gap', type=float, default=.25, help='остановка при потере пакетов моторов, с')
+    parser.add_argument('--exclusive-state-source', action='store_true', required=True,
+                        help='подтверждаю, что никакой другой источник не посылает данные на UDP 9003')
+    parser.add_argument('--assume-ready', action='store_true', help='не проверять MSP: использовать только если Configurator занимает порт и SITL уже готов')
+    parser.add_argument('--normal-motor-mode', action='store_true', required=True,
+                        help='подтверждаю, что в SITL выключен 3D-режим моторов')
+    args = parser.parse_args(argv)
+    try:
+        profile = json.loads(args.profile.read_text(encoding='utf-8'))
+        model = json.loads(args.actuators.read_text(encoding='utf-8'))
+        aircraft = Aircraft.from_profile(profile)
+        output_mapping(profile)
+        read_curves(model)
+        sensor_packet(aircraft, State(), (0., 0., 0., 0.), timestamp=0., pressure_pa=args.pressure_pa)
+        if (not math.isfinite(args.duration) or not 0 < args.duration <= 60 or not math.isfinite(args.period)
+                or not .002 <= args.period <= .01 or not math.isfinite(args.max_gap) or not .05 <= args.max_gap <= 1):
+            raise PhysicsError('Недопустимые длительность, период датчиков или интервал ожидания моторов.')
+        if not args.assume_ready:
+            try:
+                check_ready()
+            except (CaptureError, OSError) as exc:
+                raise PhysicsError('Проверка готовности SITL не выполнена. Убедитесь, что SITL запущен и MSP 5761 свободен: '+str(exc)) from exc
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as motors, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as fdm:
+            motors.bind(('127.0.0.1', 9002))
+            with args.output.open('x', encoding='utf-8') as stream:
+                # После остановки прежнего источника дать SITL пройти его 500-мс таймаут.
+                time.sleep(.55)
+                print('Экспериментальная связь SITL: моторы 9002 → физика → идеальный IMU 9003. Земли нет.', flush=True)
+                count = run_loop(profile, model, motors, fdm, stream, duration=args.duration, period=args.period,
+                                 max_gap=args.max_gap, pressure_pa=args.pressure_pa)
+        print(f'Записано {count} шагов: {args.output}')
+        return 0
+    except (OSError, ValueError, OverflowError) as exc:
+        print(f'Связь SITL: {exc}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

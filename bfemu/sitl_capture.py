@@ -77,7 +77,11 @@ def decode_payload(code: int, payload: bytes) -> dict:
         if len(payload) != 18:
             raise CaptureError(f"MSP_RAW_IMU: ожидалось 18 байт, получено {len(payload)}.")
         values = struct.unpack("<9h", payload)
-        return {"acc_adc": list(values[:3]), "gyro_dps": list(values[3:6]), "mag_adc": list(values[6:])}
+        # В SITL 4.5.4 virtual gyro имеет scale=2000/32768; MSP_RAW_IMU
+        # передаёт gyroRateDps(), делящую фильтрованный сигнал на этот scale.
+        gyro = list(values[3:6])
+        return {"acc_adc": list(values[:3]), "gyro_raw": gyro,
+                "gyro_dps": [value * (2000.0 / 32768.0) for value in gyro], "mag_adc": list(values[6:])}
     if code == MSP_MOTOR:
         if len(payload) != 16:
             raise CaptureError(f"MSP_MOTOR: ожидалось 16 байт, получено {len(payload)}.")

@@ -1,0 +1,39 @@
+"""Формирование пакета датчиков Betaflight 4.5.4 SITL из состояния модели."""
+from __future__ import annotations
+
+import math
+import struct
+from collections.abc import Sequence
+
+from .flight_physics import Aircraft, PhysicsError, State, quat_normalize, vec
+
+
+# target/SITL/target.h: fdm_packet = 18 doubles в порядке полей C-структуры.
+FDM_PACKET = struct.Struct('=18d')
+
+
+def sensor_packet(aircraft: Aircraft, state: State, thrust_n: Sequence[float], *, timestamp: float, pressure_pa: float) -> bytes:
+    """Идеальный IMU в центре масс; давление задаётся вызывающим кодом как постоянное.
+
+    sitl.c инвертирует все оси ускорения и оси Y/Z гироскопа. Передаваем
+    удельную силу в FRD и (p,-q,-r), чтобы в виртуальном гироскопе FC были p,q,r.
+    Кватернион передаётся напрямую: SITL сам вычисляет отображаемые углы.
+    """
+    if not math.isfinite(timestamp) or timestamp < 0:
+        raise PhysicsError('Метка времени SITL должна быть неотрицательной и конечной.')
+    if not math.isfinite(pressure_pa) or pressure_pa <= 0:
+        raise PhysicsError('Давление должно быть положительным и конечным.')
+    thrust = vec(thrust_n, 4, 'Тяга моторов')
+    if any(value < 0 for value in thrust):
+        raise PhysicsError('Отрицательная тяга не поддерживается.')
+    p, q, r = vec(state.angular_velocity_rad_s, 3, 'Угловая скорость')
+    orientation = quat_normalize(state.orientation)
+    velocity = vec(state.velocity_m_s, 3, 'Скорость')
+    position = vec(state.position_m, 3, 'Положение')
+    # В свободном полёте акселерометр измеряет негравитационную силу на единицу массы;
+    # в этой модели она состоит только из тяги вдоль -Z, а не из g или dV/dt в мире.
+    accel_z = -sum(thrust)/aircraft.mass_kg
+    fields = (timestamp, p, -q, -r, 0., 0., accel_z, *orientation, *velocity, *position, pressure_pa)
+    if not all(math.isfinite(value) for value in fields):
+        raise PhysicsError('Показания датчиков вышли за допустимый числовой диапазон.')
+    return FDM_PACKET.pack(*fields)

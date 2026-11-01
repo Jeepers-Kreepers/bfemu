@@ -11,7 +11,7 @@ __NAV_STYLE__
 <label>Файл записи <input id="file" type="file" accept=".jsonl,application/x-ndjson,text/plain"></label>
 <div class="controls"><label>Ось гироскопа <select id="axis"><option value="0">Roll</option><option value="1">Pitch</option><option value="2">Yaw</option></select></label><label>Выход мотора <select id="motor"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option></select></label></div>
 <p id="status" role="status" aria-live="polite">Файл ещё не выбран.</p>
-<h2>Гироскоп · градусы в секунду</h2><canvas id="gyro" class="chart" aria-label="Записанная угловая скорость из MSP_RAW_IMU"></canvas>
+<h2>Гироскоп · градусы в секунду</h2><p class="small">Для виртуального гироскопа SITL 4.5.4 значения MSP_RAW_IMU преобразуются из отсчётов в °/с с коэффициентом 2000/32768. Показания прошли фильтры FC и округление MSP.</p><canvas id="gyro" class="chart" aria-label="Записанная угловая скорость из MSP_RAW_IMU"></canvas>
 <h2>Выход мотора · значение MSP</h2><canvas id="motor-chart" class="chart" aria-label="Записанный выход мотора из MSP_MOTOR"></canvas>
 <p class="small">Значение выхода берётся непосредственно из MSP_MOTOR. Нулевой выход может означать, что мотор выключен или отсутствует. Составляющие P, I, D и Feedforward в этих MSP-ответах не передаются, поэтому здесь они не показаны.</p>
 </div></main><script>
@@ -28,7 +28,7 @@ function parseData(text){
   if(typeof row.payload_hex!=='string'||!/^(?:[0-9a-fA-F]{2})+$/.test(row.payload_hex))throw Error('Некорректные байты MSP в строке '+(i+1)+'.');
   const n=row.payload_hex.length/2,expected=row.command==='MSP_RAW_IMU'?18:16;if(n!==expected)throw Error('Неверная длина MSP в строке '+(i+1)+'.');
   let bytes=new Uint8Array(n);for(let j=0;j<n;j++)bytes[j]=parseInt(row.payload_hex.slice(j*2,j*2+2),16);const view=new DataView(bytes.buffer);
-  if(row.command==='MSP_RAW_IMU')result.gyro.push([row.received_s,view.getInt16(6,true),view.getInt16(8,true),view.getInt16(10,true)]);
+  if(row.command==='MSP_RAW_IMU')result.gyro.push([row.received_s,view.getInt16(6,true)*2000/32768,view.getInt16(8,true)*2000/32768,view.getInt16(10,true)*2000/32768]);
   else result.motor.push([row.received_s,...Array.from({length:8},(_,j)=>view.getUint16(j*2,true))]);
  }
  if(!result.gyro.length&&!result.motor.length)throw Error('В записи нет ответов MSP_RAW_IMU или MSP_MOTOR.');return result;

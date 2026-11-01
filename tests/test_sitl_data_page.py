@@ -23,7 +23,7 @@ const motor=Buffer.alloc(16);[1000,1250,1500,1750,0,0,0,0].forEach((v,i)=>motor.
 const text=[head,{type:'msp',received_s:0.1,command:'MSP_RAW_IMU',payload_hex:imu.toString('hex'),decoded:{gyro_dps:[999,999,999]}},
  {type:'msp',received_s:0.2,command:'MSP_MOTOR',payload_hex:motor.toString('hex'),decoded:{motor_output_msp:[999]}}].map(JSON.stringify).join('\n');
 const data=parseData(text);
-assert.deepStrictEqual(data.gyro,[[0.1,-321,300,-4]]);
+assert.deepStrictEqual(data.gyro,[[0.1,-321*2000/32768,300*2000/32768,-4*2000/32768]]);
 assert.deepStrictEqual(data.motor,[[0.2,1000,1250,1500,1750,0,0,0,0]]);
 assert.throws(()=>parseData(text.replace('SITL','S405')));
 assert.throws(()=>parseData(text.replace('"received_s":0.2','"received_s":0.05')));
