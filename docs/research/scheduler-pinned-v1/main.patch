@@ -1,0 +1,11 @@
+--- a/src/main/main.c
++++ b/src/main/main.c
+@@ -49,7 +49,7 @@
+     while (true) {
+         scheduler();
+ #ifdef SIMULATOR_BUILD
+-        delayMicroseconds_real(50); // max rate 20kHz
++        /* Исследование bfemu: без паузы планировщика SITL. */
+ #endif
+     }
+ }

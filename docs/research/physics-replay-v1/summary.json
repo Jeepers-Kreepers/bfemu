@@ -1,0 +1,40 @@
+{
+  "type": "run",
+  "ok": true,
+  "revision": "25356b59a96dc975d777844f896b7c7855ea90e6",
+  "elf_sha256": "609ed1f9b0228ee1945dd947df86fb75ba660ca5a5630948e3abcd7df878329d",
+  "axis": "pitch",
+  "pid": {
+    "p": 49,
+    "i": 84,
+    "d": 46
+  },
+  "verified_pid": {
+    "axis": "pitch",
+    "values": {
+      "p": 49,
+      "i": 84,
+      "d": 46
+    }
+  },
+  "period_ms": 4,
+  "motor_mode": "poll",
+  "diagnostics": {
+    "peak_abs_dps": 124.05,
+    "sensor_interval_max_ms": 4.221,
+    "motor_no_update_samples": 27,
+    "motor_full_output_samples": 0,
+    "samples": 292
+  },
+  "command_window_s": [
+    4.1158,
+    5.3159
+  ],
+  "replay": {
+    "samples": 2917,
+    "mismatched_values": 0,
+    "first_mismatch": null,
+    "max_abs_difference": 0.0
+  },
+  "wall_seconds": 15.135
+}

@@ -52,7 +52,7 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  // Видимость не запускает эксперимент и не меняет диагностику.
  const diagnostics=nodes['pid-sitl-diagnostics'].textContent,sendCount=sent.length;
  nodes['sitl-view-reset'].onclick();assert.equal(sent.length,sendCount);assert.equal(nodes['pid-sitl-diagnostics'].textContent,diagnostics);assert.deepStrictEqual(rangeSeen,[0,3]);assert.equal(nodes['sitl-pan'].disabled,true);assert.equal(nodes['sitl-rate-scale'].value,'auto');assert.equal(nodes['sitl-motor-scale'].value,'full');assert(nodes['sitl-show-motor-2'].checked);
- saturation=4;await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-comparison'].textContent.includes('P, I и D Max не менялись'));assert(nodes['pid-sitl-comparison'].textContent.includes('30,0 → 30,0 °/с'));assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0; 30,0'));assert(nodes['pid-sitl-warning'].textContent.includes('4 из 10 интервалов'));assert(nodes['pid-sitl-warning'].textContent.includes('причина колебаний'));sent.length=1;
+ saturation=4;await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-comparison'].textContent.includes('P, I и D Max не менялись'));assert(nodes['pid-sitl-comparison'].textContent.includes('30,0 → 30,0 °/с'));assert(nodes['pid-sitl-comparison'].textContent.includes('среднеквадратичная 0,00 °/с'));assert(nodes['pid-sitl-comparison'].textContent.includes('интерполяцией')); assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0; 30,0'));assert(nodes['pid-sitl-warning'].textContent.includes('4 из 10 интервалов'));assert(nodes['pid-sitl-warning'].textContent.includes('причина колебаний'));sent.length=1;
  priorSitlResult.samples[0].rates[0]=1000;drawPidSitl();assert.equal(rateRange[1],1150);
  nodes['sitl-show-previous'].checked=false;nodes['sitl-show-previous'].onchange();assert.equal(lastSeries[0].rows,null);assert.equal(rateRange[1],34.5);nodes['sitl-show-previous'].checked=true;nodes['sitl-show-previous'].onchange();assert(lastSeries[0].rows);
  failed=true;await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-status'].textContent.includes('Нарушен темп'));assert(nodes['pid-sitl-comparison'].textContent.includes('не завершился'));failed=false;sent.length=1;
@@ -66,6 +66,15 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
   assert(nodes['pid-sitl-graph-title'].textContent.includes(label));assert(nodes['pid-sitl-axis-caption'].textContent.includes(direction));
   assert.equal(lastSeries[1].rows[0][1],[1,2,3][index]);
  }
+ const makeSeries=(values,axis='roll')=>({axis,command_window_s:[1,1.03],disarm_requested_s:1.04,samples:values.map((v,i)=>({t:1+i*.01,rates:axis==='roll'?[v,0,0]:[0,v,0]}))});
+ const stable=sitlRepeatDifference(makeSeries([0,10,20,30,40]),makeSeries([0,10,20,30,40]));
+ assert.equal(stable.samples,5);assert(Math.abs(stable.rms)<1e-9&&Math.abs(stable.max)<1e-9);
+ const altered=sitlRepeatDifference(makeSeries([0,0,0,0,0]),makeSeries([10,10,10,10,10]));assert(Math.abs(altered.rms-10)<1e-9&&Math.abs(altered.max-10)<1e-9);
+ const sparse=makeSeries([1,2]);sparse.samples[1].t=sparse.samples[0].t;assert.equal(sitlRepeatDifference(sparse,makeSeries([1,2])),null);
+ const irregA={axis:'roll',command_window_s:[1,1.03],disarm_requested_s:1.04,samples:[{t:1,rates:[0,0,0]},{t:1.02,rates:[2,0,0]},{t:1.04,rates:[4,0,0]}]};
+ const irregB={axis:'roll',command_window_s:[5,5.03],disarm_requested_s:5.04,samples:[{t:5,rates:[0,0,0]},{t:5.01,rates:[1,0,0]},{t:5.03,rates:[3,0,0]},{t:5.04,rates:[4,0,0]}]};
+ const aligned=sitlRepeatDifference(irregA,irregB);assert.equal(aligned.samples,5);assert(aligned.rms<1e-9);
+ assert.equal(sitlRepeatDifference(irregA,{...irregB,command_window_s:[8,8.03],disarm_requested_s:8.04}),null);
  const sample={axis:'pitch',aircraftKey:'same',pid_profile:0,sensor_period_ms:4,motor_mode:'poll',verified_pid:{values:{p:49,i:84,d:46}},diagnostics:{peak_abs_dps:100}};
  const changed={...sample,verified_pid:{values:{p:49,i:90,d:50}},diagnostics:{peak_abs_dps:130}};
  const explanation=explainSitlComparison(sample,changed);

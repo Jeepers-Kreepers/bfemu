@@ -104,6 +104,26 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
 function motorModeLabel(mode){return mode==='event'?'по поступлению':'опрос по шагу'}
 function sitlSeries(result){const start=result.command_window_s[0],i={roll:0,pitch:1,yaw:2}[result.axis];return result.samples.filter(row=>row.t>=start-0.4&&row.t<=start+2.6).map(row=>[row.t-start+0.4,row.rates[i]])}
 function sitlComparable(a,b){return a&&b&&a.axis===b.axis&&a.aircraftKey===b.aircraftKey}
+// Сравниваем скорости от отправки команды до запроса дизарма, без экстраполяции.
+function sitlRepeatDifference(previous,current){
+ const axis={roll:0,pitch:1,yaw:2}[current.axis];
+ function series(result){
+  if(!Array.isArray(result.command_window_s)||result.command_window_s.length!==2||!Array.isArray(result.samples))return null;
+  const start=result.command_window_s[0],commandEnd=result.command_window_s[1],end=result.disarm_requested_s;
+  if(!Number.isFinite(start)||!Number.isFinite(commandEnd)||!Number.isFinite(end)||commandEnd<=start||end<commandEnd)return null;
+  const points=[];let lastTime=-Infinity;
+  for(const row of result.samples){if(!Number.isFinite(row.t)||!Array.isArray(row.rates)||!Number.isFinite(row.rates[axis])||row.t<=lastTime)return null;lastTime=row.t;points.push([row.t-start,row.rates[axis]])}
+  return points.length>=2?{points,end:end-start}:null;
+ }
+ const a=series(previous),b=series(current);if(!a||!b)return null;
+ const lo=Math.max(0,a.points[0][0],b.points[0][0]),hi=Math.min(a.end,b.end,a.points.at(-1)[0],b.points.at(-1)[0]);
+ let ia=0,ib=0,n=0,sum=0,max=0;
+ function value(points,x,i){while(i<points.length-2&&points[i+1][0]<x)i++;const [t0,y0]=points[i],[t1,y1]=points[i+1];return [y0+(y1-y0)*(x-t0)/(t1-t0),i]}
+ for(let tick=Math.ceil((lo-1e-9)*100);tick<=Math.floor((hi+1e-9)*100);tick++){
+  const x=tick/100;let ya,yb;[ya,ia]=value(a.points,x,ia);[yb,ib]=value(b.points,x,ib);const delta=Math.abs(ya-yb);sum+=delta*delta;max=Math.max(max,delta);n++;
+ }
+ return n>=2?{rms:Math.sqrt(sum/n),max,samples:n}:null;
+}
 function explainSitlComparison(previous,current){
  if(!previous)return 'Для сравнения выполните ещё один запуск с применёнными настройками.';
  if(!sitlComparable(previous,current))return 'Предыдущий запуск относится к другой оси или другому аппарату; сравнение изменения PID не выполняется.';
@@ -111,7 +131,7 @@ function explainSitlComparison(previous,current){
  const before=previous.verified_pid.values,after=current.verified_pid.values,changed=['p','i','d'].filter(k=>before[k]!==after[k]);
  const number=x=>x.toFixed(1).replace('.',',');
  const peaks='Максимальная абсолютная скорость во время команды: '+number(previous.diagnostics.peak_abs_dps)+' → '+number(current.diagnostics.peak_abs_dps)+' °/с.';
- if(!changed.length)return 'P, I и D Max не менялись. '+peaks+' Это сравнение повторных запусков, а не эффект настройки.';
+ if(!changed.length){const diff=sitlRepeatDifference(previous,current),precision=x=>x>0&&x<0.005?'<0,01':x.toFixed(2).replace('.',',');return 'P, I и D Max не менялись. '+peaks+(diff?' Разница формы: среднеквадратичная '+precision(diff.rms)+' °/с, максимальная '+precision(diff.max)+' °/с. Сравнение округлённых данных от отправки команды до запроса дизарма через 0,01 с, с интерполяцией между отсчётами.':' Не удалось сопоставить форму кривых по имеющимся отсчётам.')+' Это сравнение повторных запусков, а не эффект настройки.'}
  const labels={p:'P',i:'I',d:'D Max'},mechanisms={p:'P задаёт силу пропорциональной реакции на ошибку угловой скорости.',i:'I задаёт силу коррекции накопленной ошибки угловой скорости.',d:'D Max задаёт верхнюю границу динамической составляющей D.'};
  const changes=changed.map(k=>labels[k]+' '+before[k]+' → '+after[k]).join('; ');
  return 'Изменено: '+changes+'. '+peaks+' '+changed.map(k=>mechanisms[k]).join(' ')+' Пока два запуска не доказывают, что разница вызвана настройками: повторяемость SITL не подтверждена.';
