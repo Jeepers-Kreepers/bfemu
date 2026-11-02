@@ -131,3 +131,103 @@ def test_recorded_pid_and_gyro_periods_and_yaw_ki():
                 assert frame['pid_dt_s'] == pytest.approx(.000125)
                 assert frame['pid_ki'][index] == pytest.approx(expected_ki)
         assert compare(runs[0], runs[1])['max_abs_dps'] == 0
+
+
+def test_report_lists_incomparable_command_sequences_without_misleading_pair(monkeypatch):
+    from tools import sitl_simclock_analyze
+    def run(stick):
+        row = {'channels': [1500, stick, 1300, 1500], 'motors': [0.2] * 4,
+               'rc_axes': [1500, stick, 1500], 'setpoint_axes_dps': [0, 75, 0],
+               'state': {'angular_velocity_rad_s': [0, 0, 0]}}
+        return {'cycle': 1, 'pid': {'axis': 'pitch', 'values': {'p': 49, 'i': 84, 'd': 46}},
+                'events': {'command_start': 1, 'command_end': 2, 'armed_at': 1},
+                'axis': 'pitch', 'segment': [row]}
+    def fake_load(name):
+        stick = 1650 if name == 'positive' else 1350
+        return {'pid': {}, 'stick': stick}, [run(stick)], []
+    monkeypatch.setattr(sitl_simclock_analyze, 'load_series', fake_load)
+    result = sitl_simclock_analyze.analyze(['positive', 'negative'])
+    assert result['pairs'] == []
+    assert result['skipped_pairs'] == {'different_axis': 0, 'different_commands_or_length': 1}
+    assert [g['inputs']['stick'] for g in result['groups']] == [1650, 1350]
+
+
+def test_conditions_archives_expose_response_and_position_differences():
+    names = ('pitch-ref-v1', 'pitch-reverse-v1', 'pitch-throttle1600-v1', 'pitch-impulse-v1',
+             'pitch-impulse-hold-v1', 'pitch-high-v1', 'yaw-reverse-v1', 'profile-ref-v1',
+             'profile-iyy2-v1', 'cross-impulse-v1', 'cross-impulse-hold-v1')
+    collected = {}
+    for name in names:
+        directory = ROOT/f'sitl-simclock-conditions-{name}'
+        header, runs, failures = load_series(directory)
+        assert len(runs) == 6 and not failures
+        collected[name] = runs
+        if 'profile_sha256' in header:
+            assert hashlib.sha256((directory/'input-profile.json').read_bytes()).hexdigest() == header['profile_sha256']
+        for i, run in enumerate(runs):
+            for other in runs[i+1:]:
+                diff = compare(run, other)
+                assert all(value == 0 for value in diff['physical_rate_axes_max_abs_dps'].values())
+                assert diff['max_motor_difference'] == diff['quaternion_max_component_difference'] == 0
+    high = collected['pitch-high-v1'][0]['segment'][:300]
+    assert sum(any(m >= 1 for m in row['motors']) for row in high) == 5
+    inertia = compare(collected['profile-ref-v1'][0], collected['profile-iyy2-v1'][0])
+    assert inertia['max_abs_dps'] == pytest.approx(26.100406707534308)
+    cross = compare(collected['cross-impulse-v1'][0], collected['cross-impulse-hold-v1'][0])
+    assert cross['max_abs_dps'] == 0
+    # Угловые отклики совпадают, но до ARM модель свободно падала разное время.
+    assert cross['position_axes_max_abs_m'][2] > 40
+
+
+def test_bench_archives_repeat_complete_physics_despite_different_prearm_wait():
+    results = {}
+    for name in ('bench-base-v1', 'bench-impulse-v1', 'bench-impulse-hold-v1'):
+        directory = ROOT/f'sitl-simclock-conditions-{name}'
+        header, runs, failures = load_series(directory)
+        assert len(runs) == 6 and not failures and header['prearm_bench']
+        assert hashlib.sha256((directory/'input-profile.json').read_bytes()).hexdigest() == header['profile_sha256']
+        results[name] = runs
+        for index, run in enumerate(runs):
+            for other in runs[index+1:]:
+                diff = compare(run, other)
+                assert diff['samples'] == 425
+                assert all(value == 0 for value in diff['position_axes_max_abs_m'])
+                assert all(value == 0 for value in diff['velocity_axes_max_abs_m_s'])
+                assert all(value == 0 for value in diff['physical_rate_axes_max_abs_dps'].values())
+                assert all(value == 0 for value in diff['gyro_axes_max_abs_dps'].values())
+                assert diff['quaternion_max_component_difference'] == diff['max_motor_difference'] == 0
+    for run in results['bench-impulse-v1']:
+        for other in results['bench-impulse-hold-v1']:
+            diff = compare(run, other)
+            assert all(value == 0 for value in diff['position_axes_max_abs_m'])
+            assert all(value == 0 for value in diff['velocity_axes_max_abs_m_s'])
+            assert all(value == 0 for value in diff['physical_rate_axes_max_abs_dps'].values())
+            assert all(value == 0 for value in diff['gyro_axes_max_abs_dps'].values())
+            assert diff['quaternion_max_component_difference'] == diff['max_motor_difference'] == 0
+            assert all(value == 0 for terms in diff['pid_axes_max_abs_difference'].values() for value in terms.values())
+
+
+def test_bench_sensor_inputs_and_failed_short_scenario_are_preserved():
+    import gzip
+
+    failed = ROOT/'sitl-simclock-conditions-bench-sensor-v1'
+    header, runs, failures = load_series(failed)
+    assert header['frames'] == 500 and len(runs) == 0 and len(failures) == 2
+    assert all('500 кадров' in failure['error'] for failure in failures)
+    for number in (1, 2):
+        with gzip.open(failed/f'frames-{number}.jsonl.gz', 'rt') as stream:
+            assert sum(1 for _ in stream) == 500
+    directory = ROOT/'sitl-simclock-conditions-bench-sensor-v2'
+    header, runs, failures = load_series(directory)
+    assert len(runs) == 2 and not failures and header['prearm_bench']
+    assert hashlib.sha256((directory/'input-profile.json').read_bytes()).hexdigest() == header['profile_sha256']
+    summary = [json.loads(line) for line in (directory/'summary.jsonl').read_text().splitlines()]
+    for run in summary[1:-1]:
+        with gzip.open(directory/(run['file']+'.gz'), 'rt') as stream:
+            rows = [json.loads(line) for line in stream]
+        armed_at = run['events']['armed_at']
+        assert run['events']['bench_release'] == armed_at+1
+        assert all(row['bench_held'] and row['fdm_accel_m_s2'] == [0, 0, -9.80665]
+                   for row in rows[:armed_at])
+        assert not rows[armed_at]['bench_held']
+        assert rows[armed_at]['fdm_accel_m_s2'][2] != -9.80665

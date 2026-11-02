@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+import hashlib
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import json
 import math
@@ -26,8 +27,8 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from bfemu import aircraft_sitl
 from bfemu.flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
-from bfemu.flight_physics import Aircraft, PhysicsError, State, step
-from bfemu.sitl_feedback import sensor_packet
+from bfemu.flight_physics import GRAVITY, Aircraft, PhysicsError, State, step
+from bfemu.sitl_feedback import FDM_PACKET, sensor_packet
 from tools.sitl_pid_cycle_probe import digest
 from tools.sitl_scheduler_probe import MAIN_HASH
 from tools.sitl_step_probe import patch_sources as patch_step, replace_unique
@@ -130,7 +131,8 @@ def decode_response(data, expected, mapping, previous_clock):
 
 
 def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=None,
-               pause_every=0, pause_ms=0, axis='pitch'):
+               pause_every=0, pause_ms=0, axis='pitch', stick=1650, throttle=1300,
+               impulse_dps=(0., 0., 0.), prearm_frames=0, prearm_bench=False):
     """Сценарии: свободное падение без ARM либо ступень выбранной оси после ARM."""
     if axis not in aircraft_sitl.AXES:
         raise PhysicsError('Неизвестная ось.')
@@ -139,12 +141,20 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     if (type(pause_every) is not int or type(pause_ms) is not int or
             not 0 <= pause_every <= 10000 or not 0 <= pause_ms <= 1000 or bool(pause_every) != bool(pause_ms)):
         raise PhysicsError('Период и длительность паузы должны быть заданы вместе.')
+    if (type(stick) is not int or not 1000 <= stick <= 2000 or type(throttle) is not int or
+            not 1000 <= throttle <= 2000 or type(prearm_frames) is not int or not 0 <= prearm_frames <= 2000):
+        raise PhysicsError('Некорректная команда стика, газ или ожидание перед ARM.')
+    if (not isinstance(impulse_dps, (list, tuple)) or len(impulse_dps) != 3 or
+            any(not isinstance(v, (int, float)) or not math.isfinite(v) or abs(v) > 720 for v in impulse_dps)):
+        raise PhysicsError('Импульс должен содержать три конечные скорости до 720 °/с.')
+    if type(prearm_bench) is not bool:
+        raise PhysicsError('Флаг испытательного стенда должен быть логическим.')
     aircraft = Aircraft.from_profile(profile)
     mapping = output_mapping(profile)
     actuators = Actuators(read_curves(aircraft_sitl.theoretical_curves(profile)))
     state = State()
     records, last_clock, commands = [], None, (0., 0., 0., 0.)
-    arm_request = armed_at = command_start = command_end = disarm_request = None
+    arm_request = armed_at = command_start = command_end = disarm_request = ready_at = None
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rx:
         rx.bind(('127.0.0.1', 9011))
         for seq in range(1, frames+1):
@@ -154,15 +164,25 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             if arm_request is not None:
                 channels[4] = 1900
             if armed_at is not None and seq > armed_at:
-                channels[2] = 1300
+                channels[2] = throttle
                 if command_start <= seq < command_end:
-                    channels[aircraft_sitl.AXES[axis][1]] = 1650
+                    channels[aircraft_sitl.AXES[axis][1]] = stick
                 if seq >= disarm_request:
                     channels[2], channels[4] = 1000, 1000
+            held = prearm_bench and armed_at is None
+            if seq == command_start and any(impulse_dps):
+                state = replace(state, angular_velocity_rad_s=tuple(
+                    v+math.radians(delta) for v, delta in zip(state.angular_velocity_rad_s, impulse_dps, strict=True)))
             thrust, reaction = actuators.advance(commands, FRAME_US/1e6)
-            state = step(aircraft, state, thrust, reaction, FRAME_US/1e6)
+            state = State() if held else step(aircraft, state, thrust, reaction, FRAME_US/1e6)
             timestamp = seq*FRAME_US/1e6
             fdm = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=timestamp, pressure_pa=101325)
+            fields = list(FDM_PACKET.unpack(fdm))
+            if held:
+                # Жёстко закреплённый ровный стенд: опора вместе с моторами
+                # обеспечивает в теле удельную силу (0, 0, -g), а не свободное падение.
+                fields[6] = -GRAVITY
+                fdm = FDM_PACKET.pack(*fields)
             rc = RC.pack(timestamp, *channels)
             tx.sendto(INPUT_HEADER.pack(seq, 0)+fdm+rc, ('127.0.0.1', 9010))
             if not select.select([rx], [], [], timeout)[0]:
@@ -173,7 +193,9 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             rec = decode_response(data, seq, mapping, last_clock)
             last_clock = rec['sim_us']
             row = {'fdm_time_s': timestamp, 'channels': channels, 'applied_commands': commands,
-                   'state': asdict(state), **rec}
+                   'state': asdict(state), 'bench_held': held, 'fdm_accel_m_s2': fields[4:7], **rec}
+            if seq == command_start and any(impulse_dps):
+                row['impulse_dps'] = list(impulse_dps)
             records.append(row)
             if on_frame:
                 on_frame(row)
@@ -186,7 +208,12 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
                 if rec['armed']:
                     raise PhysicsError('ARM произошёл до команды.')
                 if rec['disable_flags'] == 0:
-                    arm_request = seq+1
+                    if ready_at is None:
+                        ready_at = seq
+                    if seq-ready_at >= prearm_frames:
+                        arm_request = seq+1
+                else:
+                    ready_at = None
             elif armed_at is None:
                 if rec['armed']:
                     armed_at = seq
@@ -198,7 +225,8 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             elif seq < disarm_request and not rec['armed']:
                 raise PhysicsError(f'SITL вышел из ARM на кадре {seq}; флаги {rec["disable_flags"]:#x}.')
             elif seq >= disarm_request and not rec['armed']:
-                return records, {'arm_request': arm_request, 'armed_at': armed_at,
+                return records, {'ready_at': ready_at, 'arm_request': arm_request, 'armed_at': armed_at,
+                                 'bench_release': armed_at+1 if prearm_bench else None,
                                  'command_start': command_start, 'command_end': command_end,
                                  'disarm_request': disarm_request, 'disarmed_at': seq}
             elif seq >= disarm_request+250:
@@ -208,34 +236,55 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     return records, None
 
 
-def main(argv=None):
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, required=True)
-    parser.add_argument('--frames', type=int, default=500)
+    parser.add_argument('--profile', type=Path, help='JSON профиля аппарата; по умолчанию пример Build 03')
+    parser.add_argument('--frames', type=int, help='Предел кадров: по умолчанию 500 для stationary, 12000 для flight')
     parser.add_argument('--scenario', choices=('stationary', 'flight'), default='stationary')
     parser.add_argument('--repeats', type=int, default=2)
     parser.add_argument('--axis', choices=tuple(aircraft_sitl.AXES), default='pitch')
     parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'),
                         help='P, I и D Max оси; по умолчанию значения исследовательского сценария')
+    parser.add_argument('--stick', type=int, default=1650, help='RC выбранной оси во время ступени, 1000–2000')
+    parser.add_argument('--throttle', type=int, default=1300, help='Газ после ARM до дизарма, 1000–2000')
+    parser.add_argument('--impulse-dps', nargs=3, type=float, metavar=('ROLL', 'PITCH', 'YAW'), default=[0., 0., 0.],
+                        help='Мгновенное приращение физической угловой скорости при начале команды, °/с')
+    parser.add_argument('--prearm-bench', action='store_true', help='удерживать аппарат на неподвижном стенде до ARM')
+    parser.add_argument('--prearm-frames', type=int, default=0, help='Дополнительные кадры без запрета ARM')
     parser.add_argument('--pause-every', type=int, default=0, help='вставлять задержку хоста каждые N кадров')
     parser.add_argument('--pause-ms', type=int, default=0, help='длительность задержки хоста в миллисекундах')
     parser.add_argument('--jobs', type=int, default=4)
     args = parser.parse_args(argv)
+    if args.frames is None:
+        args.frames = 12000 if args.scenario == 'flight' else 500
     if args.pid is None:
         args.pid = DEFAULT_PID[args.axis]
     if (not 2 <= args.frames <= 20000 or not 1 <= args.repeats <= 10 or not 1 <= args.jobs <= 32 or any(v not in range(251) for v in args.pid) or
             not 0 <= args.pause_every <= 10000 or not 0 <= args.pause_ms <= 1000 or
-            bool(args.pause_every) != bool(args.pause_ms)):
-        parser.error('Кадры: 2–20000, повторы: 1–10, jobs: 1–32, PID: 0–250.')
+            bool(args.pause_every) != bool(args.pause_ms) or not 1000 <= args.stick <= 2000 or
+            not 1000 <= args.throttle <= 2000 or not 0 <= args.prearm_frames <= 2000 or
+            any(not math.isfinite(v) or abs(v) > 720 for v in args.impulse_dps)):
+        parser.error('Недопустимые кадры, повторы, PID, газ, стик, пауза или импульс.')
     if sys.platform != 'linux' or sys.byteorder != 'little':
         parser.error('Требуется Linux little-endian.')
+    return args
+
+
+def main(argv=None):
+    args = parse_args(argv)
     try:
         if os.environ.get('LD_PRELOAD'):
             raise PhysicsError('Отключите LD_PRELOAD.')
         if not aircraft_sitl.sitl_available():
             raise PhysicsError('Сначала соберите штатный Betaflight SITL.')
-        profile = json.loads((Path(aircraft_sitl.__file__).parent/'data/aircraft_build03.json').read_text())
-        aircraft_sitl.theoretical_curves(profile)
+        profile_path = args.profile or Path(aircraft_sitl.__file__).parent/'data/aircraft_build03.json'
+        profile_bytes = profile_path.read_bytes()
+        profile = json.loads(profile_bytes)
+        profile_sha256 = hashlib.sha256(profile_bytes).hexdigest()
+        Aircraft.from_profile(profile)
+        output_mapping(profile)
+        read_curves(aircraft_sitl.theoretical_curves(profile))
         normal = aircraft_sitl.BINARY
         outdir = args.output_dir.resolve()
         outdir.mkdir(parents=True, exist_ok=False)
@@ -265,10 +314,15 @@ def main(argv=None):
                       'simclock_elf_sha256': digest(binary), 'scheduler_sha256': SCHEDULER_HASH,
                       'driver_sha256': digest(Path(__file__)),
                       'includes_sha256': {p.name: digest(p) for p in (ROOT/'sitl_simclock_probe.inc', ROOT/'sitl_simclock_target.inc')},
-                      'platform': platform.platform(), 'aircraft': profile, 'frames': args.frames, 'scenario': args.scenario,
+                      'platform': platform.platform(), 'aircraft': profile, 'profile_file': profile_path.name,
+                      'profile_sha256': profile_sha256, 'frames': args.frames, 'scenario': args.scenario,
                       'repeats': args.repeats, 'axis': args.axis, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
                       'pause_every': args.pause_every, 'pause_ms': args.pause_ms,
-                      'note': 'Модель свободного тела без земли. Инициализация и MSP асинхронны, планировщик изменён.'})
+                      'stick': args.stick, 'throttle': args.throttle, 'impulse_dps': args.impulse_dps,
+                      'prearm_frames': args.prearm_frames, 'prearm_bench': args.prearm_bench,
+                      'note': ('Жёсткий ровный стенд до ARM, после него свободное тело без земли. '
+                               if args.prearm_bench else 'Модель свободного тела без земли. ') +
+                              'Инициализация и MSP асинхронны, планировщик изменён.'})
                 for cycle in range(1, args.repeats+1):
                     row = {'type': 'run', 'cycle': cycle}
                     started = time.monotonic()
@@ -315,7 +369,9 @@ def main(argv=None):
                                     f.write(json.dumps(sample, ensure_ascii=False, allow_nan=False)+'\n')
                                 result, events = run_frames(profile, args.frames, scenario=args.scenario, on_frame=save_frame,
                                                             pause_every=args.pause_every, pause_ms=args.pause_ms,
-                                                            axis=args.axis)
+                                                            axis=args.axis, stick=args.stick, throttle=args.throttle,
+                                                            impulse_dps=args.impulse_dps, prearm_frames=args.prearm_frames,
+                                                            prearm_bench=args.prearm_bench)
                             row['events'] = events
                         row['ok'] = True
                         row['frames'] = len(result)

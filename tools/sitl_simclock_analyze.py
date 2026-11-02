@@ -95,13 +95,28 @@ def compare(first, second):
                                     for x, y in zip(a, b, strict=True)),
             'setpoint_frames_differ': sum(snapshot(x, axis, 'setpoint') != snapshot(y, axis, 'setpoint')
                                           for x, y in zip(a, b, strict=True))}
+    result['physical_rate_axes_max_abs_dps'] = {
+        name: max(abs(math.degrees(x['state']['angular_velocity_rad_s'][index] -
+                                   y['state']['angular_velocity_rad_s'][index]))
+                  for x, y in zip(a, b, strict=True)) for name, index in AXES.items()}
+    for field, output in (('position_m', 'position_axes_max_abs_m'), ('velocity_m_s', 'velocity_axes_max_abs_m_s')):
+        if all(field in r['state'] for r in (*a, *b)):
+            result[output] = [max(abs(x['state'][field][i] - y['state'][field][i])
+                                  for x, y in zip(a, b, strict=True)) for i in range(3)]
+    if all('orientation' in r['state'] for r in (*a, *b)):
+        result['quaternion_max_component_difference'] = max(
+            abs(u-v) for x, y in zip(a, b, strict=True)
+            for u, v in zip(x['state']['orientation'], y['state']['orientation'], strict=True))
     if all('pid_axes' in r and 'gyro_axes_dps' in r for r in (*a, *b)):
-        index = AXES[axis]
-        result['gyro_max_abs_dps'] = max(abs(x['gyro_axes_dps'][index] - y['gyro_axes_dps'][index])
-                                         for x, y in zip(a, b, strict=True))
-        result['pid_term_max_abs_difference'] = {
-            term: max(abs(x['pid_axes'][index][term] - y['pid_axes'][index][term])
-                      for x, y in zip(a, b, strict=True)) for term in ('p', 'i', 'd', 'f', 'sum')}
+        result['gyro_axes_max_abs_dps'] = {
+            name: max(abs(x['gyro_axes_dps'][index] - y['gyro_axes_dps'][index])
+                      for x, y in zip(a, b, strict=True)) for name, index in AXES.items()}
+        result['pid_axes_max_abs_difference'] = {
+            name: {term: max(abs(x['pid_axes'][index][term] - y['pid_axes'][index][term])
+                             for x, y in zip(a, b, strict=True)) for term in ('p', 'i', 'd', 'f', 'sum')}
+            for name, index in AXES.items()}
+        result['gyro_max_abs_dps'] = result['gyro_axes_max_abs_dps'][axis]
+        result['pid_term_max_abs_difference'] = result['pid_axes_max_abs_difference'][axis]
     return result
 
 
@@ -125,13 +140,21 @@ def analyze(directories):
                                                                for r in segment[:command_count])})
             all_runs.append((str(directory), run))
         groups.append({'directory': str(directory), 'header_pid': header.get('pid'),
+                       'inputs': {key: header.get(key) for key in ('stick', 'throttle', 'impulse_dps', 'prearm_frames',
+                                                                    'profile_file', 'profile_sha256', 'prearm_bench')},
                        'results': results, 'failures': failures})
     pairs = []
+    skipped = {'different_axis': 0, 'different_commands_or_length': 0}
     for (directory_a, a), (directory_b, b) in itertools.combinations(all_runs, 2):
-        if a['axis'] == b['axis']:
+        if a['axis'] != b['axis']:
+            skipped['different_axis'] += 1
+        elif (len(a['segment']) != len(b['segment']) or
+              any(x['channels'] != y['channels'] for x, y in zip(a['segment'], b['segment'], strict=True))):
+            skipped['different_commands_or_length'] += 1
+        else:
             pairs.append({'a': [directory_a, a['cycle']], 'b': [directory_b, b['cycle']],
                           'axis': a['axis'], **compare(a, b)})
-    return {'groups': groups, 'pairs': pairs}
+    return {'groups': groups, 'pairs': pairs, 'skipped_pairs': skipped}
 
 
 def main():
