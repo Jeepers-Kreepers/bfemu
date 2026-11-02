@@ -902,6 +902,37 @@ class HttpMonitor:
                     return
                 self._send(self._json_bytes(result), "application/json; charset=utf-8")
 
+            def _post_pid_lockstep(self):
+                import json as _json
+                from .flight_physics import PhysicsError
+                from .sitl_pair_web import experiment
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 131072:
+                        self.close_connection = True
+                        raise ValueError("Недопустимый размер запроса")
+                    data = _json.loads(self.rfile.read(length))
+                    if not isinstance(data, dict) or set(data) != {"axis", "profile", "before", "after", "aircraft"}:
+                        raise ValueError("Нужны ось, профиль, две настройки и аппарат")
+                    axis, profile, before = data["axis"], data["profile"], data["before"]
+                    if axis not in _pid_trainer.AXES or type(profile) is not int:
+                        raise ValueError("Неверная ось или профиль PID")
+                    current = _pid_trainer.profile_state(fc, axis)
+                    if current["profile"] != profile or current["values"] != before:
+                        self._send(self._json_bytes({"error": "Профиль PID изменился. Обновите значения и повторите запуск."}),
+                                   "application/json; charset=utf-8", 409)
+                        return
+                    aircraft = data["aircraft"]
+                    if aircraft is None:
+                        aircraft = _json.loads((Path(__file__).parent / "data" / "aircraft_build03.json").read_text(encoding="utf-8"))
+                    elif not isinstance(aircraft, dict):
+                        raise ValueError("Некорректный профиль аппарата")
+                    result = experiment(axis, before, data["after"], aircraft)
+                except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                self._send(self._json_bytes(result), "application/json; charset=utf-8")
+
             def _post_pid_trainer(self):
                 import json as _json
                 try:
@@ -1020,6 +1051,9 @@ class HttpMonitor:
                     return
                 if path == "/api/pid-trainer":
                     self._post_pid_trainer()
+                    return
+                if path == "/api/pid-trainer/lockstep":
+                    self._post_pid_lockstep()
                     return
                 if path == "/api/pid-trainer/sitl":
                     self._post_pid_sitl()

@@ -93,3 +93,32 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
 def test_sensor_period_annotation_distinguishes_nominal_pid_frequency():
     assert 'а не частоту PID' in PID_TRAINER_PAGE
     assert 'целевой период PID — 125 мкс (8 кГц)' in PID_TRAINER_PAGE
+
+
+def test_pair_web_mode_gates_failures_and_sends_only_one_change():
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node.js не установлен')
+    script = PID_TRAINER_PAGE.split('let pairReportUrl=null;', 1)[1].split("window.addEventListener('resize',drawAll)", 1)[0]
+    harness = r'''
+const assert=require('assert');
+const terms=['p','i','d'];let dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
+let baseline={axis:'pitch',profile:0,values:{p:49,i:84,d:46}},pairReportUrl=null,sent=[];
+const nodes={'pair-run':{},'pair-status':{},'pair-report':{},'pair-download':{},'pair-term':{value:'p'},'pair-value':{value:'55'},'pair-aircraft':{value:'example'}};
+const $=id=>nodes[id];const localStorage={getItem(){return null}},URL={revokeObjectURL(){},createObjectURL(){return 'blob:test'}};
+class Blob{};async function preparePidSitl(){};
+let result={status:'reproducible',html:'<p>report</p>'};
+async function fetch(path,request){sent.push([path,JSON.parse(request.body)]);return {ok:true,json:async()=>result}}
+''' + script + r'''
+(async()=>{
+ await nodes['pair-run'].onclick();assert.equal(sent[0][0],'/api/pid-trainer/lockstep');
+ assert.deepStrictEqual(sent[0][1],{axis:'pitch',profile:0,before:{p:49,i:84,d:46},after:{p:55,i:84,d:46},aircraft:null});
+ assert.equal(nodes['pair-report'].srcdoc,'<p>report</p>');assert.equal(nodes['pair-report'].hidden,false);assert.equal(nodes['pair-download'].hidden,false);
+ result={status:'not_reproducible',html:'<p>failed</p>'};await nodes['pair-run'].onclick();assert(nodes['pair-status'].textContent.includes('не воспроизводится'));
+ nodes['pair-value'].value='49';await nodes['pair-run'].onclick();assert.equal(sent.length,2);assert(nodes['pair-report'].hidden);assert(nodes['pair-download'].hidden);
+ dirty=true;await nodes['pair-run'].onclick();assert.equal(sent.length,2);assert(nodes['pair-status'].textContent.includes('примените'));
+ assert(!nodes['pair-run'].disabled);
+})().catch(e=>{console.error(e);process.exit(1)});
+'''
+    result = subprocess.run([node, '-e', harness], capture_output=True, text=True, timeout=10, check=False)
+    assert result.returncode == 0, result.stderr
