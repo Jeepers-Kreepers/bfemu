@@ -901,48 +901,6 @@ class HttpMonitor:
                     return
                 self._send(self._json_bytes(result), "application/json; charset=utf-8")
 
-            def _post_pid_sitl(self):
-                import json as _json
-                from .aircraft_sitl import experiment
-                from .flight_physics import PhysicsError
-                try:
-                    length = int(self.headers.get("Content-Length") or 0)
-                    if length <= 0 or length > 131072:
-                        self.close_connection = True
-                        raise ValueError("Недопустимый размер запроса")
-                    data = _json.loads(self.rfile.read(length))
-                    required = {"axis", "profile", "expected", "aircraft"}
-                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms", "motor_mode"}:
-                        raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
-                    period = data.get("sensor_period_ms", 4)
-                    if type(period) is not int or period not in (2, 4, 8):
-                        raise ValueError("Период датчиков SITL должен быть 2, 4 или 8 мс")
-                    motor_mode = data.get("motor_mode", "poll")
-                    if motor_mode not in ("poll", "event"):
-                        raise ValueError("Неизвестный режим обработки команд моторов")
-                    axis, profile, expected = data["axis"], data["profile"], data["expected"]
-                    if axis not in _pid_trainer.AXES or type(profile) is not int:
-                        raise ValueError("Неверная ось или профиль PID")
-                    if (not isinstance(expected, dict) or set(expected) != set("pid") or
-                            any(type(expected[k]) is not int or not 0 <= expected[k] <= 250 for k in "pid")):
-                        raise ValueError("P, I и D Max должны быть целыми числами от 0 до 250")
-                    snapshot = _pid_trainer.profile_state(fc, axis)
-                    if snapshot["profile"] != profile or snapshot["values"] != expected:
-                        self._send(self._json_bytes({"error": "Профиль PID изменился. Обновите значения и повторите запуск."}),
-                                   "application/json; charset=utf-8", 409)
-                        return
-                    aircraft = data["aircraft"]
-                    if aircraft is None:
-                        aircraft = _json.loads((Path(__file__).parent / "data" / "aircraft_build03.json").read_text(encoding="utf-8"))
-                    elif not isinstance(aircraft, dict):
-                        raise ValueError("Некорректный профиль аппарата")
-                    result = experiment(aircraft, pid=expected, axis=axis, sensor_period_ms=period, motor_mode=motor_mode)
-                    result["pid_profile"] = profile
-                except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:
-                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
-                    return
-                self._send(self._json_bytes(result), "application/json; charset=utf-8")
-
             def _post_pid_trainer(self):
                 import json as _json
                 try:
@@ -1069,9 +1027,6 @@ class HttpMonitor:
                     return
                 if path == "/api/pid-trainer/sitl-lockstep":
                     self._post_pid_sitl_lockstep()
-                    return
-                if path == "/api/pid-trainer/sitl":
-                    self._post_pid_sitl()
                     return
                 if path == "/api/pid-trainer/settings":
                     self._post_pid_settings()

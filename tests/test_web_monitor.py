@@ -433,40 +433,6 @@ def test_sitl_preparation_endpoint_is_explicit_and_same_origin(monitor, monkeypa
     assert status == 200 and json.loads(data)['state'] == 'building' and starts == [True]
 
 
-def test_pid_sitl_uses_snapshot_and_rejects_stale_or_invalid_values(fc, monitor, monkeypatch):
-    from bfemu import aircraft_sitl, pid_trainer
-    seen = []
-    def fake_experiment(aircraft, *, pid, axis, sensor_period_ms, motor_mode):
-        seen.append((aircraft, pid, axis, sensor_period_ms, motor_mode))
-        return {'verified_pid': {'axis': axis, 'values': pid}}
-    monkeypatch.setattr(aircraft_sitl, 'experiment', fake_experiment)
-    axis = 'roll'
-    snapshot = pid_trainer.profile_state(fc, axis)
-    payload = {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None}
-    url = monitor + '/api/pid-trainer/sitl'
-    assert post(url, payload, {'Origin': 'http://evil.example'})[0] == 403
-    assert post(url, {**payload, 'axis': 'invalid'})[0] == 400 and not seen
-    bad = {**payload, 'expected': {**payload['expected'], 'p': 251}}
-    assert post(url, bad)[0] == 400 and not seen
-    stale = {**payload, 'profile': snapshot['profile'] + 1}
-    assert post(url, stale)[0] == 409 and not seen
-    stale = {**payload, 'expected': {**snapshot['values'], 'p': snapshot['values']['p'] + 1}}
-    assert post(url, stale)[0] == 409 and not seen
-    status, body = post(url, payload)
-    assert status == 200 and json.loads(body)['verified_pid']['values'] == snapshot['values']
-    aircraft, pid, actual_axis, period, mode = seen[-1]
-    assert aircraft['values']['mass_g'] == '931' and actual_axis == axis and pid == snapshot['values'] and period == 4 and mode == 'poll'
-    custom = {'schema': 1, 'values': {'mass_g': '1000'}}
-    status, _ = post(url, {**payload, 'aircraft': custom, 'sensor_period_ms': 2, 'motor_mode': 'event'})
-    assert status == 200 and seen[-1][0] == custom and seen[-1][3:] == (2, 'event')
-    before = len(seen)
-    for bad in (True, 0, 3, 2.0, '2', None):
-        assert post(url, {**payload, 'sensor_period_ms': bad})[0] == 400
-    for bad in (None, True, 'other', ['poll']):
-        assert post(url, {**payload, 'motor_mode': bad})[0] == 400
-    assert len(seen) == before
-
-
 @pytest.mark.parametrize('axis', ['roll', 'pitch', 'yaw'])
 def test_pid_trainer_edits_still_work_for_all_axes(fc, monitor, axis):
     url = monitor + '/api/pid-trainer'
@@ -483,6 +449,7 @@ def test_pid_lockstep_prepare_endpoint_is_explicit_and_same_origin(monitor, monk
     starts = []
     monkeypatch.setattr(sitl_simclock_probe, 'lockstep_build_status', lambda: {'state': 'missing'})
     monkeypatch.setattr(sitl_simclock_probe, 'start_lockstep_build', lambda: starts.append(True) or {'state': 'building'})
+    assert post(monitor + '/api/pid-trainer/sitl', {})[0] == 404
     url = monitor + '/api/pid-trainer/sitl-lockstep/prepare'
     status, data = get(url)
     assert status == 200 and json.loads(data)['state'] == 'missing' and not starts
@@ -515,18 +482,3 @@ def test_pid_lockstep_uses_current_snapshot_and_selected_axis(fc, monitor, monke
     custom = {'schema': 1, 'values': {'mass_g': '1000'}}
     status, _ = post(url, {**payload, 'aircraft': custom})
     assert status == 200 and seen[-1][0] == custom
-
-
-@pytest.mark.parametrize('axis', ['pitch', 'yaw'])
-def test_pid_sitl_uses_selected_axis(fc, monitor, monkeypatch, axis):
-    from bfemu import aircraft_sitl, pid_trainer
-    seen = []
-    def fake(aircraft, *, pid, axis, sensor_period_ms, motor_mode):
-        seen.append((pid, axis, sensor_period_ms, motor_mode))
-        return {'verified_pid': {'axis': axis, 'values': pid}}
-    monkeypatch.setattr(aircraft_sitl, 'experiment', fake)
-    snapshot = pid_trainer.profile_state(fc, axis)
-    status, body = post(monitor + '/api/pid-trainer/sitl',
-                        {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None})
-    assert status == 200 and seen == [(snapshot['values'], axis, 4, 'poll')]
-    assert json.loads(body)['verified_pid']['axis'] == axis
