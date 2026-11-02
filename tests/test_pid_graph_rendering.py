@@ -16,7 +16,7 @@ def test_separate_term_and_result_graphs_render_the_correct_series():
     chart_functions = PID_TRAINER_PAGE.split("function chart(", 1)[1].split("function settingStatus(", 1)[0]
     script = r'''
 const assert = require('assert');
-const elements = {}, strokes = [];
+const elements = {}, strokes = [], clips = [];
 const samples = [
   [0, 0, 0, 0.1, 0.2, -0.1, 0, 0.3, 1300],
   [1.5, 200, 150, 2.1, 0.1, -1.2, 0.25, 0.6, 1300],
@@ -27,7 +27,7 @@ const latest = {points: samples, reference_points: [[0, 0], [1.5, 190], [3, -190
 const saved = null, window = {devicePixelRatio: 1};
 function $(id) {
   if (!elements[id]) {
-    const ctx = {path: [], scale() {}, setLineDash() {}, fillText() {},
+    const ctx = {path: [], scale() {}, setLineDash() {}, fillText() {}, save() {}, restore() {}, rect(x,y,w,h) {this.clipRect=[x,y,w,h]}, clip() {clips.push([id,...this.clipRect])},
       beginPath() {this.path = []}, moveTo(x,y) {this.path.push([x,y])},
       lineTo(x,y) {this.path.push([x,y])},
       stroke() {strokes.push({id, color:this.strokeStyle, width:this.lineWidth, path:this.path})}};
@@ -73,6 +73,14 @@ latest.points = samples.map((row, i) => [row[0], row[1], row[2], row[3] * 2, 0, 
 drawAll();
 checkTerms(latest.points);
 assert(!strokes.some(s => s.id === 'terms'), 'совмещённый график удалён');
+// Увеличение меняет координаты и обрезает линии по границам графика, а не данные.
+strokes.length = 0; clips.length = 0;
+chart($('zoomed'),samples,[{rows:samples,col:2,color:'white'}],-100,100,null,[.75,2.25]);
+const zoomLine=strokes.find(s=>s.id==='zoomed'&&s.path.length===3);
+assert(zoomLine.path[0][0]<46 && zoomLine.path[2][0]>588);
+assert(zoomLine.path[1][1]<12); // 150°/с находится за пределом ±100.
+assert.deepStrictEqual(clips[0],['zoomed',46,12,542,153]);
+
 '''
     result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10, check=False)
     assert result.returncode == 0, result.stderr
