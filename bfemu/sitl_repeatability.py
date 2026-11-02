@@ -23,6 +23,8 @@ def main(argv=None):
     parser.add_argument('--periods-ms', nargs='+', type=int, default=[4, 2, 8], help='порядок периодов: 2, 4 или 8 мс')
     parser.add_argument('--modes', nargs='+', choices=('poll', 'event'), default=['poll'],
                         help='режимы чтения моторов в каждом периоде: poll и/или event')
+    parser.add_argument('--alternate-mode-order', action='store_true',
+                        help='менять порядок режимов чтения моторов в чётных циклах')
     parser.add_argument('--kernel-queue-timing', action='store_true',
                         help='измерять возраст UDP при чтении с метками ядра Linux')
     parser.add_argument('--pid-denominators', nargs='+', type=int, help='экспериментальные делители PID 1–16')
@@ -60,6 +62,7 @@ def main(argv=None):
                   'periods_ms': args.periods_ms, 'modes': args.modes, 'repeats': args.repeats,
                   'kernel_queue_timing': args.kernel_queue_timing, 'include_samples': args.include_samples,
                   'pid_denominators': args.pid_denominators, 'alternate_pid_order': args.alternate_pid_order,
+                  'alternate_mode_order': args.alternate_mode_order,
                   'note': 'Порядок периодов повторяется в каждом цикле; неуспешные запуски не повторяются автоматически. '
                           'Остальные PID-настройки и фильтры SITL заводские.'})
             for cycle in range(1, args.repeats+1):
@@ -67,7 +70,8 @@ def main(argv=None):
                     denominators = args.pid_denominators or [None]
                     if args.alternate_pid_order and cycle % 2 == 0:
                         denominators = list(reversed(denominators))
-                    for mode in args.modes:
+                    modes = list(reversed(args.modes)) if args.alternate_mode_order and cycle % 2 == 0 else args.modes
+                    for mode in modes:
                         for denom in denominators:
                             start = time.monotonic()
                             record = {'type': 'run', 'cycle': cycle, 'axis': args.axis,

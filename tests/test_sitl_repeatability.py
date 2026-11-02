@@ -124,3 +124,25 @@ def test_series_rejects_invalid_denominators_without_creating_file(tmp_path):
         with pytest.raises(SystemExit):
             sitl_repeatability.main(['--output', str(output), '--pid', '45', '80', '40', *args])
         assert not output.exists()
+
+
+def test_series_can_alternate_motor_modes_without_hiding_failures(tmp_path, monkeypatch):
+    calls = []
+    def fake(_aircraft, *, pid, axis, sensor_period_ms, motor_mode, timing_probe):
+        calls.append((axis, pid, sensor_period_ms, motor_mode))
+        if len(calls) == 3:
+            raise PhysicsError('Нет пакетов')
+        return {'verified_pid': {'axis': axis, 'values': pid}, 'diagnostics': {'peak_abs_dps': 100}}
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'sitl_available', lambda: True)
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'experiment', fake)
+    output = tmp_path/'mode-order.jsonl'
+    status = sitl_repeatability.main(['--output', str(output), '--axis', 'pitch', '--pid', '49', '84', '46',
+                                      '--periods-ms', '4', '--modes', 'poll', 'event', '--alternate-mode-order',
+                                      '--repeats', '3'])
+    rows = [json.loads(line) for line in output.read_text(encoding='utf-8').splitlines()]
+    assert status == 1
+    assert [call[3] for call in calls] == ['poll', 'event', 'event', 'poll', 'poll', 'event']
+    assert rows[0]['alternate_mode_order'] is True
+    assert [row['ok'] for row in rows[1:-1]] == [True, True, False, True, True, True]
+    assert rows[3]['error'] == 'Нет пакетов'
+    assert rows[-1] == {'type': 'summary', 'attempts': 6, 'not_completed': 1}

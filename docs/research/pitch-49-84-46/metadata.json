@@ -1,0 +1,10 @@
+{
+  "purpose": "Серия с видимыми настройками приложенного скриншота; не воспроизводит планирование и состояние компьютера пользователя.",
+  "firmware": "Betaflight 4.5.4 SITL",
+  "revision": "25356b59a96dc975d777844f896b7c7855ea90e6",
+  "elf_sha256": "8e21f0f8163a0a6360d4f62b170f34faf3224d24a9f710c8f32546b522f8b45f",
+  "compiler": "gcc (Debian 12.2.0-14+deb12u1) 12.2.0",
+  "command": "python -m bfemu.sitl_repeatability --output pitch.jsonl --axis pitch --pid 49 84 46 --periods-ms 4 --modes poll event --alternate-mode-order --include-samples --repeats 4",
+  "result_file": "series.jsonl.gz",
+  "failure_policy": "Неуспешная попытка сохранена, скрытых повторов нет; код возврата 1."
+}
