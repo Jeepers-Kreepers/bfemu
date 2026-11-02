@@ -1471,7 +1471,7 @@ setInterval(tick, 2000);
             try:
                 self._httpd = ThreadingHTTPServer((self.host, wanted), Handler)
             except OSError as exc:
-                raise RuntimeError(f"порт веб-монитора {wanted} занят ({exc}) — проверка остановлена") from exc
+                raise RuntimeError(f"порт веб-монитора {wanted} занят ({exc}) — запуск остановлен") from exc
             self._prepared = True
             return
         for candidate in range(wanted, wanted + HTTP_PORT_SCAN):
@@ -1737,6 +1737,7 @@ def build_arg_parser():
                         "0.0.0.0 — видно всей сети)")
     p.add_argument("--http", default=None,
                    help="порт веб-страниц: монитор состояния и виртуальная аппаратура /tx, напр. 8088")
+    p.add_argument("--http-strict", action="store_true", help="не выбирать другой веб-порт, если указанный занят")
     p.add_argument("--com", default=None,
                    help="занять последовательный порт (Windows: COM11 из пары com0com; Linux: /dev/ttyUSB0 или pty)")
     p.add_argument("--com-baud", type=int, default=115200, help="скорость порта для pyserial (по умолчанию 115200)")
@@ -1853,7 +1854,7 @@ def _run(args):
         servers.append(StdioServer(fc, verbose=verbose))
     if args.http:
         _PORT_FOR_PAGE["tcp"] = (args.tcp.rpartition(":")[2] or "5761")
-        http = HttpMonitor(fc, int(args.http), host=args.http_host)
+        http = HttpMonitor(fc, int(args.http), strict_port=args.http_strict, host=args.http_host)
         http.prepare()          # порт занимаем до старта потоков — без гонки на первом запросе
         servers.append(http)
         if http.port:

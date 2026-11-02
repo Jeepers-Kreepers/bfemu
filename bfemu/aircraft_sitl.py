@@ -95,6 +95,8 @@ def start_sitl_build():
     """Запускается только по явному действию пользователя, без ожидания HTTP."""
     global _BUILD_THREAD, _BUILD_ERROR
     with _BUILD_GUARD:
+        if sys.platform == 'win32':
+            return {'state': 'error', 'error': 'На Windows для эксперимента нужен WSL с Ubuntu. Запустите файл run_sitl_wsl.bat из папки проекта и откройте адрес, указанный в его окне.'}
         if sitl_available():
             return {'state': 'ready'}
         if _BUILD_THREAD is not None and _BUILD_THREAD.is_alive():
