@@ -308,6 +308,7 @@ def test_pid_analysis_api_is_stateless_and_validated(fc, monitor):
 def test_pid_trainer_reports_first_zero_error_time(fc, monitor):
     url = monitor + "/api/pid-trainer"
     state = json.loads(get(url + "?axis=roll&scenario=step")[1])
+    assert state["metrics_window_s"] == [0.4, 3.0]
     assert state["metrics"]["first_zero_error_s"] == 2.16
     assert state["points"][256][1] == state["points"][256][2]
     assert all(point[1] != point[2] for point in state["points"][40:256])

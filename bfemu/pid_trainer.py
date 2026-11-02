@@ -6,6 +6,7 @@ import math
 AXES = ("roll", "pitch", "yaw")
 SCENARIOS = ("step", "disturbance", "reverse", "throttle")
 REFERENCE_TIME_CONSTANT_S = 0.12
+FIRST_STEP_S = 0.4
 
 
 def reference_response(points):
@@ -62,7 +63,7 @@ def simulate(values, scenario="step", settings=None, axis="roll"):
     points = []
     for index in range(3001):
         t = index * dt
-        target = 200.0 if t >= 0.4 else 0.0
+        target = 200.0 if t >= FIRST_STEP_S else 0.0
         if scenario == "reverse" and t >= 1.5:
             target = -200.0
         if scenario == "throttle" and 1.7 <= t < 2.3:
@@ -103,14 +104,15 @@ def simulate(values, scenario="step", settings=None, axis="roll"):
 
     # Оцениваем первую ступень до следующего события; удержание в полосе ±5% до конца окна.
     end = 1.5 if scenario != "step" else 3.0
-    window = [row for row in points if 0.4 <= row[0] < end]
+    window = [row for row in points if FIRST_STEP_S <= row[0] < end]
     overshoot = max(0.0, (max(row[2] for row in window) - 200) / 2)
     outside = [row[0] for row in window if abs(row[2] - 200) > 10]
     settling = None if outside and outside[-1] >= window[-1][0] else (
-        round((outside[-1] + 0.01 if outside else 0.4) - 0.4, 2))
+        round((outside[-1] + 0.01 if outside else FIRST_STEP_S) - FIRST_STEP_S, 2))
     return {"points": points, "reference_points": reference_response(points),
+            "metrics_window_s": [FIRST_STEP_S, end],
             "metrics": {"overshoot_pct": round(overshoot, 1),
-            "settling_s": settling, "first_zero_error_s": first_zero_error_time(points, 0.4, end),
+            "settling_s": settling, "first_zero_error_s": first_zero_error_time(points, FIRST_STEP_S, end),
             "end_error": round(200 - window[-1][2], 1)}}
 
 # Схема только для полей видимой вкладки PID Configurator 4.5.4. Границы и

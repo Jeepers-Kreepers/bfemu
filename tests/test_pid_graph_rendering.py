@@ -16,22 +16,22 @@ def test_separate_term_and_result_graphs_render_the_correct_series():
     chart_functions = PID_TRAINER_PAGE.split("function chart(", 1)[1].split("function settingStatus(", 1)[0]
     script = r'''
 const assert = require('assert');
-const elements = {}, strokes = [], clips = [], labels=[];
+const elements = {}, strokes = [], clips = [], labels=[];let graphWidth=600;
 const samples = [
   [0, 0, 0, 0.1, 0.2, -0.1, 0, 0.3, 1300],
   [1.5, 200, 150, 2.1, 0.1, -1.2, 0.25, 0.6, 1300],
   [3, -200, -150, 1.5, 0.3, -2.0, -0.5, 0.2, 1300]
 ];
-const latest = {points: samples, reference_points: [[0, 0], [1.5, 190], [3, -190]],
+const latest = {points: samples, metrics_window_s: [0.4,3], reference_points: [[0, 0], [1.5, 190], [3, -190]],
                 metrics: {overshoot_pct: 0, settling_s: null, first_zero_error_s: null, end_error: 0}};
 const saved = null, window = {devicePixelRatio: 1};
 function $(id) {
   if (!elements[id]) {
-    const ctx = {path: [], scale() {}, setLineDash() {}, fillText(text) {labels.push([id,text])}, save() {}, restore() {}, rect(x,y,w,h) {this.clipRect=[x,y,w,h]}, clip() {clips.push([id,...this.clipRect])},
+    const ctx = {path: [], scale() {}, setLineDash(dash) {this.dash=dash}, fillText(text) {labels.push([id,text])}, save() {}, restore() {}, rect(x,y,w,h) {this.clipRect=[x,y,w,h]}, clip() {clips.push([id,...this.clipRect])},
       beginPath() {this.path = []}, moveTo(x,y) {this.path.push([x,y])},
       lineTo(x,y) {this.path.push([x,y])},
-      stroke() {strokes.push({id, color:this.strokeStyle, width:this.lineWidth, path:this.path})}};
-    elements[id] = {textContent: '', getBoundingClientRect() {return {width:600,height:190}},
+      stroke() {strokes.push({id, color:this.strokeStyle, width:this.lineWidth, path:this.path, dash:this.dash, dashOffset:this.lineDashOffset})}};
+    elements[id] = {textContent: '', getBoundingClientRect() {return {width:id==='graph'?graphWidth:600,height:190}},
                     getContext() {return ctx}};
   }
   return elements[id];
@@ -82,6 +82,27 @@ const zoomLine=strokes.find(s=>s.id==='zoomed'&&s.path.length===3);
 assert(zoomLine.path[0][0]<72 && zoomLine.path[2][0]>588);
 assert(zoomLine.path[1][1]<12); // 150°/с находится за пределом ±100.
 assert.deepStrictEqual(clips[0],['zoomed',72,12,516,153]);
+
+// Метрики — время от начала первой ступени, шкала графика — от начала опыта.
+const markerStrokes=()=>strokes.filter(s=>s.id==='graph'&&['#d6a4ff','#ff9867'].includes(s.color));
+strokes.length=0;latest.metrics.settling_s=.8;latest.metrics.first_zero_error_s=2.16;drawAll();
+let markers=markerStrokes();assert.equal(markers.length,2);
+for(const [m,time,color,offset] of [[markers[0],1.2,'#d6a4ff',0],[markers[1],2.56,'#ff9867',6]]){
+ assert.equal(m.color,color);assert.deepStrictEqual(m.dash,[6,6]);assert.equal(m.dashOffset,offset);
+ assert(Math.abs(m.path[0][0]-(72+time/3*516))<1e-8);assert.equal(m.path[0][1],12);assert.equal(m.path[1][1],165);
+}
+assert.equal(elements['settling'].textContent,'0.8 с');assert.equal(elements['zero-error-time'].textContent,'Через 2,16 с');
+// Совпадающие моменты не смещаются: разные фазы пунктира показывают оба цвета.
+strokes.length=0;latest.metrics.first_zero_error_s=.8;drawAll();markers=markerStrokes();
+assert.equal(markers.length,2);assert.equal(markers[0].path[0][0],markers[1].path[0][0]);assert.notEqual(markers[0].dashOffset,markers[1].dashOffset);
+// Нулевое время допустимо, отсутствующие события не рисуются.
+strokes.length=0;latest.metrics.settling_s=0;latest.metrics.first_zero_error_s=null;drawAll();markers=markerStrokes();
+assert.equal(markers.length,1);assert(Math.abs(markers[0].path[0][0]-(72+.4/3*516))<1e-8);
+strokes.length=0;latest.metrics.settling_s=null;drawAll();assert.equal(markerStrokes().length,0);
+assert.equal(elements['settling'].textContent,'Не установилось');assert.equal(elements['zero-error-time'].textContent,'Нет совпадения');
+// Смена окна оценки и размера графика не сдвигает событие во времени.
+strokes.length=0;graphWidth=320;latest.metrics_window_s=[.4,1.5];latest.metrics.settling_s=.5;latest.metrics.first_zero_error_s=1.1;drawAll();markers=markerStrokes();
+assert.equal(markers.length,1);assert(Math.abs(markers[0].path[0][0]-(72+.9/3*236))<1e-8);
 
 '''
     result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=10, check=False)

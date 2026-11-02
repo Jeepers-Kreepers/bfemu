@@ -107,3 +107,23 @@ def test_resultant_signal_matches_sum_after_output_limit():
         expected = max(-limit, min(limit, rounded_sum))
         # В кадре каждая составляющая и сумма округлены отдельно до 0,001.
         assert abs(row[6] - expected) <= 0.0025
+
+
+def test_metric_window_matches_the_first_step_for_every_scenario():
+    from bfemu.pid_trainer import simulate
+    for scenario in ('step', 'disturbance', 'reverse', 'throttle'):
+        result = simulate({'p': 45, 'i': 80, 'd': 40}, scenario)
+        start, end = result['metrics_window_s']
+        assert start == .4 and end == (3.0 if scenario == 'step' else 1.5)
+        window = [p for p in result['points'] if start <= p[0] < end]
+        settling = result['metrics']['settling_s']
+        if settling is not None:
+            settled_at = round(start + settling, 2)
+            assert all(abs(row[2]-200) <= 10 for row in window if row[0] >= settled_at)
+            if settling:
+                assert any(abs(row[2]-200) > 10 for row in window if row[0] < settled_at)
+        first = result['metrics']['first_zero_error_s']
+        if first is not None:
+            t = round(start + first, 2)
+            assert any(p[0] == t and p[1] == p[2] for p in window)
+            assert all(p[1] != p[2] for p in window if p[0] < t)
