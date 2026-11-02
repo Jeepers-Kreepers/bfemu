@@ -76,3 +76,24 @@ def test_queue_timing_on_unsupported_platform_does_not_create_file(tmp_path, mon
     assert sitl_repeatability.main(['--output', str(output), '--pid', '45', '80', '40', '--kernel-queue-timing']) == 1
     assert not output.exists()
     assert 'Linux' in capsys.readouterr().err
+
+
+def test_series_can_include_samples_without_hiding_failed_runs(tmp_path, monkeypatch):
+    calls = []
+    def fake(_aircraft, **kwargs):
+        calls.append(kwargs['motor_mode'])
+        if kwargs['motor_mode'] == 'event':
+            raise PhysicsError('Ошибка опыта')
+        return {'verified_pid': {'axis': 'roll', 'values': kwargs['pid']}, 'diagnostics': {'peak_abs_dps': 42},
+                'samples': [{'t': 2, 'rates': [42, 0, 0], 'motors': [0, .5, 1, .2]}],
+                'command_window_s': [1, 2.2], 'disarm_requested_s': 2.7}
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'sitl_available', lambda: True)
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'experiment', fake)
+    output = tmp_path / 'runs.jsonl'
+    status = sitl_repeatability.main(['--output', str(output), '--pid', '45', '80', '40', '--periods-ms', '4',
+                                     '--modes', 'poll', 'event', '--include-samples', '--repeats', '1'])
+    rows = [json.loads(line) for line in output.read_text(encoding='utf-8').splitlines()]
+    assert status == 1 and calls == ['poll', 'event'] and rows[0]['include_samples'] is True
+    assert rows[1]['samples'][0]['motors'] == [0, .5, 1, .2]
+    assert rows[1]['command_window_s'] == [1, 2.2] and rows[1]['disarm_requested_s'] == 2.7
+    assert not rows[2]['ok'] and 'samples' not in rows[2] and rows[2]['error'] == 'Ошибка опыта'

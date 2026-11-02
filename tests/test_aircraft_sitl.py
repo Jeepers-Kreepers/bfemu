@@ -61,10 +61,11 @@ def test_refuses_unknown_hardware_or_missing_physical_parameters():
 def test_real_isolated_sitl_runs_theoretical_profile():
     result = experiment(build03())
     assert result['firmware'] == 'Betaflight 4.5.4 SITL'
-    assert len(result['samples']) > 100
+    assert len(result['samples']) > 1000  # Каждый отсчёт датчиков, не каждый пятый.
+    assert all(len(row['motors']) == 4 and all(0 <= x <= 1 for x in row['motors']) for row in result['samples'])
     assert max(abs(row['rates'][0]) for row in result['samples']) > 5
     assert result['samples'][-1]['t'] > 10
-    assert 0 < result['command_window_s'][0] < result['command_window_s'][1] < result['samples'][-1]['t']
+    assert 0 < result['command_window_s'][0] < result['command_window_s'][1] < result['disarm_requested_s'] < result['samples'][-1]['t']
 
 
 def test_listening_port_must_belong_to_child():
@@ -285,3 +286,14 @@ def test_real_event_motor_mode_covers_each_axis(axis, sign):
     index = {'roll': 0, 'pitch': 1, 'yaw': 2}[axis]
     values = [row['rates'][index] for row in result['samples'] if start <= row['t'] <= end]
     assert max(sign*x for x in values) > 5
+
+
+def test_sample_points_keep_every_sensor_sample_and_motor_order():
+    import math
+    from bfemu.aircraft_sitl import _sample_points
+    rows = [{'elapsed_s': i * .004, 'applied_commands': [0, .25, .5, 1],
+             'state': {'angular_velocity_rad_s': [math.pi, 0, -math.pi]}} for i in range(11)]
+    points = _sample_points(rows)
+    assert len(points) == 11
+    assert points[1] == {'t': .004, 'rates': [180, 0, -180], 'motors': [0, .25, .5, 1]}
+    assert points[-1]['t'] == .04

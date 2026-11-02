@@ -269,6 +269,14 @@ def _diagnostics(rows, start, end, axis):
     }
 
 
+def _sample_points(rows):
+    """Все отсчёты датчиков; команды упорядочены по номерам моторов профиля."""
+    return [{'t': round(row['elapsed_s'], 4),
+             'rates': [round(math.degrees(x), 2) for x in row['state']['angular_velocity_rad_s']],
+             'motors': [round(value, 4) for value in row['applied_commands']]}
+            for row in rows]
+
+
 def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
     if axis not in AXES:
@@ -378,6 +386,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         raise PhysicsError('SITL вышел из ARM во время команды стика.')
                     time.sleep(.5)
                     channels[2], channels[4] = 1000, 1000
+                    disarm_requested = time.monotonic()
                     worker.join(timeout=15)
                     if worker.is_alive():
                         raise PhysicsError('Превышено время эксперимента SITL.')
@@ -393,11 +402,10 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     command_start, command_end = event_start-run_start[0], event_end-run_start[0]
                     diagnostics = _diagnostics(rows, command_start, command_end, axis)
                     # Время переключения RC на стороне отправителя, не момент получения FC.
-                    points = [{'t': round(row['elapsed_s'], 3),
-                               'rates': [round(math.degrees(x), 2) for x in row['state']['angular_velocity_rad_s']]}
-                              for row in rows[::5]]
+                    points = _sample_points(rows)
                     return {'profile': profile['values'].get('profile_name', ''), 'samples': points,
-                            'command_window_s': [round(event_start-run_start[0], 3), round(event_end-run_start[0], 3)],
+                            'command_window_s': [round(event_start-run_start[0], 4), round(event_end-run_start[0], 4)],
+                            'disarm_requested_s': round(disarm_requested-run_start[0], 4),
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
                             'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
                             'motor_mode': motor_mode,

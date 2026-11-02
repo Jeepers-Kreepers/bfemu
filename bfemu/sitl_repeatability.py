@@ -25,6 +25,8 @@ def main(argv=None):
                         help='режимы чтения моторов в каждом периоде: poll и/или event')
     parser.add_argument('--kernel-queue-timing', action='store_true',
                         help='измерять возраст UDP при чтении с метками ядра Linux')
+    parser.add_argument('--include-samples', action='store_true',
+                        help='сохранять отсчёты датчиков и команд моторов в успешных запусках JSONL')
     parser.add_argument('--repeats', type=int, default=3, help='число циклов с каждым периодом, от 1 до 10')
     args = parser.parse_args(argv)
     if (any(value not in range(251) for value in args.pid) or not 1 <= args.repeats <= 10 or
@@ -51,7 +53,7 @@ def main(argv=None):
                   'firmware': 'Betaflight 4.5.4 SITL', 'revision': aircraft_sitl.REVISION,
                   'platform': platform.platform(), 'aircraft': aircraft, 'axis': args.axis, 'pid': pid,
                   'periods_ms': args.periods_ms, 'modes': args.modes, 'repeats': args.repeats,
-                  'kernel_queue_timing': args.kernel_queue_timing,
+                  'kernel_queue_timing': args.kernel_queue_timing, 'include_samples': args.include_samples,
                   'note': 'Порядок периодов повторяется в каждом цикле; неуспешные запуски не повторяются автоматически. '
                           'Остальные PID-настройки и фильтры SITL заводские.'})
             for cycle in range(1, args.repeats+1):
@@ -66,6 +68,9 @@ def main(argv=None):
                                                               sensor_period_ms=period, motor_mode=mode,
                                                               timing_probe=probe)
                             record.update(ok=True, verified_pid=result['verified_pid'], diagnostics=result['diagnostics'])
+                            if args.include_samples:
+                                record.update(samples=result['samples'], command_window_s=result['command_window_s'],
+                                              disarm_requested_s=result['disarm_requested_s'])
                         except (PhysicsError, OSError) as exc:
                             failures += 1
                             record.update(ok=False, error=str(exc))
