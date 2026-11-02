@@ -139,3 +139,10 @@ def test_archived_safe_mutex_variant_records_partial_frames_and_hash():
             assert len(data.splitlines()) == row['step_diagnostics']['acknowledged']+1
         else:
             assert row['ok']
+
+
+def test_archived_startup_diagnostic_is_available():
+    root = Path(__file__).resolve().parents[1]/'docs/research/sitl-step-diagnostic-v2'
+    log = (root/'sitl-stderr.txt').read_text()
+    assert '[STEP] FDM 0.00000000' in log
+    assert '[STEP] SET 1' in log and '[STEP] READ' not in log

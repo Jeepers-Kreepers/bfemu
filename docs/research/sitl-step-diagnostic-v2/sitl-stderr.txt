@@ -1,0 +1,29 @@
+[FLASH_Unlock] eepromFd != NULL
+bind port 5761 for UART1
+New connection on UART1, 0
+[NEW]UART1: 1,1
+[CLS]UART1: 1,0
+bind port 5761 for UART1
+New connection on UART1, 0
+[NEW]UART1: 1,1
+[FLASH_Unlock] eepromFd != NULL
+bind port 5761 for UART1
+[STEP] PID consumed=0 last=0 mask=0
+[STEP] PID consumed=0 last=0 mask=0
+[STEP] PID consumed=0 last=0 mask=0
+[STEP] PID consumed=0 last=0 mask=0
+[STEP] PID consumed=0 last=0 mask=0
+New connection on UART1, 0
+[NEW]UART1: 1,1
+[CLS]UART1: 1,0
+bind port 5761 for UART1
+[STEP] PID consumed=0 last=0 mask=15
+[STEP] PID consumed=0 last=0 mask=15
+[STEP] PID consumed=0 last=0 mask=15
+[STEP] PID consumed=0 last=0 mask=15
+[STEP] PID consumed=0 last=0 mask=15
+New connection on UART1, 0
+[NEW]UART1: 1,1
+[STEP] FDM 0.00000000 realtime 1188219
+[STEP] FDM 0.00418314 realtime 1192630
+[STEP] SET 1
