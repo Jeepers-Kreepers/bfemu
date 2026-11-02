@@ -194,7 +194,7 @@ def _write(client, code, payload):
             return reply.payload
 
 
-def _configure_pwm(process):
+def _configure_pwm(process, *, pid_process_denom=None):
     client = _connect(process)
     try:
         client.identify()
@@ -210,11 +210,21 @@ def _configure_pwm(process):
         until(b'CLI Mode')
         connection.sendall(b'set motor_pwm_protocol = PWM\n')
         until(b'motor_pwm_protocol set to PWM')
+        if pid_process_denom is not None:
+            connection.sendall(f'set pid_process_denom = {pid_process_denom}\n'.encode('ascii'))
+            until(f'pid_process_denom set to {pid_process_denom}'.encode('ascii'))
         connection.sendall(b'save\n')
         until(b'saving')
     finally:
         client.close()
     process.wait(timeout=10)
+
+
+def verify_pid_denom(client, expected):
+    """После перезапуска проверить именно делитель; фактический темп цикла не измеряется."""
+    data = client.request(90)  # Betaflight 4.5.4 MSP_ADVANCED_CONFIG
+    if len(data) < 2 or data[1] != expected:
+        raise PhysicsError('SITL не подтвердил делитель частоты PID через MSP_ADVANCED_CONFIG.')
 
 
 def _stop(process):
@@ -278,7 +288,7 @@ def _sample_points(rows):
 
 
 def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None,
-               _event_loop=None):
+               _event_loop=None, _pid_process_denom=None):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
@@ -288,6 +298,8 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
         raise PhysicsError('Неизвестный режим обработки команд моторов.')
     if _event_loop is not None and (motor_mode != 'event' or not callable(_event_loop)):
         raise PhysicsError('Исследовательский цикл допустим только для событийного режима.')
+    if _pid_process_denom is not None and (type(_pid_process_denom) is not int or not 1 <= _pid_process_denom <= 16):
+        raise PhysicsError('Делитель PID для исследования должен быть целым числом от 1 до 16.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -312,11 +324,16 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
             def start():
                 return subprocess.Popen([binary], cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             process = start()
-            _configure_pwm(process)
+            if _pid_process_denom is None:
+                _configure_pwm(process)
+            else:
+                _configure_pwm(process, pid_process_denom=_pid_process_denom)
             process = start()
             client = _connect(process)
             try:
                 client.identify()
+                if _pid_process_denom is not None:
+                    verify_pid_denom(client, _pid_process_denom)
                 verified_pid = set_pid_snapshot(client, axis, pid) if pid is not None else None
                 _write(client, 35, bytes([0, 0, 0, 32, 48]))  # ARM на AUX1 1700–2100
                 deadline = time.monotonic()+8
@@ -412,6 +429,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
                             'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
                             'motor_mode': motor_mode,
+                            'verified_pid_denom': _pid_process_denom,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
                                      + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
                                         if verified_pid else 'PID заводской отдельного SITL.'))}

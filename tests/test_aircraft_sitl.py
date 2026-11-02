@@ -99,7 +99,7 @@ def test_sitl_page_allows_example_without_overwriting_and_explains_errors():
     harness = r'''
 const vm=require('vm'),assert=require('assert');
 let handlers={}, sent, stored={schema:1,values:{mass_g:''}}, form={mass_g:''},fail=false,prep='ready',polls=0,timingErrors=0,tries=0;
-const ctx={clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fillText(){}};
+const labels=[];const ctx={clearRect(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fillText(t){labels.push(t)}};
 function button(id){return {disabled:false,addEventListener(_,fn){handlers[id]=fn}}}
 const saved=button('saved'),example=button('example'),status={},summary={},canvas={width:1000,height:300,getContext(){return ctx}};
 const nodes={'run-sitl':saved,'run-sitl-example':example,'sitl-status':status,'sitl-summary':summary,'sitl-graph':canvas};
@@ -109,7 +109,7 @@ const current=()=>form,checked=profile=>profile.values;
 const fetch=async (url,opts)=>{if(url==='/api/aircraft-sitl/prepare'){if(opts.method==='POST')return {ok:true,json:async()=>({state:prep})};polls++;return {ok:true,json:async()=>({state:'ready'})}}sent={url,body:JSON.parse(opts.body)};tries++;if(timingErrors>0){timingErrors--;return {ok:false,json:async()=>({error:'Нарушен темп расчёта: задержка'})}}return fail?{ok:false,json:async()=>({error:'Для физики необходимо числовое значение mass_g; «» не подходит.'})}:{ok:true,json:async()=>({samples:[{t:1,rates:[10,2,1]}],command_window_s:[.2,.8],firmware:'SITL',profile:'7',note:'модель'})}};
 vm.runInNewContext(process.argv[1],{document,localStorage,fetch,JSON,Math,Error,Date,Promise,setTimeout:fn=>fn(),STORAGE_KEY,PRESET,current,checked});
 (async()=>{
- await handlers.example();assert.strictEqual(sent.url,'/api/aircraft-sitl');assert.strictEqual(sent.body.profile.values.mass_g,'931');
+ await handlers.example();assert(labels.some(t=>t.includes('°/с')));assert.strictEqual(sent.url,'/api/aircraft-sitl');assert.strictEqual(sent.body.profile.values.mass_g,'931');
  assert.strictEqual(stored.values.mass_g,'');assert.strictEqual(form.mass_g,'');assert(status.textContent.includes('Эксперимент завершён'));
  assert(summary.textContent.includes('крен 10.0'));assert(!saved.disabled&&!example.disabled);
  fail=true;await handlers.saved();assert(status.textContent.includes('Полная взлётная масса'));assert(status.textContent.includes('Запустить готовый пример 7″'));assert(!status.textContent.includes('mass_g'));
@@ -304,3 +304,47 @@ def test_sample_points_keep_every_sensor_sample_and_motor_order():
     assert len(points) == 11
     assert points[1] == {'t': .004, 'rates': [180, 0, -180], 'motors': [0, .25, .5, 1]}
     assert points[-1]['t'] == .04
+
+
+def test_research_pid_denom_requires_valid_value_and_verifies_msp():
+    from bfemu.aircraft_sitl import verify_pid_denom
+    for bad in (True, 0, 17, 2.0, '2'):
+        with pytest.raises(PhysicsError, match='Делитель PID'):
+            experiment(build03(), _pid_process_denom=bad)
+    class FakeClient:
+        def __init__(self, data):
+            self.data = data
+        def request(self, command):
+            assert command == 90
+            return self.data
+    verify_pid_denom(FakeClient(bytes([1, 16])), 16)
+    for response in (b'', bytes([1]), bytes([1, 1])):
+        with pytest.raises(PhysicsError, match='не подтвердил делитель'):
+            verify_pid_denom(FakeClient(response), 16)
+
+
+def test_pid_denom_is_written_before_sitl_restart(monkeypatch):
+    from bfemu import aircraft_sitl as sitl
+    class Client:
+        def __init__(self):
+            self.connection = self
+            self.replies = iter((b'CLI Mode', b'motor_pwm_protocol set to PWM',
+                                 b'pid_process_denom set to 16', b'saving'))
+            self.sent = []
+            self.closed = False
+        def identify(self):
+            pass
+        def sendall(self, data):
+            self.sent.append(data)
+        def recv(self, _size):
+            return next(self.replies)
+        def close(self):
+            self.closed = True
+    class Process:
+        def wait(self, timeout):
+            assert timeout == 10
+    client = Client()
+    monkeypatch.setattr(sitl, '_connect', lambda _process: client)
+    sitl._configure_pwm(Process(), pid_process_denom=16)
+    assert client.sent == [b'#', b'set motor_pwm_protocol = PWM\n', b'set pid_process_denom = 16\n', b'save\n']
+    assert client.closed

@@ -17,14 +17,14 @@ const assert=require('assert');
 let sent=[],lastSeries=[],period='4',motorMode='poll',failed=false,saturation=0,dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
 let baseline={axis:'roll',profile:0,values:{p:45,i:80,d:40}}, scenario='step', aircraftMode='example',stored=null;
 let markerLines=[];const terms=['p','i','d'],ctx={setLineDash(){},beginPath(){},moveTo(x){this.x=x},lineTo(){},stroke(){markerLines.push([this.x,this.strokeStyle])}},nodes={
-  'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
+  'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-graph-title':{},'pid-sitl-axis-caption':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'pid-sitl-motors':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'sitl-zoom':{value:'1'},'sitl-pan':{value:'0',max:'0'},'sitl-window':{},'sitl-rate-scale':{value:'auto'},'sitl-motor-scale':{value:'full'},'sitl-view-reset':{},
   ...Object.fromEntries(['current','previous','motor-1','motor-2','motor-3','motor-4'].map(x=>['sitl-show-'+x,{checked:true}])),
   'scenario':{get value(){return scenario}},'sitl-aircraft':{get value(){return aircraftMode}},'sitl-period':{get value(){return period}},'sitl-motor-mode':{get value(){return motorMode}}
 };
 const $=id=>nodes[id], window={addEventListener(){}},localStorage={getItem(){return stored}};
-let motorSeries=[],rateRange=[],motorRange=[],rangeSeen=[];const chart=(canvas,rows,series,min,max,decimals,range)=>{rangeSeen=range;if(canvas===nodes['pid-sitl-graph']){lastSeries=series;rateRange=[min,max]}else{motorSeries=series;motorRange=[min,max]}};
+let motorSeries=[],rateRange=[],motorRange=[],rangeSeen=[],graphUnits={};const chart=(canvas,rows,series,min,max,decimals,range,unit)=>{graphUnits[canvas===nodes['pid-sitl-graph']?'rates':'motor']=unit;rangeSeen=range;if(canvas===nodes['pid-sitl-graph']){lastSeries=series;rateRange=[min,max]}else{motorSeries=series;motorRange=[min,max]}};
 const fetch=async (url,opts)=>{
  if(url==='/api/aircraft-sitl/prepare')return {ok:true,json:async()=>({state:'ready'})};
  let body=JSON.parse(opts.body);sent.push(body);if(failed)return {ok:false,json:async()=>({error:'Нарушен темп расчёта: задержка'})};
@@ -36,7 +36,7 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  dirty=true;await nodes['sitl-run'].onclick();assert.equal(sent.length,0);assert(nodes['pid-sitl-status'].textContent.includes('примените'));
  dirty=false;scenario='reverse';await nodes['sitl-run'].onclick();assert.equal(sent.length,0);scenario='step';
  await nodes['sitl-run'].onclick();assert.deepStrictEqual(sent[0],{axis:'roll',profile:0,expected:{p:45,i:80,d:40},aircraft:null,sensor_period_ms:4,motor_mode:'poll'});
- assert(nodes['pid-sitl-summary'].textContent.includes('P 45'));assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0'));assert.equal(nodes['pid-sitl-warning'].textContent,'');assert(nodes['pid-sitl-status'].textContent.includes('достоверность отклика пока не подтверждена'));assert.equal(lastSeries[0].rows,null);assert.equal(motorSeries.length,4);assert.deepStrictEqual(motorSeries[0].rows[0],[0.4,0,25,50,100]);assert.equal(markerLines.length,6);assert.deepStrictEqual(markerLines.slice(0,3).map(x=>x[1]),['#8ec5ff','#e3b45b','#fb8c8c']);assert(Math.abs(markerLines[0][0]-(46+0.4/3*542))<1e-6);assert(Math.abs(markerLines[1][0]-(46+1.6/3*542))<1e-6);assert(Math.abs(markerLines[2][0]-(46+2.1/3*542))<1e-6);
+ assert(nodes['pid-sitl-graph-title'].textContent.includes('ROLL · крен'));assert(nodes['pid-sitl-axis-caption'].textContent.includes('правый борт опускается'));assert(nodes['pid-sitl-summary'].textContent.includes('P 45'));assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0'));assert.equal(nodes['pid-sitl-warning'].textContent,'');assert(nodes['pid-sitl-status'].textContent.includes('достоверность отклика пока не подтверждена'));assert.equal(lastSeries[0].rows,null);assert.equal(graphUnits.rates,'°/с');assert.equal(graphUnits.motor,'%');assert.equal(motorSeries.length,4);assert.deepStrictEqual(motorSeries[0].rows[0],[0.4,0,25,50,100]);assert.equal(markerLines.length,6);assert.deepStrictEqual(markerLines.slice(0,3).map(x=>x[1]),['#8ec5ff','#e3b45b','#fb8c8c']);assert(Math.abs(markerLines[0][0]-(72+0.4/3*516))<1e-6);assert(Math.abs(markerLines[1][0]-(72+1.6/3*516))<1e-6);assert(Math.abs(markerLines[2][0]-(72+2.1/3*516))<1e-6);
  assert.deepStrictEqual(visibleValues([[0,0],[2,20]],1,[.5,1.5]),[5,15]);
  nodes['sitl-show-motor-2'].checked=false;nodes['sitl-show-motor-2'].onchange();assert.equal(motorSeries[1].rows,null);assert(motorSeries[0].rows);
  nodes['sitl-motor-scale'].value='auto';nodes['sitl-motor-scale'].onchange();assert(motorRange[0]===0 && motorRange[1]===100);
@@ -46,7 +46,7 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  nodes['sitl-show-motor-1'].checked=true;nodes['sitl-show-motor-1'].onchange();assert.deepStrictEqual(motorRange,[27.5,32.5]);
  sitlResult.samples.forEach((row,i)=>row.motors=originalMotors[i]);nodes['sitl-show-motor-1'].checked=false;nodes['sitl-show-motor-1'].onchange();
  nodes['sitl-rate-scale'].value='100';nodes['sitl-rate-scale'].onchange();assert.deepStrictEqual(rateRange,[-100,100]);
- markerLines=[];nodes['sitl-zoom'].value='2';nodes['sitl-zoom'].onchange();assert.equal(markerLines.length,4);assert.deepStrictEqual(markerLines.slice(0,2).map(x=>x[1]),['#e3b45b','#fb8c8c']);assert(Math.abs(markerLines[0][0]-(46+(1.6-.75)/1.5*542))<1e-6);assert.deepStrictEqual(rangeSeen,[.75,2.25]);assert.equal(nodes['sitl-window'].textContent,'0,75–2,25 с');assert.equal(nodes['sitl-pan'].disabled,false);
+ markerLines=[];nodes['sitl-zoom'].value='2';nodes['sitl-zoom'].onchange();assert.equal(markerLines.length,4);assert.deepStrictEqual(markerLines.slice(0,2).map(x=>x[1]),['#e3b45b','#fb8c8c']);assert(Math.abs(markerLines[0][0]-(72+(1.6-.75)/1.5*516))<1e-6);assert.deepStrictEqual(rangeSeen,[.75,2.25]);assert.equal(nodes['sitl-window'].textContent,'0,75–2,25 с');assert.equal(nodes['sitl-pan'].disabled,false);
  nodes['sitl-pan'].value='1.50';nodes['sitl-pan'].oninput();assert.deepStrictEqual(rangeSeen,[1.5,3]);assert.equal(nodes['sitl-window'].textContent,'1,50–3,00 с');
  nodes['sitl-zoom'].value='4';nodes['sitl-zoom'].onchange();assert.equal(rangeSeen[0],1.88);assert.equal(rangeSeen[1],2.63);
  // Видимость не запускает эксперимент и не меняет диагностику.
@@ -61,6 +61,11 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  baseline.values.p=55;await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));assert(lastSeries[0].rows);
  aircraftMode='saved';await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-status'].textContent.includes('нет сохранённого'));
  stored=JSON.stringify({schema:1,values:{mass_g:'931'}});await nodes['sitl-run'].onclick();assert.equal(sent.length,3);assert.equal(lastSeries[0].rows,null);assert(!nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));
+ for(const [axis,label,direction,index] of [['pitch','PITCH · тангаж','носом вверх',1],['yaw','YAW · рыскание','носом вправо',2]]){
+  baseline.axis=axis;await nodes['sitl-run'].onclick();sitlResult.samples[0].rates=[1,2,3];drawPidSitl();
+  assert(nodes['pid-sitl-graph-title'].textContent.includes(label));assert(nodes['pid-sitl-axis-caption'].textContent.includes(direction));
+  assert.equal(lastSeries[1].rows[0][1],[1,2,3][index]);
+ }
  assert(!nodes['sitl-run'].disabled);
 })().catch(e=>{console.error(e);process.exit(1)});
 '''

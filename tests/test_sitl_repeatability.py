@@ -97,3 +97,30 @@ def test_series_can_include_samples_without_hiding_failed_runs(tmp_path, monkeyp
     assert rows[1]['samples'][0]['motors'] == [0, .5, 1, .2]
     assert rows[1]['command_window_s'] == [1, 2.2] and rows[1]['disarm_requested_s'] == 2.7
     assert not rows[2]['ok'] and 'samples' not in rows[2] and rows[2]['error'] == 'Ошибка опыта'
+
+
+def test_series_compares_verified_pid_denominators_in_alternating_order(tmp_path, monkeypatch):
+    calls = []
+    def fake(_aircraft, *, pid, axis, sensor_period_ms, motor_mode, timing_probe, _pid_process_denom):
+        calls.append(_pid_process_denom)
+        return {'verified_pid_denom': _pid_process_denom, 'verified_pid': {'axis': axis, 'values': pid},
+                'diagnostics': {'peak_abs_dps': 100}}
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'sitl_available', lambda: True)
+    monkeypatch.setattr(sitl_repeatability.aircraft_sitl, 'experiment', fake)
+    out = tmp_path/'frequency.jsonl'
+    status = sitl_repeatability.main(['--output', str(out), '--pid', '45', '80', '40', '--periods-ms', '4',
+                                      '--pid-denominators', '1', '16', '--alternate-pid-order', '--repeats', '2'])
+    rows = [json.loads(line) for line in out.read_text(encoding='utf-8').splitlines()]
+    assert status == 0 and calls == [1, 16, 16, 1]
+    assert [row['pid_process_denom'] for row in rows[1:-1]] == calls
+    assert rows[0]['pid_denominators'] == [1, 16] and rows[0]['alternate_pid_order'] is True
+    assert rows[-1] == {'type': 'summary', 'attempts': 4, 'not_completed': 0}
+
+
+def test_series_rejects_invalid_denominators_without_creating_file(tmp_path):
+    output = tmp_path/'frequency.jsonl'
+    for args in (['--pid-denominators', '0'], ['--pid-denominators', '17'],
+                 ['--pid-denominators', '1', '1'], ['--alternate-pid-order']):
+        with pytest.raises(SystemExit):
+            sitl_repeatability.main(['--output', str(output), '--pid', '45', '80', '40', *args])
+        assert not output.exists()
