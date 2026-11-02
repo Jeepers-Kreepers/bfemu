@@ -312,6 +312,21 @@ def _sample_points(rows):
             for row in rows]
 
 
+def _live_status(client, errors):
+    """Не терять ошибку расчёта, если запрос MSP одновременно завершился ошибкой."""
+    if errors:
+        raise PhysicsError(str(errors[0]))
+    try:
+        status = client.request(101)
+    except (CaptureError, OSError) as exc:
+        if errors:
+            raise PhysicsError(f'Расчёт остановлен: {errors[0]} Ошибка MSP: {exc}') from exc
+        raise
+    if errors:
+        raise PhysicsError(str(errors[0]))
+    return status
+
+
 def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None,
                _event_loop=None, _pid_process_denom=None):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
@@ -402,7 +417,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                             raise PhysicsError(str(errors[0]))
                         if not worker.is_alive():
                             raise PhysicsError('Расчёт завершился до подготовки SITL.')
-                        status = client.request(101)
+                        status = _live_status(client, errors)
                         if _arming_disable_flags(status) == 0:
                             break
                         if time.monotonic() >= deadline:
@@ -411,7 +426,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     channels[4] = 1900
                     deadline = time.monotonic()+2
                     while True:
-                        status = client.request(101)
+                        status = _live_status(client, errors)
                         if len(status) >= 10 and struct.unpack_from('<I', status, 6)[0] & 1:
                             break
                         if time.monotonic() >= deadline:
@@ -426,7 +441,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     time.sleep(1.2)
                     event_end = time.monotonic()
                     channels[AXES[axis][1]] = 1500
-                    status = client.request(101)
+                    status = _live_status(client, errors)
                     if len(status) < 10:
                         raise PhysicsError('SITL вернул неполный MSP_STATUS при проверке ARM.')
                     if not struct.unpack_from('<I', status, 6)[0] & 1:

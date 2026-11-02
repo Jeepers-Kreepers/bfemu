@@ -370,3 +370,38 @@ def test_status_flags_follow_extended_mode_mask_and_do_not_claim_disarm_cause():
     status[15] = 15
     assert _arming_disable_flags(status) is None
     assert 'не содержит полных флагов' in _disarm_message(status)
+
+
+def test_live_status_preserves_physics_error_even_when_msp_times_out():
+    from bfemu.aircraft_sitl import _live_status
+    from bfemu.flight_physics import PhysicsError
+
+    errors = []
+    class Client:
+        def request(self, code):
+            assert code == 101
+            errors.append(PhysicsError('нет подтверждения кадра'))
+            raise TimeoutError('таймаут MSP')
+
+    with pytest.raises(PhysicsError, match=r'нет подтверждения кадра.*таймаут MSP'):
+        _live_status(Client(), errors)
+    with pytest.raises(PhysicsError, match='нет подтверждения кадра'):
+        _live_status(Client(), errors)
+
+
+def test_live_status_does_not_hide_msp_error_or_worker_failure_after_reply():
+    from bfemu.aircraft_sitl import _live_status
+    from bfemu.flight_physics import PhysicsError
+
+    class Client:
+        def request(self, code):
+            raise TimeoutError('таймаут MSP')
+    with pytest.raises(TimeoutError, match='таймаут MSP'):
+        _live_status(Client(), [])
+    errors = []
+    class OtherClient:
+        def request(self, code):
+            errors.append(PhysicsError('отказ расчёта'))
+            return b'status'
+    with pytest.raises(PhysicsError, match='отказ расчёта'):
+        _live_status(OtherClient(), errors)

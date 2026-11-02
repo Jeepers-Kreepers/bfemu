@@ -1,0 +1,40 @@
+--- a/src/main/drivers/accgyro/accgyro_virtual.c
++++ b/src/main/drivers/accgyro/accgyro_virtual.c
+@@ -40,0 +41,2 @@
++uint32_t bfemu_gyro_consumed_sequence;
++static uint32_t bfemu_gyro_sequence;
+@@ -57,0 +60 @@
++    bfemu_gyro_sequence++;
+@@ -74,0 +78 @@
++    __atomic_store_n(&bfemu_gyro_consumed_sequence, bfemu_gyro_sequence, __ATOMIC_RELEASE);
+--- a/src/main/fc/core.c
++++ b/src/main/fc/core.c
+@@ -1279,0 +1280,2 @@
++extern void bfemu_step_begin(void);
++extern void bfemu_step_ack(void);
+@@ -1295,0 +1298 @@
++    bfemu_step_begin();
+@@ -1296,0 +1300 @@
++    bfemu_step_ack();
+--- a/src/main/target/SITL/sitl.c
++++ b/src/main/target/SITL/sitl.c
+@@ -66,0 +67 @@
++#include "bfemu_step_probe.inc"
+@@ -124,0 +126 @@
++        last_ts = now_ts;
+@@ -309,0 +312 @@
++    if (udpInit(&bfemu_step_link, "127.0.0.1", 9005, false) != 0) exit(1);
+@@ -554,2 +556,0 @@
+-    if (pthread_mutex_trylock(&updateLock) != 0) return;
+-
+@@ -556,0 +558 @@
++        bfemu_step_mask |= 1U << index;
+@@ -564 +565,0 @@
+-    pthread_mutex_unlock(&updateLock); // can send PWM output now
+@@ -597,5 +598 @@
+-    // get one "fdm_packet" can only send one "servo_packet"!!
+-    if (pthread_mutex_trylock(&updateLock) != 0) return;
+-    udpSend(&pwmLink, &pwmPkt, sizeof(servo_packet));
+-//    printf("[pwm]%u:%u,%u,%u,%u\n", idlePulse, motorsPwm[0], motorsPwm[1], motorsPwm[2], motorsPwm[3]);
+-    udpSend(&pwmRawLink, &pwmRawPkt, sizeof(servo_packet_raw));
++    /* Отдельный опыт: ответ отправляется после PID, со счётчиком кадра. */

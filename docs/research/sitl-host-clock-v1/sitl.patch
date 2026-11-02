@@ -1,0 +1,5 @@
+--- a/src/main/target/SITL/sitl.c
++++ b/src/main/target/SITL/sitl.c
+@@ -191 +191 @@
+-        simRate = deltaSim / (out_ts.tv_sec + 1e-9*out_ts.tv_nsec);
++        simRate = 1.0; // Исследование bfemu: часы хоста, не lockstep.

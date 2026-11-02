@@ -1,0 +1,10 @@
+--- a/src/main/drivers/accgyro/accgyro_virtual.c
++++ b/src/main/drivers/accgyro/accgyro_virtual.c
+@@ -31,0 +32 @@
++#include "bfemu_gyro_probe.inc"
+@@ -57,0 +59 @@
++    bfemu_gyro_set(gyro->dataReady, x, y, z);
+@@ -70,0 +73 @@
++        bfemu_gyro_read(false);
+@@ -73,0 +77 @@
++    bfemu_gyro_read(true);
