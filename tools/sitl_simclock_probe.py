@@ -36,8 +36,9 @@ SCHEDULER_HASH = '82d9f8a366271f3484ec1d2cb48e271afd739f651fb0cbcd9a1dedaa71f3ee
 ROOT = Path(__file__).resolve().parent
 INPUT_HEADER = struct.Struct('=II')
 RC = struct.Struct('=d16H')
-OUTPUT = struct.Struct('=IIIIIIQ4fIIIIff')
+OUTPUT = struct.Struct('=IIIIIIQ4fIIII24fIII4f')
 FRAME_US = 4000
+DEFAULT_PID = {'roll': (45, 80, 40), 'pitch': (49, 84, 46), 'yaw': (45, 80, 0)}
 
 
 def patch_sources(source):
@@ -110,22 +111,29 @@ def decode_response(data, expected, mapping, previous_clock):
         raise PhysicsError('Неверный размер подтверждения модели времени.')
     seq, gyro_seq, mask, pid_cycles, armed, flags, sim_us, *tail = OUTPUT.unpack(data)
     enabled, period, target, now = tail[4:8]
-    rc_pitch, setpoint_pitch = tail[8:]
+    rc_axes, setpoints, gyros, pid = tail[8:11], tail[11:14], tail[14:17], tail[17:32]
+    pid_us, gyro_us, gyro_sample_us, pid_dt, *ki = tail[32:]
     if seq != expected or gyro_seq != seq or mask & 15 != 15 or not pid_cycles or armed not in (0, 1):
         raise PhysicsError(f'Неверный кадр {seq}: gyro={gyro_seq}, маска={mask}, PID={pid_cycles}, ARM={armed}, флаги={flags:#x}, время={sim_us} мкс, scheduler={enabled}/{period}/{target}/{now}.')
     if previous_clock is not None and sim_us-previous_clock != FRAME_US:
         raise PhysicsError('Моделируемые часы прошивки изменились не на 4000 мкс.')
     motors = decode_sitl_motors(data[32:48], mapping)
-    if not math.isfinite(rc_pitch) or not math.isfinite(setpoint_pitch):
-        raise PhysicsError('Некорректный снимок RC или задания угловой скорости FC.')
+    if not all(math.isfinite(value) for value in (*rc_axes, *setpoints, *gyros, *pid, pid_dt, *ki)):
+        raise PhysicsError('Некорректный снимок RC, задания, гироскопа или PID FC.')
     return {'sequence': seq, 'read_sequence': gyro_seq, 'mask': mask, 'pid_cycles': pid_cycles,
             'armed': bool(armed), 'disable_flags': flags, 'sim_us': sim_us, 'motors': motors,
-            'rc_pitch': rc_pitch, 'setpoint_pitch_dps': setpoint_pitch}
+            'rc_axes': rc_axes, 'setpoint_axes_dps': setpoints, 'gyro_axes_dps': gyros,
+            'pid_axes': [dict(zip(('p', 'i', 'd', 'f', 'sum'), pid[i:i+5], strict=True))
+                         for i in range(0, 15, 5)],
+            'pid_loop_us': pid_us, 'gyro_loop_us': gyro_us, 'gyro_sample_us': gyro_sample_us,
+            'pid_dt_s': pid_dt, 'pid_ki': ki}
 
 
 def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=None,
-               pause_every=0, pause_ms=0):
-    """Сценарии: свободное падение без ARM либо ступень PITCH после ARM."""
+               pause_every=0, pause_ms=0, axis='pitch'):
+    """Сценарии: свободное падение без ARM либо ступень выбранной оси после ARM."""
+    if axis not in aircraft_sitl.AXES:
+        raise PhysicsError('Неизвестная ось.')
     if scenario not in ('stationary', 'flight'):
         raise PhysicsError('Неизвестный сценарий моделируемого времени.')
     if (type(pause_every) is not int or type(pause_ms) is not int or
@@ -148,7 +156,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             if armed_at is not None and seq > armed_at:
                 channels[2] = 1300
                 if command_start <= seq < command_end:
-                    channels[1] = 1650
+                    channels[aircraft_sitl.AXES[axis][1]] = 1650
                 if seq >= disarm_request:
                     channels[2], channels[4] = 1000, 1000
             thrust, reaction = actuators.advance(commands, FRAME_US/1e6)
@@ -206,11 +214,15 @@ def main(argv=None):
     parser.add_argument('--frames', type=int, default=500)
     parser.add_argument('--scenario', choices=('stationary', 'flight'), default='stationary')
     parser.add_argument('--repeats', type=int, default=2)
-    parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'), default=[49, 84, 46])
+    parser.add_argument('--axis', choices=tuple(aircraft_sitl.AXES), default='pitch')
+    parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'),
+                        help='P, I и D Max оси; по умолчанию значения исследовательского сценария')
     parser.add_argument('--pause-every', type=int, default=0, help='вставлять задержку хоста каждые N кадров')
     parser.add_argument('--pause-ms', type=int, default=0, help='длительность задержки хоста в миллисекундах')
     parser.add_argument('--jobs', type=int, default=4)
     args = parser.parse_args(argv)
+    if args.pid is None:
+        args.pid = DEFAULT_PID[args.axis]
     if (not 2 <= args.frames <= 20000 or not 1 <= args.repeats <= 10 or not 1 <= args.jobs <= 32 or any(v not in range(251) for v in args.pid) or
             not 0 <= args.pause_every <= 10000 or not 0 <= args.pause_ms <= 1000 or
             bool(args.pause_every) != bool(args.pause_ms)):
@@ -254,13 +266,14 @@ def main(argv=None):
                       'driver_sha256': digest(Path(__file__)),
                       'includes_sha256': {p.name: digest(p) for p in (ROOT/'sitl_simclock_probe.inc', ROOT/'sitl_simclock_target.inc')},
                       'platform': platform.platform(), 'aircraft': profile, 'frames': args.frames, 'scenario': args.scenario,
-                      'repeats': args.repeats, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
+                      'repeats': args.repeats, 'axis': args.axis, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
                       'pause_every': args.pause_every, 'pause_ms': args.pause_ms,
                       'note': 'Модель свободного тела без земли. Инициализация и MSP асинхронны, планировщик изменён.'})
                 for cycle in range(1, args.repeats+1):
                     row = {'type': 'run', 'cycle': cycle}
                     started = time.monotonic()
                     process = None
+                    stage = 'проверка портов'
                     try:
                         aircraft_sitl.BINARY = binary
                         for kind, port in ((socket.SOCK_STREAM, 5761), (socket.SOCK_DGRAM, 9003),
@@ -270,15 +283,19 @@ def main(argv=None):
                         with tempfile.TemporaryDirectory(prefix='bfemu-simclock-eeprom-') as state:
                             def start():
                                 return subprocess.Popen([str(binary)], cwd=state, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            stage = 'запуск и настройка PWM'
                             process = start()
                             aircraft_sitl._configure_pwm(process, pid_process_denom=1)
+                            stage = 'повторный запуск и подключение MSP'
                             process = start()
                             client = aircraft_sitl._connect(process)
                             try:
+                                stage = 'идентификация и проверка PID'
                                 client.identify()
                                 aircraft_sitl.verify_pid_denom(client, 1)
                                 row['verified_pid'] = aircraft_sitl.set_pid_snapshot(
-                                    client, 'pitch', dict(zip(('p', 'i', 'd'), args.pid, strict=True)))
+                                    client, args.axis, dict(zip(('p', 'i', 'd'), args.pid, strict=True)))
+                                stage = 'настройка ARM и ожидание датчиков'
                                 aircraft_sitl._write(client, 35, bytes([0, 0, 0, 32, 48]))
                                 deadline = time.monotonic()+8
                                 while True:
@@ -290,13 +307,15 @@ def main(argv=None):
                                     time.sleep(.1)
                             finally:
                                 client.close()
+                            stage = 'обмен кадрами и сценарий'
                             path = outdir/f'frames-{cycle}.jsonl'
                             row['file'] = path.name
                             with path.open('x') as f:
                                 def save_frame(sample):
                                     f.write(json.dumps(sample, ensure_ascii=False, allow_nan=False)+'\n')
                                 result, events = run_frames(profile, args.frames, scenario=args.scenario, on_frame=save_frame,
-                                                            pause_every=args.pause_every, pause_ms=args.pause_ms)
+                                                            pause_every=args.pause_every, pause_ms=args.pause_ms,
+                                                            axis=args.axis)
                             row['events'] = events
                         row['ok'] = True
                         row['frames'] = len(result)
@@ -306,7 +325,7 @@ def main(argv=None):
                         row['flags_last'] = result[-1]['disable_flags']
                     except (PhysicsError, OSError, ValueError, subprocess.SubprocessError) as exc:
                         failures += 1
-                        row.update(ok=False, error=str(exc))
+                        row.update(ok=False, error=str(exc), error_stage=stage)
                     finally:
                         aircraft_sitl._stop(process)
                         aircraft_sitl.BINARY = normal

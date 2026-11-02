@@ -4,6 +4,8 @@
  */
 #include "fc/runtime_config.h"
 #include "fc/rc.h"
+#include "flight/pid.h"
+#include "sensors/gyro.h"
 extern uint32_t bfemu_gyro_consumed_sequence;
 static udpLink_t bfemu_sync_input, bfemu_sync_output;
 static uint32_t bfemu_step_mask, bfemu_frame_pid_count;

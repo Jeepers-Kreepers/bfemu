@@ -9,7 +9,9 @@ struct __attribute__((packed)) bfemu_frame_output {
     uint64_t sim_us;
     servo_packet motors;
     uint32_t scheduler_enabled, scheduler_period, scheduler_target, scheduler_now;
-    float rc_pitch, setpoint_pitch;
+    float rc_axis[3], setpoint_axis[3], gyro_axis[3], pid_axis[3][5];
+    uint32_t pid_loop_us, gyro_loop_us, gyro_sample_us;
+    float pid_dt, pid_ki[3];
 };
 
 bool bfemuSimclockActive(void)
@@ -71,7 +73,14 @@ void bfemuSimclockReply(void)
         bfemu_step_mask, bfemu_frame_pid_count, ARMING_FLAG(ARMED) ? 1U : 0U,
         getArmingDisableFlags(), __atomic_load_n(&bfemu_simulated_us, __ATOMIC_RELAXED), pwmPkt,
         bfemuSchedEnabled(), bfemuSchedPeriod(), bfemuSchedTarget(), bfemuSchedNow(),
-        rcData[1], getSetpointRate(1)
+        {rcData[0], rcData[1], rcData[2]},
+        {getSetpointRate(0), getSetpointRate(1), getSetpointRate(2)},
+        {gyro.gyroADCf[0], gyro.gyroADCf[1], gyro.gyroADCf[2]},
+        {{pidData[0].P, pidData[0].I, pidData[0].D, pidData[0].F, pidData[0].Sum},
+         {pidData[1].P, pidData[1].I, pidData[1].D, pidData[1].F, pidData[1].Sum},
+         {pidData[2].P, pidData[2].I, pidData[2].D, pidData[2].F, pidData[2].Sum}},
+        targetPidLooptime, gyro.targetLooptime, gyro.sampleLooptime,
+        pidRuntime.dT, {pidRuntime.pidCoefficient[0].Ki, pidRuntime.pidCoefficient[1].Ki, pidRuntime.pidCoefficient[2].Ki}
     };
     if (udpSend(&bfemu_sync_output, &output, sizeof(output)) != sizeof(output)) {
         fprintf(stderr, "[bfemu] Frame acknowledgement send failed.\n");

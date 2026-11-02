@@ -1,0 +1,10 @@
+{
+  "sitl_simclock_probe.py": "b36fb9302a59714b2a132c2c17112a9d23f43e2a0dbaa10c345ece7ac6269048",
+  "sitl_simclock_probe.inc": "814db801d0199b2bdcf02a43cb0b31fe7ec72304a95e2c994ab3125119a81d60",
+  "sitl_simclock_target.inc": "dbd89e328be04a2978bb9ee108fefacba62af56b132aa666b71d480bad2c6957",
+  "error": "Компиляция остановилась: структура ответа не была переведена на массивы.",
+  "scenario": "yaw P45 I80 D0, без полётных запусков",
+  "timestamp_utc": "2026-11-02",
+  "revision": "25356b59a96dc975d777844f896b7c7855ea90e6",
+  "command": "python3 tools/sitl_simclock_probe.py --output-dir /home/user/simclock-yaw-v1 --scenario flight --frames 12000 --repeats 6 --axis yaw --pid 45 80 0 --jobs 4"
+}
