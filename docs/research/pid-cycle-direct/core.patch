@@ -1,0 +1,19 @@
+--- Betaflight 4.5.4 fc/core.c
++++ SITL experiment fc/core.c
+@@ -18,6 +18,8 @@
+  * If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#include "bfemu_pid_probe.inc"
++
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+@@ -1292,6 +1294,7 @@
+     DEBUG_SET(DEBUG_PIDLOOP, 0, micros() - currentTimeUs);
+ 
+     subTaskRcCommand(currentTimeUs);
++    bfemu_pid_probe(currentTimeUs);
+     subTaskPidController(currentTimeUs);
+     subTaskMotorUpdate(currentTimeUs);
+     subTaskPidSubprocesses(currentTimeUs);
