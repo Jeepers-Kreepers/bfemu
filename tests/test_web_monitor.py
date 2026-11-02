@@ -435,8 +435,8 @@ def test_sitl_preparation_endpoint_is_explicit_and_same_origin(monitor, monkeypa
 def test_pid_sitl_uses_snapshot_and_rejects_stale_or_invalid_values(fc, monitor, monkeypatch):
     from bfemu import aircraft_sitl, pid_trainer
     seen = []
-    def fake_experiment(aircraft, *, pid, axis, sensor_period_ms):
-        seen.append((aircraft, pid, axis, sensor_period_ms))
+    def fake_experiment(aircraft, *, pid, axis, sensor_period_ms, motor_mode):
+        seen.append((aircraft, pid, axis, sensor_period_ms, motor_mode))
         return {'verified_pid': {'axis': axis, 'values': pid}}
     monkeypatch.setattr(aircraft_sitl, 'experiment', fake_experiment)
     axis = 'roll'
@@ -453,14 +453,16 @@ def test_pid_sitl_uses_snapshot_and_rejects_stale_or_invalid_values(fc, monitor,
     assert post(url, stale)[0] == 409 and not seen
     status, body = post(url, payload)
     assert status == 200 and json.loads(body)['verified_pid']['values'] == snapshot['values']
-    aircraft, pid, actual_axis, period = seen[-1]
-    assert aircraft['values']['mass_g'] == '931' and actual_axis == axis and pid == snapshot['values'] and period == 4
+    aircraft, pid, actual_axis, period, mode = seen[-1]
+    assert aircraft['values']['mass_g'] == '931' and actual_axis == axis and pid == snapshot['values'] and period == 4 and mode == 'poll'
     custom = {'schema': 1, 'values': {'mass_g': '1000'}}
-    status, _ = post(url, {**payload, 'aircraft': custom, 'sensor_period_ms': 2})
-    assert status == 200 and seen[-1][0] == custom and seen[-1][3] == 2
+    status, _ = post(url, {**payload, 'aircraft': custom, 'sensor_period_ms': 2, 'motor_mode': 'event'})
+    assert status == 200 and seen[-1][0] == custom and seen[-1][3:] == (2, 'event')
     before = len(seen)
     for bad in (True, 0, 3, 2.0, '2', None):
         assert post(url, {**payload, 'sensor_period_ms': bad})[0] == 400
+    for bad in (None, True, 'other', ['poll']):
+        assert post(url, {**payload, 'motor_mode': bad})[0] == 400
     assert len(seen) == before
 
 
@@ -479,12 +481,12 @@ def test_pid_trainer_edits_still_work_for_all_axes(fc, monitor, axis):
 def test_pid_sitl_uses_selected_axis(fc, monitor, monkeypatch, axis):
     from bfemu import aircraft_sitl, pid_trainer
     seen = []
-    def fake(aircraft, *, pid, axis, sensor_period_ms):
-        seen.append((pid, axis, sensor_period_ms))
+    def fake(aircraft, *, pid, axis, sensor_period_ms, motor_mode):
+        seen.append((pid, axis, sensor_period_ms, motor_mode))
         return {'verified_pid': {'axis': axis, 'values': pid}}
     monkeypatch.setattr(aircraft_sitl, 'experiment', fake)
     snapshot = pid_trainer.profile_state(fc, axis)
     status, body = post(monitor + '/api/pid-trainer/sitl',
                         {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None})
-    assert status == 200 and seen == [(snapshot['values'], axis, 4)]
+    assert status == 200 and seen == [(snapshot['values'], axis, 4, 'poll')]
     assert json.loads(body)['verified_pid']['axis'] == axis

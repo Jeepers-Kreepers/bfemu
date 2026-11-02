@@ -23,7 +23,7 @@ from .flight_actuators import output_mapping, read_curves
 from .flight_physics import Aircraft, PhysicsError
 from .msp import FROM_FC, encode_v1
 from .sitl_capture import CaptureError, SitlMspClient
-from .sitl_closed_loop import run_loop
+from .sitl_closed_loop import discard_queued_motors, run_loop, run_event_loop
 
 STAMP = {"revision": "25356b59a96dc975d777844f896b7c7855ea90e6",
          "archive_sha256": "0613fcc69675ae82891d97ee8aaa91545b73ba43f7e9120a8e1799e897dde4e3",
@@ -262,17 +262,21 @@ def _diagnostics(rows, start, end, axis):
                                   for row in active), 2),
         'sensor_interval_max_ms': round(max(row['dt_s'] for row in active)*1000, 3),
         'motor_no_update_samples': sum(row['next_commands'] is None for row in active),
-        'motor_full_output_samples': sum(any(value >= 1.0 for value in row['applied_commands']) for row in active),
+        'motor_full_output_samples': sum(row.get('motor_full_output_since_sensor',
+                                                 any(value >= 1.0 for value in row['applied_commands']))
+                                         for row in active),
         'samples': len(active),
     }
 
 
-def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
+def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
     if type(sensor_period_ms) is not int or sensor_period_ms not in (2, 4, 8):
         raise PhysicsError('Период датчиков SITL должен быть 2, 4 или 8 мс.')
+    if motor_mode not in ('poll', 'event'):
+        raise PhysicsError('Неизвестный режим обработки команд моторов.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -292,6 +296,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
                 socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as fdm, \
                 socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rc:
             motors.bind(('127.0.0.1', 9002))
+            motor_input = timing_probe.wrap(motors) if timing_probe is not None else motors
             binary = str(BINARY)
             def start():
                 return subprocess.Popen([binary], cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -312,6 +317,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
                         raise PhysicsError('SITL не инициализировал датчики.')
                     time.sleep(.1)
                 time.sleep(.55)
+                discard_queued_motors(motors)
                 channels = [1500, 1500, 1000, 1500, 1000] + [1000]*11
                 done = threading.Event()
                 output, errors, run_start = io.StringIO(), [], []
@@ -327,8 +333,9 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
                         done.wait(.02)
                 def simulate():
                     try:
-                        run_loop(profile, curves, motors, fdm, output, duration=12, period=sensor_period_ms/1000,
-                                 max_gap=.5, pressure_pa=101325, clock=clock)
+                        loop = run_event_loop if motor_mode == 'event' else run_loop
+                        loop(profile, curves, motor_input, fdm, output, duration=12, period=sensor_period_ms/1000,
+                             max_gap=.5, pressure_pa=101325, clock=clock)
                     except Exception as exc:
                         errors.append(exc)
                 tx = threading.Thread(target=send_rc, daemon=True)
@@ -393,6 +400,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
                             'command_window_s': [round(event_start-run_start[0], 3), round(event_end-run_start[0], 3)],
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
                             'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
+                            'motor_mode': motor_mode,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
                                      + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
                                         if verified_pid else 'PID заводской отдельного SITL.'))}

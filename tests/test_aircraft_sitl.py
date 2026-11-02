@@ -259,3 +259,29 @@ def test_real_sitl_accepts_experimental_sensor_period():
     assert result['sensor_period_ms'] == 2
     assert result['verified_pid'] == {'axis': 'roll', 'values': requested}
     assert result['diagnostics']['samples'] > 100
+
+
+def test_event_diagnostics_capture_saturation_between_sensor_samples():
+    from bfemu.aircraft_sitl import _diagnostics
+    rows = [{'elapsed_s': 1, 'dt_s': .004, 'next_commands': [0, 0, 0, 0],
+             'applied_commands': [0, 0, 0, 0], 'motor_full_output_since_sensor': True,
+             'state': {'angular_velocity_rad_s': [0, 0, 0]}}]
+    assert _diagnostics(rows, 1, 1, 'roll')['motor_full_output_samples'] == 1
+
+
+def test_experiment_rejects_unsupported_motor_mode_before_start():
+    with pytest.raises(PhysicsError, match='режим'):
+        experiment(build03(), motor_mode='lockstep')
+
+
+@pytest.mark.parametrize('axis,sign', [('roll', 1), ('pitch', -1), ('yaw', 1)])
+@pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен собранный Betaflight SITL и свободные порты')
+def test_real_event_motor_mode_covers_each_axis(axis, sign):
+    requested = {'p': 45, 'i': 80, 'd': 40}
+    result = experiment(build03(), axis=axis, pid=requested, motor_mode='event')
+    assert result['motor_mode'] == 'event'
+    assert result['verified_pid'] == {'axis': axis, 'values': requested}
+    start, end = result['command_window_s']
+    index = {'roll': 0, 'pitch': 1, 'yaw': 2}[axis]
+    values = [row['rates'][index] for row in result['samples'] if start <= row['t'] <= end]
+    assert max(sign*x for x in values) > 5

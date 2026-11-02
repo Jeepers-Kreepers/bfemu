@@ -397,3 +397,72 @@ def test_quad_x_mixer_and_gyro_signs_produce_negative_feedback():
         gyro = (packet[1], -packet[2], -packet[3])
         assert gyro[axis] > 0
         assert [gyro[i] for i in range(3) if i != axis] == pytest.approx([0, 0], abs=1e-10)
+
+
+def test_event_loop_applies_motors_when_read_before_next_sensor_tick():
+    from bfemu.sitl_closed_loop import run_event_loop
+
+    clock = FakeClock()
+    commands = [(0.001, struct.pack('=4f', 0, 0, 0, 1.0)),
+                (0.003, struct.pack('=4f', 0, 0, 0, .5))]
+
+    class ScheduledMotor:
+        def setblocking(self, value):
+            assert not value
+        def recvfrom(self, size):
+            if commands and commands[0][0] <= clock.now:
+                return commands.pop(0)[1], ('127.0.0.1', 1234)
+            raise BlockingIOError
+
+    motor = ScheduledMotor()
+    def wait(readers, _write, _errors, timeout):
+        deadline = clock.now + timeout
+        if commands and commands[0][0] <= deadline:
+            clock.now = commands[0][0]
+            return readers, [], []
+        clock.now = deadline
+        return [], [], []
+
+    sender, output = FakeStateSocket(), io.StringIO()
+    count = run_event_loop(aircraft_profile(), model(), motor, sender, output, duration=.012, period=.004,
+                           max_gap=.05, pressure_pa=101325, clock=clock.clock, wait=wait)
+    rows = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert count == 2 and rows[0]['motor_mode'] == 'event'
+    assert rows[1]['next_commands'] == pytest.approx([.5, 0, 0, 0])
+    assert rows[1]['applied_commands'] == pytest.approx([.5, 0, 0, 0])
+    # Обе команды были применены до первой отправки датчиков на 4 мс.
+    assert rows[1]['state']['angular_velocity_rad_s'][0] < 0
+    assert rows[1]['motor_full_output_since_sensor'] is True
+    assert rows[2]['motor_full_output_since_sensor'] is False
+    assert [p[0] for p in sender.packets] == pytest.approx([0, .004, .008])
+
+
+def test_event_loop_still_stops_when_sensor_deadline_exceeds_limit():
+    from bfemu.sitl_closed_loop import run_event_loop
+    clock = FakeClock()
+    def wait(_readers, _write, _errors, timeout):
+        clock.now += timeout + .02
+        return [], [], []
+    with pytest.raises(PhysicsError, match='Нарушен темп'):
+        run_event_loop(aircraft_profile(), model(), FakeMotorSocket(), FakeStateSocket(), io.StringIO(),
+                       duration=.1, period=.004, max_gap=.05, pressure_pa=101325, clock=clock.clock, wait=wait)
+
+
+def test_discard_stale_motor_packets_before_start():
+    from bfemu.sitl_closed_loop import discard_queued_motors
+
+    class Queued:
+        def __init__(self):
+            self.packets = [b'old1', b'old2']
+        def setblocking(self, flag):
+            assert not flag
+        def recvfrom(self, _):
+            if not self.packets:
+                raise BlockingIOError
+            return self.packets.pop(0), ('127.0.0.1', 1234)
+    queued = Queued()
+    assert discard_queued_motors(queued) == 2
+    assert discard_queued_motors(queued) == 0
+    queued.packets = [b'flood']*4096
+    with pytest.raises(PhysicsError, match='Очередь'):
+        discard_queued_motors(queued)
