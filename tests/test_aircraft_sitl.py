@@ -210,3 +210,37 @@ def test_real_sitl_reads_back_transferred_roll_pid():
     assert result['verified_pid'] == {'axis': 'roll', 'values': requested}
     assert len(result['samples']) > 100
     assert result['axis'] == 'roll'
+
+
+@pytest.mark.parametrize('axis,sign', [('roll', 1), ('pitch', -1), ('yaw', 1)])
+@pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен собранный Betaflight SITL и свободные порты')
+def test_real_sitl_closed_loop_axis_and_diagnostics(axis, sign):
+    requested = {'p': 45, 'i': 80, 'd': 40}
+    result = experiment(build03(), axis=axis, pid=requested)
+    assert result['verified_pid'] == {'axis': axis, 'values': requested}
+    start, end = result['command_window_s']
+    index = {'roll': 0, 'pitch': 1, 'yaw': 2}[axis]
+    values = [row['rates'][index] for row in result['samples'] if start <= row['t'] <= end]
+    assert max(sign*x for x in values) > 5
+    info = result['diagnostics']
+    assert info['peak_abs_dps'] >= max(abs(x) for x in values) - .01
+    assert 0 < info['sensor_interval_max_ms'] < 20
+    assert 0 <= info['motor_no_update_samples'] <= info['samples']
+
+
+def test_diagnostics_use_all_physics_samples_and_command_window():
+    import math
+    from bfemu.aircraft_sitl import _diagnostics
+    def row(t, rate, dt, next_commands, applied):
+        return {'elapsed_s': t, 'dt_s': dt, 'next_commands': next_commands, 'applied_commands': applied,
+                'state': {'angular_velocity_rad_s': [0, math.radians(rate), 0]}}
+    rows = [row(.9, 900, .015, None, [1, 1, 1, 1]),
+            row(1, -10, .004, None, [.2, .2, .2, .2]),
+            row(1.1, 70, .006, [0, 0, 0, 0], [1, .2, .2, .2]),
+            row(1.2, 30, .005, None, [.2, .2, .2, .2]),
+            row(1.3, 900, .015, None, [1, 1, 1, 1])]
+    result = _diagnostics(rows, 1, 1.2, 'pitch')
+    assert result == {'peak_abs_dps': 70, 'sensor_interval_max_ms': 6,
+                      'motor_no_update_samples': 2, 'motor_full_output_samples': 1, 'samples': 3}
+    with pytest.raises(PhysicsError, match='нет отсчётов'):
+        _diagnostics(rows, 2, 3, 'roll')

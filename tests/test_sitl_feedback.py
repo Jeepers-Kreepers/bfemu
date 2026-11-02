@@ -29,7 +29,7 @@ def test_fdm_packet_axes_gravity_quaternion_and_pressure():
     packet = sensor_packet(aircraft, state, [GRAVITY/4]*4, timestamp=1.25, pressure_pa=101325)
     assert len(packet) == 18*8
     fields = FDM_PACKET.unpack(packet)
-    assert fields[:4] == pytest.approx((1.25, .1, .2, -.3))
+    assert fields[:4] == pytest.approx((1.25, .1, -.2, .3))
     assert fields[4:7] == pytest.approx((0, 0, -GRAVITY))
     assert fields[7:11] == pytest.approx((1, 0, 0, 0))
     assert fields[11:17] == pytest.approx((4, 5, 6, 1, 2, 3))
@@ -319,7 +319,7 @@ def test_real_sitl_sensor_axes_and_units(tmp_path):
             time.sleep(.4)
             imu = decode_payload(102, client.request(102))
             expected = [0., 0., 0.]
-            expected[axis] = 30.
+            expected[axis] = 30. if axis == 0 else -30.
             assert imu['gyro_dps'] == pytest.approx(expected, abs=2)
             attitude = decode_payload(108, client.request(108))
             expected_attitude = [[200, 0, 0], [0, -200, 0], [0, 0, 20]][axis]
@@ -374,3 +374,26 @@ def test_check_ready_verifies_sitl_and_initialized_sensors(monkeypatch):
     with pytest.raises(CaptureError, match='ещё не инициализировал'):
         sitl_closed_loop.check_ready()
     assert clients[-1].closed
+
+
+def test_quad_x_mixer_and_gyro_signs_produce_negative_feedback():
+    """Quad X Betaflight 4.5.4: положительная PID-сумма повышает одноимённое показание FC."""
+    from pathlib import Path
+
+    from bfemu.flight_physics import derivative
+
+    profile = json.loads((Path(__file__).parents[1] / 'bfemu/data/aircraft_build03.json').read_text())
+    aircraft = Aircraft.from_profile(profile)
+    # mixer_init.c mixerQuadX, включая инверсию yaw при yaw_motors_reversed=OFF в mixer.c.
+    mixer = ((-1, -1, 1, 1), (1, -1, 1, -1), (1, -1, -1, 1))
+    for axis, factors in enumerate(mixer):
+        thrust = [2 + .1 * factor for factor in factors]
+        reaction = [(-1 if profile['values'][f'motor_{i+1}_direction'] == 'cw' else 1) * .016 * force
+                    for i, force in enumerate(thrust)]
+        acceleration = derivative(aircraft, State(), thrust, reaction).angular_acceleration_rad_s2
+        packet = FDM_PACKET.unpack(sensor_packet(aircraft, State(angular_velocity_rad_s=acceleration), thrust,
+                                                  timestamp=1, pressure_pa=101325))
+        # sitl.c passes X unchanged and negates Y/Z before virtualGyroSet.
+        gyro = (packet[1], -packet[2], -packet[3])
+        assert gyro[axis] > 0
+        assert [gyro[i] for i in range(3) if i != axis] == pytest.approx([0, 0], abs=1e-10)

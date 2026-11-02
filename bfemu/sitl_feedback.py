@@ -15,9 +15,10 @@ FDM_PACKET = struct.Struct('=18d')
 def sensor_packet(aircraft: Aircraft, state: State, thrust_n: Sequence[float], *, timestamp: float, pressure_pa: float) -> bytes:
     """Идеальный IMU в центре масс; давление задаётся вызывающим кодом как постоянное.
 
-    sitl.c инвертирует все оси ускорения и оси Y/Z гироскопа. Передаваем
-    удельную силу в FRD и (p,-q,-r), чтобы в виртуальном гироскопе FC были p,q,r.
-    Кватернион передаётся напрямую: SITL сам вычисляет отображаемые углы.
+    Оси тела модели заданы в FRD. SITL инвертирует Y и Z из пакета: для
+    Quad X Betaflight его гироскоп должен получать (p,-q,-r), чтобы знак
+    обратной связи соответствовал микшеру. Поэтому в пакет идут (p,q,r).
+    Кватернион передаётся напрямую; SITL отдельно преобразует углы ориентации.
     """
     if not math.isfinite(timestamp) or timestamp < 0:
         raise PhysicsError('Метка времени SITL должна быть неотрицательной и конечной.')
@@ -33,7 +34,7 @@ def sensor_packet(aircraft: Aircraft, state: State, thrust_n: Sequence[float], *
     # В свободном полёте акселерометр измеряет негравитационную силу на единицу массы;
     # в этой модели она состоит только из тяги вдоль -Z, а не из g или dV/dt в мире.
     accel_z = -sum(thrust)/aircraft.mass_kg
-    fields = (timestamp, p, -q, -r, 0., 0., accel_z, *orientation, *velocity, *position, pressure_pa)
+    fields = (timestamp, p, q, r, 0., 0., accel_z, *orientation, *velocity, *position, pressure_pa)
     if not all(math.isfinite(value) for value in fields):
         raise PhysicsError('Показания датчиков вышли за допустимый числовой диапазон.')
     return FDM_PACKET.pack(*fields)

@@ -251,10 +251,26 @@ def set_pid_snapshot(client, axis, pid):
     return {'axis': axis, 'values': dict(pid)}
 
 
+def _diagnostics(rows, start, end, axis):
+    """Метрики по непрореженным физическим отсчётам в окне команды отправителя."""
+    active = [row for row in rows if start <= row['elapsed_s'] <= end]
+    if not active:
+        raise PhysicsError('В интервале команды нет отсчётов физической модели.')
+    axis_index = AXES[axis][0]
+    return {
+        'peak_abs_dps': round(max(abs(math.degrees(row['state']['angular_velocity_rad_s'][axis_index]))
+                                  for row in active), 2),
+        'sensor_interval_max_ms': round(max(row['dt_s'] for row in active)*1000, 3),
+        'motor_no_update_samples': sum(row['next_commands'] is None for row in active),
+        'motor_full_output_samples': sum(any(value >= 1.0 for value in row['applied_commands']) for row in active),
+        'samples': len(active),
+    }
+
+
 def experiment(profile, *, pid=None, axis='roll'):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
-    if axis != 'roll':
-        raise PhysicsError('Эксперимент SITL пока проверен только для оси ROLL.')
+    if axis not in AXES:
+        raise PhysicsError('Неизвестная ось эксперимента SITL.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -342,7 +358,7 @@ def experiment(profile, *, pid=None, axis='roll'):
                     channels[2] = 1300
                     time.sleep(.6)
                     if not worker.is_alive():
-                        raise PhysicsError('Расчёт завершился до команды крена.')
+                        raise PhysicsError('Расчёт завершился до команды стика.')
                     event_start = time.monotonic()
                     channels[AXES[axis][1]] = 1650
                     time.sleep(1.2)
@@ -350,7 +366,7 @@ def experiment(profile, *, pid=None, axis='roll'):
                     channels[AXES[axis][1]] = 1500
                     status = client.request(101)
                     if len(status) < 10 or not struct.unpack_from('<I', status, 6)[0] & 1:
-                        raise PhysicsError('SITL вышел из ARM во время команды крена.')
+                        raise PhysicsError('SITL вышел из ARM во время команды стика.')
                     time.sleep(.5)
                     channels[2], channels[4] = 1000, 1000
                     worker.join(timeout=15)
@@ -363,7 +379,10 @@ def experiment(profile, *, pid=None, axis='roll'):
                     if not rows:
                         raise PhysicsError('SITL не вернул результаты эксперимента.')
                     if not run_start or rows[-1]['elapsed_s'] < event_end-run_start[0]:
-                        raise PhysicsError('Расчёт не охватил всю команду крена.')
+                        raise PhysicsError('Расчёт не охватил всю команду стика.')
+                    # Метрики по всем отсчётам физики, не по прореженному графику.
+                    command_start, command_end = event_start-run_start[0], event_end-run_start[0]
+                    diagnostics = _diagnostics(rows, command_start, command_end, axis)
                     # Время переключения RC на стороне отправителя, не момент получения FC.
                     points = [{'t': round(row['elapsed_s'], 3),
                                'rates': [round(math.degrees(x), 2) for x in row['state']['angular_velocity_rad_s']]}
@@ -371,7 +390,7 @@ def experiment(profile, *, pid=None, axis='roll'):
                     return {'profile': profile['values'].get('profile_name', ''), 'samples': points,
                             'command_window_s': [round(event_start-run_start[0], 3), round(event_end-run_start[0], 3)],
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
-                            'verified_pid': verified_pid,
+                            'verified_pid': verified_pid, 'diagnostics': diagnostics,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
                                      + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
                                         if verified_pid else 'PID заводской отдельного SITL.'))}

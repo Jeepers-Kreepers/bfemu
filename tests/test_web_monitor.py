@@ -444,7 +444,7 @@ def test_pid_sitl_uses_snapshot_and_rejects_stale_or_invalid_values(fc, monitor,
     payload = {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None}
     url = monitor + '/api/pid-trainer/sitl'
     assert post(url, payload, {'Origin': 'http://evil.example'})[0] == 403
-    assert post(url, {**payload, 'axis': 'pitch'})[0] == 400 and not seen
+    assert post(url, {**payload, 'axis': 'invalid'})[0] == 400 and not seen
     bad = {**payload, 'expected': {**payload['expected'], 'p': 251}}
     assert post(url, bad)[0] == 400 and not seen
     stale = {**payload, 'profile': snapshot['profile'] + 1}
@@ -469,3 +469,18 @@ def test_pid_trainer_edits_still_work_for_all_axes(fc, monitor, axis):
                            'expected': state['values'], 'values': changed})
     assert status == 200
     assert json.loads(get(url + '?axis=' + axis)[1])['values'] == changed
+
+
+@pytest.mark.parametrize('axis', ['pitch', 'yaw'])
+def test_pid_sitl_uses_selected_axis(fc, monitor, monkeypatch, axis):
+    from bfemu import aircraft_sitl, pid_trainer
+    seen = []
+    def fake(aircraft, *, pid, axis):
+        seen.append((pid, axis))
+        return {'verified_pid': {'axis': axis, 'values': pid}}
+    monkeypatch.setattr(aircraft_sitl, 'experiment', fake)
+    snapshot = pid_trainer.profile_state(fc, axis)
+    status, body = post(monitor + '/api/pid-trainer/sitl',
+                        {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None})
+    assert status == 200 and seen == [(snapshot['values'], axis)]
+    assert json.loads(body)['verified_pid']['axis'] == axis

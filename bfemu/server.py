@@ -873,8 +873,8 @@ class HttpMonitor:
                     if not isinstance(data, dict) or set(data) != {"axis", "profile", "expected", "aircraft"}:
                         raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
                     axis, profile, expected = data["axis"], data["profile"], data["expected"]
-                    if axis != "roll" or type(profile) is not int:
-                        raise ValueError("Эксперимент SITL пока доступен только для оси ROLL и числового профиля PID")
+                    if axis not in _pid_trainer.AXES or type(profile) is not int:
+                        raise ValueError("Неверная ось или профиль PID")
                     if (not isinstance(expected, dict) or set(expected) != set("pid") or
                             any(type(expected[k]) is not int or not 0 <= expected[k] <= 250 for k in "pid")):
                         raise ValueError("P, I и D Max должны быть целыми числами от 0 до 250")
