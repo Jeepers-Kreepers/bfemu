@@ -382,6 +382,14 @@ def main():
     check(resp == b"gyro_lpf1_static_hz = 320" and cli.last_direction == ">",
           "успешное чтение после отказов отвечает как обычно")
 
+    # `set <имя>` без «=» — это чтение: cliSet() в этой ветке зовёт cliGet()
+    out_read = cli_over_msp(cli, "set gyro_lpf1_static_hz")
+    out_get = cli_over_msp(cli, "get gyro_lpf1_static_hz")
+    check(out_read == out_get and "gyro_lpf1_static_hz = 320" in out_read,
+          "CLI: `set <имя>` без «=» читает настройку, как `get <имя>`")
+    out = cli_over_msp(cli, "set nosuchthing").strip()
+    check(out == "###ERROR IN set: INVALID NAME: nosuchthing###", f"CLI: имя в ошибке — «set», а не «get»: {out}")
+
     print("4. Пейджинг длинного вывода (dump)")
     out = cli_over_msp(cli, "dump")
     check("# master" in out and "set gyro_lpf1_static_hz = 320" in out, "dump: секция master присутствует")
@@ -590,11 +598,13 @@ def main():
 
     rx = c4.request(44)
     check(len(rx) == 38, f"MSP_RX_CONFIG: {len(rx)} байт (нужно 38)")
-    check((u16(rx, 1), u16(rx, 3), u16(rx, 5)) == (2000, 1500, 1050),
+    # Заводские значения rxConfig 4.5.4 (pg/rx.c): maxcheck 1900, RX_MID_USEC 1500,
+    # mincheck 1050, airModeActivateThreshold 25 (раньше эмулятор отдавал 2000/30).
+    check((u16(rx, 1), u16(rx, 3), u16(rx, 5)) == (1900, 1500, 1050),
           f"max_check/mid_rc/min_check = {u16(rx,1)}/{u16(rx,3)}/{u16(rx,5)}")
     check((u16(rx, 8), u16(rx, 10)) == (885, 2115),
           f"rx_min_usec/rx_max_usec = {u16(rx,8)}/{u16(rx,10)}")
-    check(max(0, (u16(rx, 14) - 1000)) // 10 == 30, f"порог airmode = {max(0,(u16(rx,14)-1000))//10} %")
+    check(max(0, (u16(rx, 14) - 1000)) // 10 == 25, f"порог airmode = {max(0,(u16(rx,14)-1000))//10} %")
 
     arm = c4.request(61)
     check(len(arm) == 3, f"MSP_ARMING_CONFIG: {len(arm)} байт (нужно 3)")
@@ -1305,8 +1315,9 @@ def main():
           f"MSP_RC_TUNING: {len(rc_tuning)} байта, рейты ACTUAL (лимит {u16(rc_tuning, 16)}°/с)")
     rx_config = c16.request(44)
     check(len(rx_config) == 38, f"MSP_RX_CONFIG: {len(rx_config)} байт (раскладка MSPHelper.js)")
-    check(rx_config[0] == 9 and (u16(rx_config, 5), u16(rx_config, 3), u16(rx_config, 1)) == (1050, 1500, 2000),
-          f"Serial RX CRSF, «Диапазон стиков» {u16(rx_config, 5)} / {u16(rx_config, 3)} / {u16(rx_config, 1)} мкс")
+    check(rx_config[0] == 9 and (u16(rx_config, 5), u16(rx_config, 3), u16(rx_config, 1)) == (1050, 1500, 1900),
+          f"Serial RX CRSF, «Диапазон стиков» {u16(rx_config, 5)} / {u16(rx_config, 3)} / {u16(rx_config, 1)} мкс"
+          " (min_check/mid_rc/max_check = 1050/1500/1900, pg/rx.c)")
     # В «флеше» после раздела 14 лежат правки Failsafe — заводские 885/2115 проверяет
     # tools/check_receiver_tab.py на чистом «флеше».
     check(750 <= u16(rx_config, 8) < u16(rx_config, 10) <= 2250 and rx_config[31] == 1 and rx_config[30] == 30,
@@ -2844,8 +2855,10 @@ global.setInterval = () => 1;
     starts = [i for i in range(len(blob)) if blob.startswith(marker, i)]
     check(len(starts) == 6, f"Чёрный ящик: в накопителе {len(starts)} логов разных типов полёта")
     text = blob[:starts[1] if len(starts) > 1 else len(blob)].decode("latin-1", "replace")
-    check("P interval:2" in text and "looptime:1000" in text,
-          "Чёрный ящик: заголовок лога как у прошивки (P interval 2 → 500 Гц)")
+    # Заводской sample_rate = BLACKBOX_RATE_QUARTER (1/4), blackboxPInterval = 1 << 2 = 4
+    # (blackbox.c:2084) — тот же «P interval» стоит в заголовках логов во «флеше».
+    check("P interval:4" in text and "looptime:1000" in text,
+          "Чёрный ящик: заголовок лога как у прошивки (P interval 4 → 250 Гц)")
     check(len(text.split("Field I name:")[1].splitlines()[0].split(",")) == 38,
           "Чёрный ящик: в логе 38 основных полей (Field I name)")
 

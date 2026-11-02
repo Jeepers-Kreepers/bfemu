@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # только для подсказок типов: bb_scena
 
 # ------------------------------------------------------------------ параметры потока
 LOOPTIME_US = 1000          # цикл PID: 1 кГц («H looptime:1000»)
-LOG_EVERY = 2               # пишем каждый второй цикл → 500 Гц («H P interval:2»)
+LOG_EVERY = 4               # 1 << BLACKBOX_RATE_QUARTER: «H P interval:4», 250 Гц
 I_INTERVAL = 32             # кадр I каждые 32 цикла (≈32 мс, как blackboxIInterval)
 P_RATIO = I_INTERVAL // LOG_EVERY       # «H P ratio:16»
 SLOW_INTERVAL = I_INTERVAL * 8          # кадр S не реже раза в ~0,25 с
@@ -388,8 +388,8 @@ def encode_flight(flight: Flight, sysinfo: dict) -> bytes:
     """Собирает один лог: заголовок, кадры I/P/S/E и «End of log».
 
     Модель считает цикл PID с шагом ``LOOPTIME_US`` (1 мс), а в «флеш» пишется каждый
-    ``LOG_EVERY``-й цикл — отсюда «H P interval:2» и шаг времени 2 мс (500 Гц), как у
-    настоящего борта с sample_rate 1/2. События и смена режимов, случившиеся между
+    ``LOG_EVERY``-й цикл — отсюда «H P interval:4» и шаг времени 4 мс (250 Гц), как у
+    настоящего борта с заводским sample_rate 1/4 (BLACKBOX_RATE_QUARTER). События и смена режимов, случившиеся между
     записанными кадрами, прилипают к ближайшему следующему кадру.
     """
     log_every = int(sysinfo.get("log_every", LOG_EVERY) or 1)

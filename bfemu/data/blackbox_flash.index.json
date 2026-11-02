@@ -1,5 +1,5 @@
 {
- "p_interval": 2,
+ "p_interval": 4,
  "logs": [
   {
    "key": "takeoff_landing",

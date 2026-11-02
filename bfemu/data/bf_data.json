@@ -399,7 +399,7 @@
     "VIRTUAL"
    ],
    "pg": "PG_ACCELEROMETER_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "acc_high_range",
@@ -415,7 +415,7 @@
     "ON"
    ],
    "pg": "PG_ACCELEROMETER_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "acc_lpf_hz",
@@ -428,7 +428,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_ACCELEROMETER_CONFIG",
-   "default": null
+   "default": 25
   },
   {
    "name": "acc_trim_pitch",
@@ -722,7 +722,7 @@
    "max": 1700,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1500
   },
   {
    "name": "min_check",
@@ -735,7 +735,7 @@
    "max": 2250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1050
   },
   {
    "name": "max_check",
@@ -748,7 +748,7 @@
    "max": 2250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1900
   },
   {
    "name": "rssi_channel",
@@ -761,7 +761,7 @@
    "max": 18,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rssi_src_frame_errors",
@@ -777,7 +777,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rssi_scale",
@@ -790,7 +790,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 100
   },
   {
    "name": "rssi_offset",
@@ -803,7 +803,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rssi_invert",
@@ -819,7 +819,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rssi_src_frame_lpf_period",
@@ -832,7 +832,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 30
   },
   {
    "name": "rssi_smoothing",
@@ -845,7 +845,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 125
   },
   {
    "name": "rc_smoothing",
@@ -861,7 +861,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1
   },
   {
    "name": "rc_smoothing_auto_factor",
@@ -874,7 +874,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 30
   },
   {
    "name": "rc_smoothing_auto_factor_throttle",
@@ -887,7 +887,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 30
   },
   {
    "name": "rc_smoothing_setpoint_cutoff",
@@ -900,7 +900,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rc_smoothing_feedforward_cutoff",
@@ -913,7 +913,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rc_smoothing_throttle_cutoff",
@@ -926,7 +926,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "rc_smoothing_debug_axis",
@@ -944,7 +944,7 @@
     "THROTTLE"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "fpv_mix_degrees",
@@ -957,7 +957,7 @@
    "max": 90,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "max_aux_channels",
@@ -970,7 +970,7 @@
    "max": 14,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 14
   },
   {
    "name": "serialrx_provider",
@@ -1000,7 +1000,7 @@
     "SPEK1024"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 9
   },
   {
    "name": "serialrx_inverted",
@@ -1016,7 +1016,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "spektrum_sat_bind",
@@ -1029,7 +1029,7 @@
    "max": 10,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "spektrum_sat_bind_autoreset",
@@ -1045,7 +1045,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1
   },
   {
    "name": "srxl2_unit_id",
@@ -1058,7 +1058,7 @@
    "max": 15,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1
   },
   {
    "name": "srxl2_baud_fast",
@@ -1074,7 +1074,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1
   },
   {
    "name": "sbus_baud_fast",
@@ -1090,7 +1090,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "crsf_use_negotiated_baud",
@@ -1106,7 +1106,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "airmode_start_throttle_percent",
@@ -1119,7 +1119,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 25
   },
   {
    "name": "rx_min_usec",
@@ -1132,7 +1132,7 @@
    "max": 2250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 885
   },
   {
    "name": "rx_max_usec",
@@ -1145,7 +1145,7 @@
    "max": 2250,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 2115
   },
   {
    "name": "serialrx_halfduplex",
@@ -1161,7 +1161,7 @@
     "ON"
    ],
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 1
   },
   {
    "name": "msp_override_channels_mask",
@@ -1174,7 +1174,7 @@
    "max": 4294967295,
    "values": null,
    "pg": "PG_RX_CONFIG",
-   "default": null
+   "default": 0
   },
   {
    "name": "msp_override_failsafe",
@@ -2395,7 +2395,7 @@
     "ON"
    ],
    "pg": "PG_BEEPER_DEV_CONFIG",
-   "default": 1
+   "default": 0
   },
   {
    "name": "beeper_od",
@@ -2411,7 +2411,7 @@
     "ON"
    ],
    "pg": "PG_BEEPER_DEV_CONFIG",
-   "default": 0
+   "default": 1
   },
   {
    "name": "beeper_frequency",
@@ -3052,7 +3052,7 @@
    "max": 180,
    "values": null,
    "pg": "PG_IMU_CONFIG",
-   "default": 180
+   "default": 25
   },
   {
    "name": "imu_process_denom",
@@ -3882,7 +3882,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 75
   },
   {
    "name": "dterm_lpf1_dyn_max_hz",
@@ -3895,7 +3895,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 150
   },
   {
    "name": "dterm_lpf1_dyn_expo",
@@ -3908,7 +3908,7 @@
    "max": 10,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 5
   },
   {
    "name": "dterm_lpf1_type",
@@ -3926,7 +3926,7 @@
     "PT3"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "dterm_lpf1_static_hz",
@@ -3939,7 +3939,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 75
   },
   {
    "name": "dterm_lpf2_type",
@@ -3957,7 +3957,7 @@
     "PT3"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "dterm_lpf2_static_hz",
@@ -3970,7 +3970,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 150
   },
   {
    "name": "dterm_notch_hz",
@@ -3983,7 +3983,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "dterm_notch_cutoff",
@@ -3996,7 +3996,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "vbat_sag_compensation",
@@ -4009,7 +4009,7 @@
    "max": 150,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "pid_at_min_throttle",
@@ -4025,7 +4025,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "anti_gravity_gain",
@@ -4038,7 +4038,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 80
   },
   {
    "name": "anti_gravity_cutoff_hz",
@@ -4051,7 +4051,7 @@
    "max": 50,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 5
   },
   {
    "name": "anti_gravity_p_gain",
@@ -4064,7 +4064,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "acc_limit_yaw",
@@ -4077,7 +4077,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "acc_limit",
@@ -4090,7 +4090,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "crash_dthreshold",
@@ -4103,7 +4103,7 @@
    "max": 2000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "crash_gthreshold",
@@ -4116,7 +4116,7 @@
    "max": 2000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 400
   },
   {
    "name": "crash_setpoint_threshold",
@@ -4129,7 +4129,7 @@
    "max": 2000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 350
   },
   {
    "name": "crash_time",
@@ -4142,7 +4142,7 @@
    "max": 5000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 500
   },
   {
    "name": "crash_delay",
@@ -4155,7 +4155,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "crash_recovery_angle",
@@ -4168,7 +4168,7 @@
    "max": 30,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 10
   },
   {
    "name": "crash_recovery_rate",
@@ -4181,7 +4181,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "crash_limit_yaw",
@@ -4194,7 +4194,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 200
   },
   {
    "name": "crash_recovery",
@@ -4212,7 +4212,7 @@
     "DISARM"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "iterm_rotation",
@@ -4228,7 +4228,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "iterm_relax",
@@ -4247,7 +4247,7 @@
     "RPY_INC"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "iterm_relax_type",
@@ -4263,7 +4263,7 @@
     "SETPOINT"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "iterm_relax_cutoff",
@@ -4276,7 +4276,7 @@
    "max": 50,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 15
   },
   {
    "name": "iterm_windup",
@@ -4289,7 +4289,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 85
   },
   {
    "name": "iterm_limit",
@@ -4302,7 +4302,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 400
   },
   {
    "name": "pidsum_limit",
@@ -4315,7 +4315,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 500
   },
   {
    "name": "pidsum_limit_yaw",
@@ -4328,7 +4328,7 @@
    "max": 1000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 400
   },
   {
    "name": "yaw_lowpass_hz",
@@ -4341,7 +4341,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "throttle_boost",
@@ -4354,7 +4354,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 5
   },
   {
    "name": "throttle_boost_cutoff",
@@ -4367,7 +4367,7 @@
    "max": 50,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 15
   },
   {
    "name": "acro_trainer_angle_limit",
@@ -4380,7 +4380,7 @@
    "max": 80,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 20
   },
   {
    "name": "acro_trainer_lookahead_ms",
@@ -4393,7 +4393,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "acro_trainer_debug_axis",
@@ -4409,7 +4409,7 @@
     "PITCH"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "acro_trainer_gain",
@@ -4422,7 +4422,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 75
   },
   {
    "name": "p_pitch",
@@ -4617,7 +4617,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 80
   },
   {
    "name": "angle_limit",
@@ -4630,7 +4630,7 @@
    "max": 85,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 60
   },
   {
    "name": "angle_earth_ref",
@@ -4643,7 +4643,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "horizon_level_strength",
@@ -4682,7 +4682,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 135
   },
   {
    "name": "horizon_ignore_sticks",
@@ -4698,7 +4698,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "horizon_delay_ms",
@@ -4711,7 +4711,7 @@
    "max": 5000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 500
   },
   {
    "name": "abs_control_gain",
@@ -4724,7 +4724,7 @@
    "max": 20,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "abs_control_limit",
@@ -4737,7 +4737,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 90
   },
   {
    "name": "abs_control_error_limit",
@@ -4750,7 +4750,7 @@
    "max": 45,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 20
   },
   {
    "name": "abs_control_cutoff",
@@ -4763,7 +4763,7 @@
    "max": 45,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 11
   },
   {
    "name": "use_integrated_yaw",
@@ -4779,7 +4779,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "integrated_yaw_relax",
@@ -4792,7 +4792,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 200
   },
   {
    "name": "d_min_roll",
@@ -4844,7 +4844,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 37
   },
   {
    "name": "d_max_advance",
@@ -4857,7 +4857,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 20
   },
   {
    "name": "motor_output_limit",
@@ -4870,7 +4870,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "auto_profile_cell_count",
@@ -4883,7 +4883,7 @@
    "max": 8,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "launch_control_mode",
@@ -4900,7 +4900,7 @@
     "FULL"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "launch_trigger_allow_reset",
@@ -4916,7 +4916,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "launch_trigger_throttle_percent",
@@ -4929,7 +4929,7 @@
    "max": 90,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 20
   },
   {
    "name": "launch_angle_limit",
@@ -4942,7 +4942,7 @@
    "max": 80,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "launch_control_gain",
@@ -4955,7 +4955,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 40
   },
   {
    "name": "thrust_linear",
@@ -4968,7 +4968,7 @@
    "max": 150,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "transient_throttle_limit",
@@ -4981,7 +4981,7 @@
    "max": 30,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "feedforward_transition",
@@ -4994,7 +4994,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "feedforward_averaging",
@@ -5012,7 +5012,7 @@
     "4_POINT"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "feedforward_smooth_factor",
@@ -5025,7 +5025,7 @@
    "max": 95,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 25
   },
   {
    "name": "feedforward_jitter_factor",
@@ -5038,7 +5038,7 @@
    "max": 20,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 7
   },
   {
    "name": "feedforward_boost",
@@ -5051,7 +5051,7 @@
    "max": 50,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 15
   },
   {
    "name": "feedforward_max_rate_limit",
@@ -5064,7 +5064,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 90
   },
   {
    "name": "dyn_idle_min_rpm",
@@ -5077,7 +5077,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "dyn_idle_p_gain",
@@ -5090,7 +5090,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "dyn_idle_i_gain",
@@ -5103,7 +5103,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "dyn_idle_d_gain",
@@ -5116,7 +5116,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "dyn_idle_max_increase",
@@ -5129,7 +5129,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 150
   },
   {
    "name": "dyn_idle_start_increase",
@@ -5142,7 +5142,7 @@
    "max": 255,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "level_race_mode",
@@ -5158,7 +5158,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "simplified_pids_mode",
@@ -5175,7 +5175,7 @@
     "RPY"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 2
   },
   {
    "name": "simplified_master_multiplier",
@@ -5188,7 +5188,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_i_gain",
@@ -5201,7 +5201,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_d_gain",
@@ -5214,7 +5214,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_pi_gain",
@@ -5227,7 +5227,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_dmax_gain",
@@ -5240,7 +5240,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_feedforward_gain",
@@ -5253,7 +5253,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_pitch_d_gain",
@@ -5266,7 +5266,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_pitch_pi_gain",
@@ -5279,7 +5279,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_dterm_filter",
@@ -5295,7 +5295,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "simplified_dterm_filter_multiplier",
@@ -5308,7 +5308,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 100
   },
   {
    "name": "simplified_gyro_filter",
@@ -5353,7 +5353,7 @@
     "D"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1
   },
   {
    "name": "tpa_rate",
@@ -5366,7 +5366,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 65
   },
   {
    "name": "tpa_breakpoint",
@@ -5379,7 +5379,7 @@
    "max": 2000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1350
   },
   {
    "name": "tpa_low_rate",
@@ -5392,7 +5392,7 @@
    "max": 100,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 20
   },
   {
    "name": "tpa_low_breakpoint",
@@ -5405,7 +5405,7 @@
    "max": 2000,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 1050
   },
   {
    "name": "tpa_low_always",
@@ -5421,7 +5421,7 @@
     "ON"
    ],
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 0
   },
   {
    "name": "ez_landing_threshold",
@@ -5434,7 +5434,7 @@
    "max": 200,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 25
   },
   {
    "name": "ez_landing_limit",
@@ -5447,7 +5447,7 @@
    "max": 75,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 15
   },
   {
    "name": "ez_landing_speed",
@@ -5460,7 +5460,7 @@
    "max": 250,
    "values": null,
    "pg": "PG_PID_PROFILE",
-   "default": null
+   "default": 50
   },
   {
    "name": "tlm_inverted",
@@ -6148,7 +6148,7 @@
     "ON"
    ],
    "pg": "PG_SDCARD_CONFIG",
-   "default": 1
+   "default": 0
   },
   {
    "name": "sdcard_mode",
@@ -8032,7 +8032,7 @@
     "240MHZ"
    ],
    "pg": "PG_SYSTEM_CONFIG",
-   "default": 1
+   "default": 0
   },
   {
    "name": "pwr_on_arm_grace",
@@ -8531,7 +8531,7 @@
     "ON"
    ],
    "pg": "PG_RX_CC2500_SPI_CONFIG",
-   "default": 0
+   "default": 1
   },
   {
    "name": "led_inversion",
@@ -9342,7 +9342,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_SCHEDULER_CONFIG",
-   "default": 1
+   "default": 25
   },
   {
    "name": "scheduler_relax_osd",
@@ -9355,7 +9355,7 @@
    "max": 500,
    "values": null,
    "pg": "PG_SCHEDULER_CONFIG",
-   "default": 1
+   "default": 25
   },
   {
    "name": "cpu_late_limit_permille",
@@ -9704,308 +9704,166 @@
   }
  ],
  "lookup_tables": {
-  "voltageMeterSourceNames": [
+  "blackboxFieldHeaderNames": [
+   "name",
+   "signed",
+   "predictor",
+   "encoding",
+   "predictor",
+   "encoding"
+  ],
+  "debugModeNames": [
    "NONE",
-   "ADC",
-   "ESC"
-  ],
-  "currentMeterSourceNames": [
-   "NONE",
-   "ADC",
-   "VIRTUAL",
-   "ESC",
-   "MSP"
-  ],
-  "batteryStateStrings": [
-   "OK",
-   "WARNING",
-   "CRITICAL",
-   "NOT PRESENT",
-   "INIT",
-   "platform.h",
-   "build/debug.h",
-   "common/maths.h",
-   "common/filter.h",
-   "pg/pg.h",
-   "pg/pg_ids.h",
-   "drivers/barometer/barometer.h",
-   "drivers/barometer/barometer_bmp085.h",
-   "drivers/barometer/barometer_bmp280.h",
-   "drivers/barometer/barometer_bmp388.h",
-   "drivers/barometer/barometer_dps310.h",
-   "drivers/barometer/barometer_qmp6988.h",
-   "drivers/barometer/barometer_virtual.h",
-   "drivers/barometer/barometer_ms5611.h",
-   "drivers/barometer/barometer_lps.h",
-   "drivers/barometer/barometer_2smpb_02b.h",
-   "drivers/barometer/barometer_lps22df.h",
-   "drivers/bus.h",
-   "drivers/bus_i2c_busdev.h",
-   "drivers/bus_spi.h",
-   "drivers/io.h",
-   "drivers/time.h",
-   "fc/runtime_config.h",
-   "sensors/sensors.h",
-   "scheduler/scheduler.h",
-   "barometer.h"
-  ],
-  "osdTimerSourceNames": [
-   "ON TIME  ",
-   "TOTAL ARM",
-   "LAST ARM ",
-   "ON/ARM   "
-  ],
-  "axisTitles": [
-   "ROL",
-   "PIT",
-   "YAW",
-   "%s P:%3d I:%3d D:%3d",
-   "Rate profile: %d",
-   "         R   P   Y",
-   "RcRate %3d %3d %3d",
-   "Super  %3d %3d %3d",
-   "Expo   %3d %3d %3d",
-   "Sats: %d Fix: %c",
-   "La/Lo: %d/%d",
-   "Spd: %d",
-   "GC: %d",
-   "RX: %d",
-   "ERRs: %d",
-   "Dt: %d",
-   "TOs: %d",
-   "Volts: %d.%02d Cells: %d",
-   "Amp: %d.%d mAh: %d",
-   "%s %5d %5d %5d",
-   "        X     Y     Z",
-   "ACC",
-   "GYR",
-   "MAG",
-   "I&H",
-   "%2d%6d%5d%4d%4d",
-   "Task max  avg mx% av%",
-   "File no: %d",
-   "Not ready yet",
-   "Not supp. dev.",
-   "BB not working",
-   "%d = %5d",
-   "ARMED",
-   "PROFILE",
-   "RATE PROFILE",
-   "GPS",
-   "RX",
+   "CYCLETIME",
    "BATTERY",
-   "SENSORS",
-   "TASKS",
-   "BLACK BOX",
-   "DEBUG"
-  ],
-  "failsafeProcedureNames": [
-   "AUTO-LAND",
-   "DROP",
-   "GPS-RESCUE"
-  ],
-  "adjustmentLabels": [
-   "RC RATE",
-   "RC EXPO",
-   "THROTTLE EXPO",
-   "ROLL RATE",
-   "YAW RATE",
-   "PITCH/ROLL P",
-   "PITCH/ROLL I",
-   "PITCH/ROLL D",
-   "YAW P",
-   "YAW I",
-   "YAW D",
-   "RATE PROFILE",
-   "PITCH RATE",
-   "ROLL RATE",
-   "PITCH P",
-   "PITCH I",
-   "PITCH D",
-   "ROLL P",
-   "ROLL I",
-   "ROLL D",
-   "RC RATE YAW",
-   "PITCH/ROLL F",
-   "FF TRANSITION",
-   "HORIZON STRENGTH",
-   "ROLL RC RATE",
-   "PITCH RC RATE",
-   "ROLL RC EXPO",
-   "PITCH RC EXPO",
-   "PID AUDIO",
-   "PITCH F",
-   "ROLL F",
-   "YAW F",
-   "OSD PROFILE"
-  ],
-  "osdLaunchControlModeNames": [
-   "NORMAL",
-   "PITCHONLY",
-   "FULL"
-  ],
-  "ownerNames": [
-   "FREE",
-   "PWM",
-   "PPM",
-   "MOTOR",
-   "SERVO",
-   "LED",
-   "ADC",
-   "ADC_BATT",
-   "ADC_CURR",
-   "ADC_EXT",
-   "ADC_RSSI",
-   "SERIAL_TX",
-   "SERIAL_RX",
-   "DEBUG",
-   "TIMER",
-   "SONAR_TRIGGER",
-   "SONAR_ECHO",
-   "SYSTEM",
-   "SPI_SCK",
-   "SPI_SDI",
-   "SPI_SDO",
-   "I2C_SCL",
-   "I2C_SDA",
-   "SDCARD",
-   "SDIO_CK",
-   "SDIO_CMD",
-   "SDIO_D0",
-   "SDIO_D1",
-   "SDIO_D2",
-   "SDIO_D3",
-   "SDCARD_CS",
-   "SDCARD_DETECT",
-   "FLASH_CS",
-   "BARO_CS",
-   "GYRO_CS",
-   "OSD_CS",
-   "RX_SPI_CS",
-   "SPI_CS",
-   "GYRO_EXTI",
-   "BARO_EOC",
-   "COMPASS_EXTI",
-   "USB",
-   "USB_DETECT",
-   "BEEPER",
-   "OSD",
-   "RX_BIND",
-   "INVERTER",
-   "LED_STRIP",
-   "TRANSPONDER",
-   "VTX_POWER",
-   "VTX_CS",
-   "VTX_DATA",
-   "VTX_CLK",
-   "COMPASS_CS",
-   "RX_BIND_PLUG",
-   "ESCSERIAL",
-   "CAMERA_CONTROL",
-   "TIMUP",
+   "GYRO_FILTERED",
+   "ACCELEROMETER",
+   "PIDLOOP",
+   "GYRO_SCALED",
+   "RC_INTERPOLATION",
+   "ANGLERATE",
+   "ESC_SENSOR",
+   "SCHEDULER",
+   "STACK",
+   "ESC_SENSOR_RPM",
+   "ESC_SENSOR_TMP",
+   "ALTITUDE",
+   "FFT",
+   "FFT_TIME",
+   "FFT_FREQ",
+   "RX_FRSKY_SPI",
+   "RX_SFHSS_SPI",
+   "GYRO_RAW",
+   "DUAL_GYRO_RAW",
+   "DUAL_GYRO_DIFF",
+   "MAX7456_SIGNAL",
+   "MAX7456_SPICLOCK",
+   "SBUS",
+   "FPORT",
    "RANGEFINDER",
+   "RANGEFINDER_QUALITY",
+   "LIDAR_TF",
+   "ADC_INTERNAL",
+   "RUNAWAY_TAKEOFF",
+   "SDIO",
+   "CURRENT_SENSOR",
+   "USB",
+   "SMARTAUDIO",
+   "RTH",
+   "ITERM_RELAX",
+   "ACRO_TRAINER",
+   "RC_SMOOTHING",
+   "RX_SIGNAL_LOSS",
+   "RC_SMOOTHING_RATE",
+   "ANTI_GRAVITY",
+   "DYN_LPF",
+   "RX_SPEKTRUM_SPI",
+   "DSHOT_RPM_TELEMETRY",
+   "RPM_FILTER",
+   "D_MIN",
+   "AC_CORRECTION",
+   "AC_ERROR",
+   "DUAL_GYRO_SCALED",
+   "DSHOT_RPM_ERRORS",
+   "CRSF_LINK_STATISTICS_UPLINK",
+   "CRSF_LINK_STATISTICS_PWR",
+   "CRSF_LINK_STATISTICS_DOWN",
+   "BARO",
+   "GPS_RESCUE_THROTTLE_PID",
+   "DYN_IDLE",
+   "FEEDFORWARD_LIMIT",
+   "FEEDFORWARD",
+   "BLACKBOX_OUTPUT",
+   "GYRO_SAMPLE",
+   "RX_TIMING",
+   "D_LPF",
+   "VTX_TRAMP",
+   "GHST",
+   "GHST_MSP",
+   "SCHEDULER_DETERMINISM",
+   "TIMING_ACCURACY",
+   "RX_EXPRESSLRS_SPI",
+   "RX_EXPRESSLRS_PHASELOCK",
+   "RX_STATE_TIME",
+   "GPS_RESCUE_VELOCITY",
+   "GPS_RESCUE_HEADING",
+   "GPS_RESCUE_TRACKING",
+   "GPS_CONNECTION",
+   "ATTITUDE",
+   "VTX_MSP",
+   "GPS_DOP",
+   "FAILSAFE",
+   "GYRO_CALIBRATION",
+   "ANGLE_MODE",
+   "ANGLE_TARGET",
+   "CURRENT_ANGLE",
+   "DSHOT_TELEMETRY_COUNTS",
+   "RPM_LIMIT",
+   "RC_STATS",
+   "MAG_CALIB",
+   "MAG_TASK_RATE",
+   "EZLANDING"
+  ],
+  "mixerNames": [
+   "TRI",
+   "QUADP",
+   "QUADX",
+   "BI",
+   "GIMBAL",
+   "Y6",
+   "HEX6",
+   "FLYING_WING",
+   "Y4",
+   "HEX6X",
+   "OCTOX8",
+   "OCTOFLATP",
+   "OCTOFLATX",
+   "AIRPLANE",
+   "HELI_120_CCPM",
+   "HELI_90_DEG",
+   "VTAIL4",
+   "HEX6H",
+   "PPM_TO_SERVO",
+   "DUALCOPTER",
+   "SINGLECOPTER",
+   "ATAIL4",
+   "CUSTOM",
+   "CUSTOMAIRPLANE",
+   "CUSTOMTRI",
+   "QUADX1234"
+  ],
+  "featureNames": [
+   "RX_PPM",
+   "INFLIGHT_ACC_CAL",
+   "RX_SERIAL",
+   "MOTOR_STOP",
+   "SERVO_TILT",
+   "SOFTSERIAL",
+   "GPS",
+   "RANGEFINDER",
+   "TELEMETRY",
+   "3D",
+   "RX_PARALLEL_PWM",
+   "RX_MSP",
+   "RSSI_ADC",
+   "LED_STRIP",
+   "DISPLAY",
+   "OSD",
+   "CHANNEL_FORWARDING",
+   "TRANSPONDER",
+   "AIRMODE",
    "RX_SPI",
-   "PINIO",
-   "USB_MSC_PIN",
-   "MCO",
-   "RX_SPI_BIND",
-   "RX_SPI_LED",
-   "PREINIT",
-   "RX_SPI_EXTI",
-   "RX_SPI_CC2500_TX_EN",
-   "RX_SPI_CC2500_LNA_EN",
-   "RX_SPI_CC2500_ANT_SEL",
-   "QSPI_CLK",
-   "QSPI_BK1IO0",
-   "QSPI_BK1IO1",
-   "QSPI_BK1IO2",
-   "QSPI_BK1IO3",
-   "QSPI_BK1CS",
-   "QSPI_BK2IO0",
-   "QSPI_BK2IO1",
-   "QSPI_BK2IO2",
-   "QSPI_BK2IO3",
-   "QSPI_BK2CS",
-   "BARO_XCLR",
-   "PULLUP",
-   "PULLDOWN",
-   "DSHOT_BITBANG",
-   "SWD",
-   "RX_SPI_EXPRESSLRS_RESET",
-   "RX_SPI_EXPRESSLRS_BUSY",
-   "SOFTSERIAL_TX",
-   "SOFTSERIAL_RX",
-   "LPUART_TX",
-   "LPUART_RX"
+   "ESC_SENSOR",
+   "ANTI_GRAVITY"
   ],
-  "trampCmsPitModeNames": [
-   "---",
-   "OFF",
-   "ON "
-  ],
-  "saCmsDeviceStatusNames": [
-   "OFFL",
-   "ONL V1",
-   "ONL V2",
-   "ONLV21"
-  ],
-  "saCmsOpmodelNames": [
-   "----",
-   "FREE",
-   "RACE"
-  ],
-  "saCmsFselModeNames": [
-   "CHAN",
-   "USER"
-  ],
-  "saCmsPitFModeNames": [
-   "---",
-   "PIR",
-   "POR"
-  ],
-  "saCmsPitNames": [
-   "---",
-   "OFF",
-   "ON "
-  ],
-  "cmsxCmsPitNames": [
-   "---",
-   "OFF",
-   "ON "
-  ],
-  "mspCmsPitModeNames": [
-   "---",
-   "OFF",
-   "ON "
-  ],
-  "ledProfileNames": [
-   "RACE",
-   "BEACON",
-   "STATUS"
-  ],
-  "osdTableGyroToUse": [
-   "FIRST",
-   "SECOND",
-   "BOTH"
-  ],
-  "cmsx_ProfileNames": [
-   "-",
-   "1",
-   "2",
-   "3"
-  ],
-  "cmsx_BlackboxDeviceNames": [
-   "NONE",
-   "FLASH",
-   "SDCARD",
-   "SERIAL"
-  ],
-  "cmsx_BlackboxRateNames": [
-   "1/1",
-   "1/2",
-   "1/4",
-   "1/8",
-   "1/16"
+  "sensorTypeNames": [
+   "GYRO",
+   "ACC",
+   "BARO",
+   "MAG",
+   "RANGEFINDER",
+   "GPS",
+   "GPS+MAG"
   ],
   "lookupTableAccHardware": [
    "AUTO",
@@ -10449,166 +10307,243 @@
    "WIDE",
    "HYBRID"
   ],
-  "mixerNames": [
-   "TRI",
-   "QUADP",
-   "QUADX",
-   "BI",
-   "GIMBAL",
-   "Y6",
-   "HEX6",
-   "FLYING_WING",
-   "Y4",
-   "HEX6X",
-   "OCTOX8",
-   "OCTOFLATP",
-   "OCTOFLATX",
-   "AIRPLANE",
-   "HELI_120_CCPM",
-   "HELI_90_DEG",
-   "VTAIL4",
-   "HEX6H",
-   "PPM_TO_SERVO",
-   "DUALCOPTER",
-   "SINGLECOPTER",
-   "ATAIL4",
-   "CUSTOM",
-   "CUSTOMAIRPLANE",
-   "CUSTOMTRI",
-   "QUADX1234"
+  "osdTableGyroToUse": [
+   "FIRST",
+   "SECOND",
+   "BOTH"
   ],
-  "featureNames": [
-   "RX_PPM",
-   "INFLIGHT_ACC_CAL",
-   "RX_SERIAL",
-   "MOTOR_STOP",
-   "SERVO_TILT",
-   "SOFTSERIAL",
-   "GPS",
-   "RANGEFINDER",
-   "TELEMETRY",
-   "3D",
-   "RX_PARALLEL_PWM",
-   "RX_MSP",
-   "RSSI_ADC",
-   "LED_STRIP",
-   "DISPLAY",
-   "OSD",
-   "CHANNEL_FORWARDING",
-   "TRANSPONDER",
-   "AIRMODE",
-   "RX_SPI",
-   "ESC_SENSOR",
-   "ANTI_GRAVITY"
+  "cmsx_ProfileNames": [
+   "-",
+   "1",
+   "2",
+   "3"
   ],
-  "sensorTypeNames": [
-   "GYRO",
-   "ACC",
-   "BARO",
-   "MAG",
-   "RANGEFINDER",
-   "GPS",
-   "GPS+MAG"
-  ],
-  "debugModeNames": [
+  "cmsx_BlackboxDeviceNames": [
    "NONE",
-   "CYCLETIME",
-   "BATTERY",
-   "GYRO_FILTERED",
-   "ACCELEROMETER",
-   "PIDLOOP",
-   "GYRO_SCALED",
-   "RC_INTERPOLATION",
-   "ANGLERATE",
-   "ESC_SENSOR",
-   "SCHEDULER",
-   "STACK",
-   "ESC_SENSOR_RPM",
-   "ESC_SENSOR_TMP",
-   "ALTITUDE",
-   "FFT",
-   "FFT_TIME",
-   "FFT_FREQ",
-   "RX_FRSKY_SPI",
-   "RX_SFHSS_SPI",
-   "GYRO_RAW",
-   "DUAL_GYRO_RAW",
-   "DUAL_GYRO_DIFF",
-   "MAX7456_SIGNAL",
-   "MAX7456_SPICLOCK",
-   "SBUS",
-   "FPORT",
-   "RANGEFINDER",
-   "RANGEFINDER_QUALITY",
-   "LIDAR_TF",
-   "ADC_INTERNAL",
-   "RUNAWAY_TAKEOFF",
-   "SDIO",
-   "CURRENT_SENSOR",
-   "USB",
-   "SMARTAUDIO",
-   "RTH",
-   "ITERM_RELAX",
-   "ACRO_TRAINER",
-   "RC_SMOOTHING",
-   "RX_SIGNAL_LOSS",
-   "RC_SMOOTHING_RATE",
-   "ANTI_GRAVITY",
-   "DYN_LPF",
-   "RX_SPEKTRUM_SPI",
-   "DSHOT_RPM_TELEMETRY",
-   "RPM_FILTER",
-   "D_MIN",
-   "AC_CORRECTION",
-   "AC_ERROR",
-   "DUAL_GYRO_SCALED",
-   "DSHOT_RPM_ERRORS",
-   "CRSF_LINK_STATISTICS_UPLINK",
-   "CRSF_LINK_STATISTICS_PWR",
-   "CRSF_LINK_STATISTICS_DOWN",
-   "BARO",
-   "GPS_RESCUE_THROTTLE_PID",
-   "DYN_IDLE",
-   "FEEDFORWARD_LIMIT",
-   "FEEDFORWARD",
-   "BLACKBOX_OUTPUT",
-   "GYRO_SAMPLE",
-   "RX_TIMING",
-   "D_LPF",
-   "VTX_TRAMP",
-   "GHST",
-   "GHST_MSP",
-   "SCHEDULER_DETERMINISM",
-   "TIMING_ACCURACY",
-   "RX_EXPRESSLRS_SPI",
-   "RX_EXPRESSLRS_PHASELOCK",
-   "RX_STATE_TIME",
-   "GPS_RESCUE_VELOCITY",
-   "GPS_RESCUE_HEADING",
-   "GPS_RESCUE_TRACKING",
-   "GPS_CONNECTION",
-   "ATTITUDE",
-   "VTX_MSP",
-   "GPS_DOP",
-   "FAILSAFE",
-   "GYRO_CALIBRATION",
-   "ANGLE_MODE",
-   "ANGLE_TARGET",
-   "CURRENT_ANGLE",
-   "DSHOT_TELEMETRY_COUNTS",
-   "RPM_LIMIT",
-   "RC_STATS",
-   "MAG_CALIB",
-   "MAG_TASK_RATE",
-   "EZLANDING"
+   "FLASH",
+   "SDCARD",
+   "SERIAL"
   ],
-  "blackboxFieldHeaderNames": [
-   "name",
-   "signed",
-   "predictor",
-   "encoding",
-   "predictor",
-   "encoding"
+  "cmsx_BlackboxRateNames": [
+   "1/1",
+   "1/2",
+   "1/4",
+   "1/8",
+   "1/16"
+  ],
+  "ledProfileNames": [
+   "RACE",
+   "BEACON",
+   "STATUS"
+  ],
+  "mspCmsPitModeNames": [
+   "---",
+   "OFF",
+   "ON "
+  ],
+  "cmsxCmsPitNames": [
+   "---",
+   "OFF",
+   "ON "
+  ],
+  "saCmsDeviceStatusNames": [
+   "OFFL",
+   "ONL V1",
+   "ONL V2",
+   "ONLV21"
+  ],
+  "saCmsOpmodelNames": [
+   "----",
+   "FREE",
+   "RACE"
+  ],
+  "saCmsFselModeNames": [
+   "CHAN",
+   "USER"
+  ],
+  "saCmsPitFModeNames": [
+   "---",
+   "PIR",
+   "POR"
+  ],
+  "saCmsPitNames": [
+   "---",
+   "OFF",
+   "ON "
+  ],
+  "trampCmsPitModeNames": [
+   "---",
+   "OFF",
+   "ON "
+  ],
+  "ownerNames": [
+   "FREE",
+   "PWM",
+   "PPM",
+   "MOTOR",
+   "SERVO",
+   "LED",
+   "ADC",
+   "ADC_BATT",
+   "ADC_CURR",
+   "ADC_EXT",
+   "ADC_RSSI",
+   "SERIAL_TX",
+   "SERIAL_RX",
+   "DEBUG",
+   "TIMER",
+   "SONAR_TRIGGER",
+   "SONAR_ECHO",
+   "SYSTEM",
+   "SPI_SCK",
+   "SPI_SDI",
+   "SPI_SDO",
+   "I2C_SCL",
+   "I2C_SDA",
+   "SDCARD",
+   "SDIO_CK",
+   "SDIO_CMD",
+   "SDIO_D0",
+   "SDIO_D1",
+   "SDIO_D2",
+   "SDIO_D3",
+   "SDCARD_CS",
+   "SDCARD_DETECT",
+   "FLASH_CS",
+   "BARO_CS",
+   "GYRO_CS",
+   "OSD_CS",
+   "RX_SPI_CS",
+   "SPI_CS",
+   "GYRO_EXTI",
+   "BARO_EOC",
+   "COMPASS_EXTI",
+   "USB",
+   "USB_DETECT",
+   "BEEPER",
+   "OSD",
+   "RX_BIND",
+   "INVERTER",
+   "LED_STRIP",
+   "TRANSPONDER",
+   "VTX_POWER",
+   "VTX_CS",
+   "VTX_DATA",
+   "VTX_CLK",
+   "COMPASS_CS",
+   "RX_BIND_PLUG",
+   "ESCSERIAL",
+   "CAMERA_CONTROL",
+   "TIMUP",
+   "RANGEFINDER",
+   "RX_SPI",
+   "PINIO",
+   "USB_MSC_PIN",
+   "MCO",
+   "RX_SPI_BIND",
+   "RX_SPI_LED",
+   "PREINIT",
+   "RX_SPI_EXTI",
+   "RX_SPI_CC2500_TX_EN",
+   "RX_SPI_CC2500_LNA_EN",
+   "RX_SPI_CC2500_ANT_SEL",
+   "QSPI_CLK",
+   "QSPI_BK1IO0",
+   "QSPI_BK1IO1",
+   "QSPI_BK1IO2",
+   "QSPI_BK1IO3",
+   "QSPI_BK1CS",
+   "QSPI_BK2IO0",
+   "QSPI_BK2IO1",
+   "QSPI_BK2IO2",
+   "QSPI_BK2IO3",
+   "QSPI_BK2CS",
+   "BARO_XCLR",
+   "PULLUP",
+   "PULLDOWN",
+   "DSHOT_BITBANG",
+   "SWD",
+   "RX_SPI_EXPRESSLRS_RESET",
+   "RX_SPI_EXPRESSLRS_BUSY",
+   "SOFTSERIAL_TX",
+   "SOFTSERIAL_RX",
+   "LPUART_TX",
+   "LPUART_RX"
+  ],
+  "osdLaunchControlModeNames": [
+   "NORMAL",
+   "PITCHONLY",
+   "FULL"
+  ],
+  "adjustmentLabels": [
+   "RC RATE",
+   "RC EXPO",
+   "THROTTLE EXPO",
+   "ROLL RATE",
+   "YAW RATE",
+   "PITCH/ROLL P",
+   "PITCH/ROLL I",
+   "PITCH/ROLL D",
+   "YAW P",
+   "YAW I",
+   "YAW D",
+   "RATE PROFILE",
+   "PITCH RATE",
+   "ROLL RATE",
+   "PITCH P",
+   "PITCH I",
+   "PITCH D",
+   "ROLL P",
+   "ROLL I",
+   "ROLL D",
+   "RC RATE YAW",
+   "PITCH/ROLL F",
+   "FF TRANSITION",
+   "HORIZON STRENGTH",
+   "ROLL RC RATE",
+   "PITCH RC RATE",
+   "ROLL RC EXPO",
+   "PITCH RC EXPO",
+   "PID AUDIO",
+   "PITCH F",
+   "ROLL F",
+   "YAW F",
+   "OSD PROFILE"
+  ],
+  "failsafeProcedureNames": [
+   "AUTO-LAND",
+   "DROP",
+   "GPS-RESCUE"
+  ],
+  "axisTitles": [
+   "ROL",
+   "PIT",
+   "YAW"
+  ],
+  "osdTimerSourceNames": [
+   "ON TIME  ",
+   "TOTAL ARM",
+   "LAST ARM ",
+   "ON/ARM   "
+  ],
+  "batteryStateStrings": [
+   "OK",
+   "WARNING",
+   "CRITICAL",
+   "NOT PRESENT",
+   "INIT"
+  ],
+  "currentMeterSourceNames": [
+   "NONE",
+   "ADC",
+   "VIRTUAL",
+   "ESC",
+   "MSP"
+  ],
+  "voltageMeterSourceNames": [
+   "NONE",
+   "ADC",
+   "ESC"
   ]
  },
  "features": [

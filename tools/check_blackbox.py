@@ -245,7 +245,7 @@ def main() -> int:
         out = result.stdout + result.stderr
         check("frames failed" not in out.lower() and "unreadable" not in out.lower(),
               "декодер betaflight/blackbox-tools не нашёл негодных кадров")
-        check("Data rate  500Hz" in out, "декодер видит поток 500 Гц (P interval 2, looptime 1000)")
+        check("Data rate  250Hz" in out, "декодер видит поток 250 Гц (P interval 4, looptime 1000)")
     else:
         print("   [ -- ] blackbox_decode не собран — проверка декодером пропущена")
 
@@ -266,7 +266,7 @@ def main() -> int:
     check(config["rate_denom"] == 1 << config["sample_rate"],
           "rateDenom = 1/P interval — как blackboxGetRateDenom()")
     check(config["p_denom"] * (1 << config["sample_rate"]) == 32,
-          "P ratio = I interval / P interval (32 / 2)")
+          "P ratio = I interval / P interval (32 / 4)")
 
     # --- MSP_SET_BLACKBOX_CONFIG (81): меняем частоту и маску, как вкладка
     print("\n-- запись настроек из вкладки (кнопка «Сохранить») --")

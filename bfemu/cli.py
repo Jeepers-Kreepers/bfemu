@@ -227,17 +227,20 @@ class CliEngine:
                     + _pad(t[4], 8) + "0")
 
     # ------------------------------------------------------------ get / set
-    def cmd_get(self, args=""):
+    def cmd_get(self, args="", cmd_name="get"):
         """`get` [строка] — cliGet(): подстрока ищется без учёта регистра (strcasestr).
 
         Без аргументов совпадают все настройки (пустая подстрока есть в любом имени) —
         прошивка печатает всю таблицу. После значения идут: строка профиля
         (`cliProfile()`/`cliRateProfile()` с пустым аргументом), границы и заводское значение.
+
+        `cmd_name` нужен ради `set` без «=»: cliSet() в этой ветке зовёт cliGet() как есть,
+        поэтому в ошибке остаётся имя команды `set`, а не `get`.
         """
         needle = args.strip().lower()
         matches = [s for s in self.fc.settings_list if needle in s["name"].lower()]
         if not matches:
-            self._error("get", f"INVALID NAME: {args.strip()}")
+            self._error(cmd_name, f"INVALID NAME: {args.strip()}")
             return
         for i, s in enumerate(matches):
             if i:
@@ -276,7 +279,9 @@ class CliEngine:
                 self._w(line)
             return
         if "=" not in args:
-            self._error("set", f"INVALID NAME: {args}")
+            # cliSet(): без «=» прошивка не отказывает, а зовёт cliGet(cmdName, cmdline) —
+            # `set gyro_lpf1` читает настройку, как `get gyro_lpf1` (в ошибке — имя «set»).
+            self.cmd_get(args, "set")
             return
         name, _, raw_value = args.partition("=")
         name = name.strip()
