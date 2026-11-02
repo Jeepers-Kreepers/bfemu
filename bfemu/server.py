@@ -870,8 +870,12 @@ class HttpMonitor:
                         self.close_connection = True
                         raise ValueError("Недопустимый размер запроса")
                     data = _json.loads(self.rfile.read(length))
-                    if not isinstance(data, dict) or set(data) != {"axis", "profile", "expected", "aircraft"}:
+                    required = {"axis", "profile", "expected", "aircraft"}
+                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms"}:
                         raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
+                    period = data.get("sensor_period_ms", 4)
+                    if type(period) is not int or period not in (2, 4, 8):
+                        raise ValueError("Период датчиков SITL должен быть 2, 4 или 8 мс")
                     axis, profile, expected = data["axis"], data["profile"], data["expected"]
                     if axis not in _pid_trainer.AXES or type(profile) is not int:
                         raise ValueError("Неверная ось или профиль PID")
@@ -888,7 +892,7 @@ class HttpMonitor:
                         aircraft = _json.loads((Path(__file__).parent / "data" / "aircraft_build03.json").read_text(encoding="utf-8"))
                     elif not isinstance(aircraft, dict):
                         raise ValueError("Некорректный профиль аппарата")
-                    result = experiment(aircraft, pid=expected, axis=axis)
+                    result = experiment(aircraft, pid=expected, axis=axis, sensor_period_ms=period)
                     result["pid_profile"] = profile
                 except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:
                     self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)

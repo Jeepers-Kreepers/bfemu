@@ -14,27 +14,29 @@ def test_sitl_graph_sends_applied_snapshot_and_compares_only_matching_aircraft()
     script = PID_TRAINER_PAGE.split('let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];', 1)[1].split('function buildSettings(', 1)[0]
     harness = r'''
 const assert=require('assert');
-let sent=[],lastSeries=[],dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
+let sent=[],lastSeries=[],period='4',failed=false,dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
 let baseline={axis:'roll',profile:0,values:{p:45,i:80,d:40}}, scenario='step', aircraftMode='example',stored=null;
 const terms=['p','i','d'],ctx={setLineDash(){},beginPath(){},moveTo(){},lineTo(){},stroke(){}},nodes={
   'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
-  'scenario':{get value(){return scenario}},'sitl-aircraft':{get value(){return aircraftMode}}
+  'scenario':{get value(){return scenario}},'sitl-aircraft':{get value(){return aircraftMode}},'sitl-period':{get value(){return period}}
 };
 const $=id=>nodes[id], window={addEventListener(){}},localStorage={getItem(){return stored}};
 const chart=(canvas,rows,series)=>{lastSeries=series};
 const fetch=async (url,opts)=>{
  if(url==='/api/aircraft-sitl/prepare')return {ok:true,json:async()=>({state:'ready'})};
- let body=JSON.parse(opts.body);sent.push(body);
- return {ok:true,json:async()=>({axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'model',diagnostics:{peak_abs_dps:30,sensor_interval_max_ms:4.1,motor_no_update_samples:1,motor_full_output_samples:0,samples:10},command_window_s:[4,5.2],samples:[{t:4,rates:[20,0,0]},{t:5,rates:[30,0,0]}]})};
+ let body=JSON.parse(opts.body);sent.push(body);if(failed)return {ok:false,json:async()=>({error:'Нарушен темп расчёта: задержка'})};
+ return {ok:true,json:async()=>({axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'model',sensor_period_ms:body.sensor_period_ms,diagnostics:{peak_abs_dps:30,sensor_interval_max_ms:4.1,motor_no_update_samples:1,motor_full_output_samples:0,samples:10},command_window_s:[4,5.2],samples:[{t:4,rates:[20,0,0]},{t:5,rates:[30,0,0]}]})};
 };
 let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
 ''' + script + r'''
 (async()=>{
  dirty=true;await nodes['sitl-run'].onclick();assert.equal(sent.length,0);assert(nodes['pid-sitl-status'].textContent.includes('примените'));
  dirty=false;scenario='reverse';await nodes['sitl-run'].onclick();assert.equal(sent.length,0);scenario='step';
- await nodes['sitl-run'].onclick();assert.deepStrictEqual(sent[0],{axis:'roll',profile:0,expected:{p:45,i:80,d:40},aircraft:null});
+ await nodes['sitl-run'].onclick();assert.deepStrictEqual(sent[0],{axis:'roll',profile:0,expected:{p:45,i:80,d:40},aircraft:null,sensor_period_ms:4});
  assert(nodes['pid-sitl-summary'].textContent.includes('P 45'));assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0'));assert.equal(lastSeries[0].rows,null);
  await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-diagnostics'].textContent.includes('30,0; 30,0'));sent.length=1;
+ failed=true;await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-status'].textContent.includes('Нарушен темп'));failed=false;sent.length=1;
+ period='2';await nodes['sitl-run'].onclick();assert.equal(sent[1].sensor_period_ms,2);assert(!nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-summary'].textContent.includes('период датчиков 2 мс'));assert(nodes['pid-sitl-summary'].textContent.includes('период датчиков 4 мс'));sent.length=1;
  baseline.values.p=55;await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));assert(lastSeries[0].rows);
  aircraftMode='saved';await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-status'].textContent.includes('нет сохранённого'));
  stored=JSON.stringify({schema:1,values:{mass_g:'931'}});await nodes['sitl-run'].onclick();assert.equal(sent.length,3);assert.equal(lastSeries[0].rows,null);assert(!nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));

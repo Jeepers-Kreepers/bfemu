@@ -267,10 +267,12 @@ def _diagnostics(rows, start, end, axis):
     }
 
 
-def experiment(profile, *, pid=None, axis='roll'):
+def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
+    if type(sensor_period_ms) is not int or sensor_period_ms not in (2, 4, 8):
+        raise PhysicsError('Период датчиков SITL должен быть 2, 4 или 8 мс.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -325,7 +327,7 @@ def experiment(profile, *, pid=None, axis='roll'):
                         done.wait(.02)
                 def simulate():
                     try:
-                        run_loop(profile, curves, motors, fdm, output, duration=12, period=.004,
+                        run_loop(profile, curves, motors, fdm, output, duration=12, period=sensor_period_ms/1000,
                                  max_gap=.5, pressure_pa=101325, clock=clock)
                     except Exception as exc:
                         errors.append(exc)
@@ -390,7 +392,7 @@ def experiment(profile, *, pid=None, axis='roll'):
                     return {'profile': profile['values'].get('profile_name', ''), 'samples': points,
                             'command_window_s': [round(event_start-run_start[0], 3), round(event_end-run_start[0], 3)],
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
-                            'verified_pid': verified_pid, 'diagnostics': diagnostics,
+                            'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
                                      + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
                                         if verified_pid else 'PID заводской отдельного SITL.'))}

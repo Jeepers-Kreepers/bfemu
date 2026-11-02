@@ -244,3 +244,18 @@ def test_diagnostics_use_all_physics_samples_and_command_window():
                       'motor_no_update_samples': 2, 'motor_full_output_samples': 1, 'samples': 3}
     with pytest.raises(PhysicsError, match='нет отсчётов'):
         _diagnostics(rows, 2, 3, 'roll')
+
+
+@pytest.mark.parametrize('period', [True, 0, 1, 3, 2.0, '2', None])
+def test_experiment_rejects_unsupported_sensor_period_before_start(period):
+    with pytest.raises(PhysicsError, match='Период датчиков'):
+        experiment(build03(), sensor_period_ms=period)
+
+
+@pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен собранный Betaflight SITL и свободные порты')
+def test_real_sitl_accepts_experimental_sensor_period():
+    requested = {'p': 45, 'i': 80, 'd': 40}
+    result = experiment(build03(), axis='roll', pid=requested, sensor_period_ms=2)
+    assert result['sensor_period_ms'] == 2
+    assert result['verified_pid'] == {'axis': 'roll', 'values': requested}
+    assert result['diagnostics']['samples'] > 100
