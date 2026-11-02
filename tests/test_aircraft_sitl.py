@@ -165,3 +165,48 @@ def test_build_preparation_runs_once_and_reports_failure(tmp_path, monkeypatch):
     sitl._BUILD_THREAD.join(timeout=5)
     status = sitl.build_status()
     assert status['state'] == 'error' and 'скрипт сборки' in status['error']
+
+
+def test_pid_snapshot_modifies_only_selected_axis_and_verifies_readback(monkeypatch):
+    from bfemu import aircraft_sitl as sitl
+    class FakeClient:
+        def __init__(self):
+            self.payload = bytes(range(15))
+            self.writes = []
+        def request(self, code):
+            assert code == 112
+            return self.payload
+    client = FakeClient()
+    def write(client, code, payload):
+        assert code == 202
+        client.writes.append(payload)
+        client.payload = payload
+    monkeypatch.setattr(sitl, '_write', write)
+    result = sitl.set_pid_snapshot(client, 'pitch', {'p': 70, 'i': 80, 'd': 40})
+    assert result == {'axis': 'pitch', 'values': {'p': 70, 'i': 80, 'd': 40}}
+    assert client.payload[:3] == bytes(range(3))
+    assert client.payload[3:6] == bytes([70, 80, 40])
+    assert client.payload[6:] == bytes(range(6, 15))
+    for axis in ('roll', 'pitch', 'yaw'):
+        client = FakeClient()
+        sitl.set_pid_snapshot(client, axis, {'p': 11, 'i': 22, 'd': 33})
+        offset = {'roll': 0, 'pitch': 3, 'yaw': 6}[axis]
+        assert client.payload[offset:offset+3] == bytes([11, 22, 33])
+    with pytest.raises(PhysicsError, match='целыми'):
+        sitl.set_pid_snapshot(FakeClient(), 'roll', {'p': True, 'i': 2, 'd': 3})
+    with pytest.raises(PhysicsError, match='Нужны ось'):
+        sitl.set_pid_snapshot(FakeClient(), 'wrong', {'p': 1, 'i': 2, 'd': 3})
+    client = FakeClient()
+    monkeypatch.setattr(sitl, '_write', lambda *args: None)
+    with pytest.raises(PhysicsError, match='не подтвердил'):
+        sitl.set_pid_snapshot(client, 'roll', {'p': 70, 'i': 80, 'd': 40})
+    assert client.payload == bytes(range(15))
+
+
+@pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен собранный Betaflight SITL и свободные порты')
+def test_real_sitl_reads_back_transferred_roll_pid():
+    requested = {'p': 55, 'i': 80, 'd': 40}
+    result = experiment(build03(), axis='roll', pid=requested)
+    assert result['verified_pid'] == {'axis': 'roll', 'values': requested}
+    assert len(result['samples']) > 100
+    assert result['axis'] == 'roll'

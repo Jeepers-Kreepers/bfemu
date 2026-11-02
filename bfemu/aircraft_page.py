@@ -1,6 +1,7 @@
 """Редактор профиля аппарата. Не рассчитывает физику и не изменяет настройки FC."""
 from html import escape
 import json
+from pathlib import Path
 
 from .aircraft_presets import HARDWARE_PRESETS
 from .aircraft_help import explanation
@@ -109,7 +110,8 @@ def aircraft_page():
                    '<select id="preset-choice"><option value="7">7″ · Gazebo Build 03</option></select>')
     importer = _wrap('import', 'Загрузить сохранённый файл профиля',
                      '<input id="import" type="file" accept=".json,application/json">')
-    return (AIRCRAFT_PAGE.replace('__PICKER__', picker).replace('__IMPORT__', importer).replace('__BASIC__', basic).replace('__CENTER__', center)
+    preset = json.loads((Path(__file__).parent / 'data' / 'aircraft_build03.json').read_text(encoding='utf-8'))
+    return (AIRCRAFT_PAGE.replace('__PRESET__', json.dumps(preset['values'], ensure_ascii=True).replace('<', r'\u003c')).replace('__PICKER__', picker).replace('__IMPORT__', importer).replace('__BASIC__', basic).replace('__CENTER__', center)
             .replace('__INERTIA__', inertia).replace('__MOTORS__', ''.join(_motor(i) for i in range(1, 5)))
             .replace('__POWER__', power).replace('__SENSOR__', sensor)
             .replace('__CATALOG__', json.dumps(HARDWARE_PRESETS, ensure_ascii=True).replace('<', r'\u003c')))
@@ -151,15 +153,7 @@ const hardware=__CATALOG__,choice=document.getElementById('preset-choice'),info=
 const fields=Array.from(form.querySelectorAll('input,select,textarea'));let baseline='';
 document.addEventListener('click',event=>{const button=event.target.closest('.help-toggle');if(!button)return;const panel=document.getElementById(button.getAttribute('aria-controls'));if(!panel)return;panel.hidden=!panel.hidden;button.setAttribute('aria-expanded',String(!panel.hidden))});
 // Build 03: значения из зафиксированной модели; неизвестные данные не заменяются числами.
-const PRESET={profile_name:'Build 03 · пример 7″',model_source:'Gazebo Build 03 · Safwanny/my_drone',mass_g:'931',frame_source:'model',
- cg_x:'0',cg_y:'0',cg_z:'0',inertia_xx:'0.00711',inertia_yy:'0.00754',inertia_zz:'0.01362',inertia_xy:'0',inertia_xz:'0',inertia_yz:'0',
- battery_model:'6S LiPo · модель не указана',battery_capacity:'1800',battery_cells:'6',battery_cell_voltage:'3.7',battery_voltage:'22.2',battery_resistance:'Неизвестно',
- esc_model:'В модели не указаны',esc_rpm:'unknown',power_source:'model',power_notes:'6S 1800 мА·ч указана в бюджете масс модели; 22,2 В — номинальное напряжение. Сопротивление и RPM-телеметрия в источнике не заданы.',
- sensor_model:'Виртуальный IMU Gazebo',sensor_rate:'250',sensor_delay:'Неизвестно',sensor_source:'model',sensor_notes:'IMU расположен на base_link. В исходной модели оси X вперёд, Y влево, Z вверх; координаты на этой странице преобразованы к X вперёд, Y вправо, Z вниз. Угловой шум: стандартное отклонение 0,009 рад/с в модели.',
-};
-// Номера выходов соответствуют стандартному Quad X Betaflight 4.5.4 по положению мотора.
-const MOTOR_LAYOUT=[[-143,143,'cw'],[143,143,'ccw'],[-143,-143,'ccw'],[143,-143,'cw']];
-for(let i=0;i<4;i++){const [x,y,direction]=MOTOR_LAYOUT[i],p='motor_'+(i+1)+'_';Object.assign(PRESET,{[p+'model']:'2807SL 1300KV',[p+'prop']:'7040 × 3',[p+'output']:String(i+1),[p+'direction']:direction,[p+'x']:String(x),[p+'y']:String(y),[p+'z']:'-17.4',[p+'kv']:'1300',[p+'max_thrust']:'19.6',[p+'rise_ms']:'20',[p+'fall_ms']:'35',[p+'source']:'model',[p+'data']:'Оценка модели для 6S: максимум около 19,6 Н на мотор, максимум 2300 рад/с; коэффициент тяги 3,7e-6 Н·с²/рад², моментный коэффициент 0,016. Постоянные времени модели: 20 мс вверх и 35 мс вниз. Это не результаты измерения данного аппарата.'})}
+const PRESET=__PRESET__;
 function hardwareValues(item){
  const values={};for(const field of fields){if(field.tagName==='SELECT')values[field.name]='';else values[field.name]='Неизвестно'}
  Object.assign(values,{profile_name:item.title,model_source:'Паспортные данные · '+item.title,frame_source:'vendor',

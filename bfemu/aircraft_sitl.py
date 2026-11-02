@@ -229,8 +229,32 @@ def _stop(process):
         process.wait(timeout=3)
 
 
-def experiment(profile):
-    """Один roll step с заводским PID отдельного SITL; не меняет пользовательский FC."""
+AXES = {'roll': (0, 0), 'pitch': (1, 1), 'yaw': (2, 3)}  # MSP PID index, RC AETR index
+
+
+def set_pid_snapshot(client, axis, pid):
+    """Изменить только P/I/D выбранной оси в изолированном SITL и проверить MSP-чтением."""
+    if axis not in AXES or not isinstance(pid, dict) or set(pid) != {'p', 'i', 'd'}:
+        raise PhysicsError('Нужны ось и значения P, I и D Max.')
+    if any(type(pid[k]) is not int or not 0 <= pid[k] <= 250 for k in ('p', 'i', 'd')):
+        raise PhysicsError('P, I и D Max должны быть целыми числами от 0 до 250.')
+    original = client.request(112)  # MSP_PID: PID_ITEM_COUNT * (P,I,D), Betaflight 4.5.4
+    if len(original) != 15:
+        raise PhysicsError('Неожиданный формат MSP_PID SITL; настройки не отправлены.')
+    payload = bytearray(original)
+    offset = AXES[axis][0]*3
+    payload[offset:offset+3] = bytes(pid[k] for k in ('p', 'i', 'd'))
+    _write(client, 202, bytes(payload))  # MSP_SET_PID
+    actual = client.request(112)
+    if actual != bytes(payload):
+        raise PhysicsError('SITL не подтвердил записанные PID через MSP_PID; эксперимент остановлен.')
+    return {'axis': axis, 'values': dict(pid)}
+
+
+def experiment(profile, *, pid=None, axis='roll'):
+    """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
+    if axis != 'roll':
+        raise PhysicsError('Эксперимент SITL пока проверен только для оси ROLL.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -259,6 +283,7 @@ def experiment(profile):
             client = _connect(process)
             try:
                 client.identify()
+                verified_pid = set_pid_snapshot(client, axis, pid) if pid is not None else None
                 _write(client, 35, bytes([0, 0, 0, 32, 48]))  # ARM на AUX1 1700–2100
                 deadline = time.monotonic()+8
                 while True:
@@ -319,10 +344,10 @@ def experiment(profile):
                     if not worker.is_alive():
                         raise PhysicsError('Расчёт завершился до команды крена.')
                     event_start = time.monotonic()
-                    channels[0] = 1650
+                    channels[AXES[axis][1]] = 1650
                     time.sleep(1.2)
                     event_end = time.monotonic()
-                    channels[0] = 1500
+                    channels[AXES[axis][1]] = 1500
                     status = client.request(101)
                     if len(status) < 10 or not struct.unpack_from('<I', status, 6)[0] & 1:
                         raise PhysicsError('SITL вышел из ARM во время команды крена.')
@@ -345,8 +370,11 @@ def experiment(profile):
                               for row in rows[::5]]
                     return {'profile': profile['values'].get('profile_name', ''), 'samples': points,
                             'command_window_s': [round(event_start-run_start[0], 3), round(event_end-run_start[0], 3)],
-                            'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL',
-                            'note': 'Скорости физической модели, не MSP-гироскоп. PID заводской отдельного SITL.'}
+                            'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
+                            'verified_pid': verified_pid,
+                            'note': ('Скорости физической модели, не MSP-гироскоп. '
+                                     + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
+                                        if verified_pid else 'PID заводской отдельного SITL.'))}
                 finally:
                     channels[2], channels[4] = 1000, 1000
                     done.set()

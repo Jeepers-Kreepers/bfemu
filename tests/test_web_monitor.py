@@ -430,3 +430,42 @@ def test_sitl_preparation_endpoint_is_explicit_and_same_origin(monitor, monkeypa
     assert post(url, {}, {'Origin': 'http://evil.example'})[0] == 403 and not starts
     status, data = post(url, {})
     assert status == 200 and json.loads(data)['state'] == 'building' and starts == [True]
+
+
+def test_pid_sitl_uses_snapshot_and_rejects_stale_or_invalid_values(fc, monitor, monkeypatch):
+    from bfemu import aircraft_sitl, pid_trainer
+    seen = []
+    def fake_experiment(aircraft, *, pid, axis):
+        seen.append((aircraft, pid, axis))
+        return {'verified_pid': {'axis': axis, 'values': pid}}
+    monkeypatch.setattr(aircraft_sitl, 'experiment', fake_experiment)
+    axis = 'roll'
+    snapshot = pid_trainer.profile_state(fc, axis)
+    payload = {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None}
+    url = monitor + '/api/pid-trainer/sitl'
+    assert post(url, payload, {'Origin': 'http://evil.example'})[0] == 403
+    assert post(url, {**payload, 'axis': 'pitch'})[0] == 400 and not seen
+    bad = {**payload, 'expected': {**payload['expected'], 'p': 251}}
+    assert post(url, bad)[0] == 400 and not seen
+    stale = {**payload, 'profile': snapshot['profile'] + 1}
+    assert post(url, stale)[0] == 409 and not seen
+    stale = {**payload, 'expected': {**snapshot['values'], 'p': snapshot['values']['p'] + 1}}
+    assert post(url, stale)[0] == 409 and not seen
+    status, body = post(url, payload)
+    assert status == 200 and json.loads(body)['verified_pid']['values'] == snapshot['values']
+    aircraft, pid, actual_axis = seen[-1]
+    assert aircraft['values']['mass_g'] == '931' and actual_axis == axis and pid == snapshot['values']
+    custom = {'schema': 1, 'values': {'mass_g': '1000'}}
+    status, _ = post(url, {**payload, 'aircraft': custom})
+    assert status == 200 and seen[-1][0] == custom
+
+
+@pytest.mark.parametrize('axis', ['roll', 'pitch', 'yaw'])
+def test_pid_trainer_edits_still_work_for_all_axes(fc, monitor, axis):
+    url = monitor + '/api/pid-trainer'
+    state = json.loads(get(url + '?axis=' + axis)[1])
+    changed = {**state['values'], 'p': state['values']['p'] + 1}
+    status, _ = post(url, {'axis': axis, 'profile': state['profile'],
+                           'expected': state['values'], 'values': changed})
+    assert status == 200
+    assert json.loads(get(url + '?axis=' + axis)[1])['values'] == changed
