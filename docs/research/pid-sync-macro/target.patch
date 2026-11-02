@@ -1,0 +1,11 @@
+--- a/src/main/target/SITL/target.h
++++ b/src/main/target/SITL/target.h
+@@ -50,7 +50,7 @@
+ //#define SIMULATOR_ACC_SYNC
+ //#define SIMULATOR_GYRO_SYNC
+ //#define SIMULATOR_IMU_SYNC
+-//#define SIMULATOR_GYROPID_SYNC
++#define SIMULATOR_GYROPID_SYNC
+ 
+ // file name to save config
+ #define EEPROM_FILENAME "eeprom.bin"

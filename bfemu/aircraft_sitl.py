@@ -261,6 +261,31 @@ def set_pid_snapshot(client, axis, pid):
     return {'axis': axis, 'values': dict(pid)}
 
 
+def _arming_disable_flags(status):
+    """MSP_STATUS 4.5.4: флаги могут следовать за дополнительными байтами режимов."""
+    if len(status) < 16:
+        return None
+    extra = status[15] & 0x0f
+    offset = 17 + extra  # байт длины маски режимов, её продолжение и число флагов
+    if len(status) < offset + 4:
+        return None
+    return struct.unpack_from('<I', status, offset)[0]
+
+
+def _disarm_message(status):
+    """Текущие блокировки ARM — наблюдаемый признак, не гарантированная причина дизарма."""
+    flags = _arming_disable_flags(status)
+    result = 'SITL вышел из ARM во время команды стика.'
+    if flags is None:
+        return result + ' Ответ MSP не содержит полных флагов блокировки ARM.'
+    result += f' Текущие флаги блокировки ARM: 0x{flags:08X}.'
+    if flags & (1 << 5):
+        result += ' Среди них RUNAWAY_TAKEOFF — защита от неуправляемого вращения.'
+    if flags & (1 << 1):
+        result += ' Среди них FAILSAFE — аварийный режим.'
+    return result + ' Эти флаги показывают состояние при опросе, а не доказывают причину дизарма.'
+
+
 def _diagnostics(rows, start, end, axis):
     """Метрики по непрореженным физическим отсчётам в окне команды отправителя."""
     active = [row for row in rows if start <= row['elapsed_s'] <= end]
@@ -378,7 +403,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         if not worker.is_alive():
                             raise PhysicsError('Расчёт завершился до подготовки SITL.')
                         status = client.request(101)
-                        if len(status) >= 21 and struct.unpack_from('<I', status, 17)[0] == 0:
+                        if _arming_disable_flags(status) == 0:
                             break
                         if time.monotonic() >= deadline:
                             raise PhysicsError('SITL не завершил подготовку к ARM.')
@@ -402,8 +427,10 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     event_end = time.monotonic()
                     channels[AXES[axis][1]] = 1500
                     status = client.request(101)
-                    if len(status) < 10 or not struct.unpack_from('<I', status, 6)[0] & 1:
-                        raise PhysicsError('SITL вышел из ARM во время команды стика.')
+                    if len(status) < 10:
+                        raise PhysicsError('SITL вернул неполный MSP_STATUS при проверке ARM.')
+                    if not struct.unpack_from('<I', status, 6)[0] & 1:
+                        raise PhysicsError(_disarm_message(status))
                     time.sleep(.5)
                     channels[2], channels[4] = 1000, 1000
                     disarm_requested = time.monotonic()

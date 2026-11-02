@@ -348,3 +348,25 @@ def test_pid_denom_is_written_before_sitl_restart(monkeypatch):
     sitl._configure_pwm(Process(), pid_process_denom=16)
     assert client.sent == [b'#', b'set motor_pwm_protocol = PWM\n', b'set pid_process_denom = 16\n', b'save\n']
     assert client.closed
+
+
+def test_status_flags_follow_extended_mode_mask_and_do_not_claim_disarm_cause():
+    import struct
+    from bfemu.aircraft_sitl import _arming_disable_flags, _disarm_message
+
+    status = bytearray(24)
+    status[15] = 3
+    status[19] = 26  # количество известных флагов после трёх байтов режимов
+    struct.pack_into('<I', status, 20, (1 << 5) | (1 << 1))
+    assert _arming_disable_flags(status) == 34
+    message = _disarm_message(status)
+    assert '0x00000022' in message and 'RUNAWAY_TAKEOFF' in message and 'FAILSAFE' in message
+    assert 'не доказывают причину' in message
+    status[15] = 0
+    status[16] = 26
+    struct.pack_into('<I', status, 17, 0)
+    assert _arming_disable_flags(status) == 0
+    assert _arming_disable_flags(b'\x00'*15) is None
+    status[15] = 15
+    assert _arming_disable_flags(status) is None
+    assert 'не содержит полных флагов' in _disarm_message(status)
