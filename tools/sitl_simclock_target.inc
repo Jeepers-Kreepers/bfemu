@@ -1,6 +1,6 @@
 /* Called on the main scheduler thread, after upstream RC functions are defined. */
 struct bfemu_frame_input {
-    uint32_t sequence, reserved;
+    uint32_t sequence, axis;
     fdm_packet fdm;
     rc_packet rc;
 };
@@ -9,7 +9,7 @@ struct __attribute__((packed)) bfemu_frame_output {
     uint64_t sim_us;
     servo_packet motors;
     uint32_t scheduler_enabled, scheduler_period, scheduler_target, scheduler_now;
-    float rc_pitch, setpoint_pitch;
+    float rc_axis, setpoint_axis;
 };
 
 bool bfemuSimclockActive(void)
@@ -32,7 +32,8 @@ bool bfemuSimclockInput(void)
         exit(2);
     }
     memcpy(&input, buffer, sizeof(input));
-    if (input.reserved || input.sequence != bfemu_frame_sequence + 1) {
+    if (input.axis > 2 || input.sequence != bfemu_frame_sequence + 1 ||
+        (bfemu_frame_sequence && input.axis != bfemu_frame_axis)) {
         fprintf(stderr, "[bfemu] Invalid frame, aborting.\n");
         exit(2);
     }
@@ -43,6 +44,7 @@ bool bfemuSimclockInput(void)
         bfemuSchedRebase();
     }
     bfemu_frame_sequence = input.sequence;
+    bfemu_frame_axis = input.axis;
     bfemu_frame_pid_count = 0;
     bfemu_step_mask = 0;
     rcPkt = input.rc;
@@ -71,7 +73,7 @@ void bfemuSimclockReply(void)
         bfemu_step_mask, bfemu_frame_pid_count, ARMING_FLAG(ARMED) ? 1U : 0U,
         getArmingDisableFlags(), __atomic_load_n(&bfemu_simulated_us, __ATOMIC_RELAXED), pwmPkt,
         bfemuSchedEnabled(), bfemuSchedPeriod(), bfemuSchedTarget(), bfemuSchedNow(),
-        rcData[1], getSetpointRate(1)
+        rcData[bfemu_frame_axis], getSetpointRate(bfemu_frame_axis)
     };
     if (udpSend(&bfemu_sync_output, &output, sizeof(output)) != sizeof(output)) {
         fprintf(stderr, "[bfemu] Frame acknowledgement send failed.\n");

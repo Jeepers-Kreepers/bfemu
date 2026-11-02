@@ -478,6 +478,45 @@ def test_pid_trainer_edits_still_work_for_all_axes(fc, monitor, axis):
     assert json.loads(get(url + '?axis=' + axis)[1])['values'] == changed
 
 
+def test_pid_lockstep_prepare_endpoint_is_explicit_and_same_origin(monitor, monkeypatch):
+    from tools import sitl_simclock_probe
+    starts = []
+    monkeypatch.setattr(sitl_simclock_probe, 'lockstep_build_status', lambda: {'state': 'missing'})
+    monkeypatch.setattr(sitl_simclock_probe, 'start_lockstep_build', lambda: starts.append(True) or {'state': 'building'})
+    url = monitor + '/api/pid-trainer/sitl-lockstep/prepare'
+    status, data = get(url)
+    assert status == 200 and json.loads(data)['state'] == 'missing' and not starts
+    assert post(url, {}, {'Origin': 'http://evil.example'})[0] == 403 and not starts
+    status, data = post(url, {})
+    assert status == 200 and json.loads(data)['state'] == 'building' and starts == [True]
+
+
+@pytest.mark.parametrize('axis', ['roll', 'pitch', 'yaw'])
+def test_pid_lockstep_uses_current_snapshot_and_selected_axis(fc, monitor, monkeypatch, axis):
+    from tools import sitl_simclock_probe
+    from bfemu import pid_trainer
+    seen = []
+    def fake(aircraft, pid, selected_axis):
+        seen.append((aircraft, pid, selected_axis))
+        return {'mode': 'lockstep', 'verified_pid': {'axis': selected_axis, 'values': pid}}
+    monkeypatch.setattr(sitl_simclock_probe, 'experiment_lockstep', fake)
+    snapshot = pid_trainer.profile_state(fc, axis)
+    payload = {'axis': axis, 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None}
+    url = monitor + '/api/pid-trainer/sitl-lockstep'
+    assert post(url, payload, {'Origin': 'http://evil.example'})[0] == 403 and not seen
+    assert post(url, {**payload, 'axis': 'invalid'})[0] == 400 and not seen
+    assert post(url, {**payload, 'expected': {**snapshot['values'], 'p': 251}})[0] == 400 and not seen
+    assert post(url, {**payload, 'profile': snapshot['profile'] + 1})[0] == 409 and not seen
+    status, body = post(url, payload)
+    assert status == 200 and json.loads(body)['verified_pid']['axis'] == axis
+    aircraft, values, selected_axis = seen[-1]
+    assert aircraft['values']['mass_g'] == '931'
+    assert values == snapshot['values'] and selected_axis == axis
+    custom = {'schema': 1, 'values': {'mass_g': '1000'}}
+    status, _ = post(url, {**payload, 'aircraft': custom})
+    assert status == 200 and seen[-1][0] == custom
+
+
 @pytest.mark.parametrize('axis', ['pitch', 'yaw'])
 def test_pid_sitl_uses_selected_axis(fc, monitor, monkeypatch, axis):
     from bfemu import aircraft_sitl, pid_trainer

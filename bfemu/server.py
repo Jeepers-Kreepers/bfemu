@@ -679,6 +679,11 @@ class HttpMonitor:
                     from .aircraft_sitl import build_status
                     self._send(self._json_bytes(build_status()), "application/json; charset=utf-8")
                     return
+                if path == "/api/pid-trainer/sitl-lockstep/prepare":
+                    from tools import sitl_simclock_probe
+                    self._send(self._json_bytes(sitl_simclock_probe.lockstep_build_status()),
+                               "application/json; charset=utf-8")
+                    return
                 if path == "/api/pid-trainer":
                     from urllib.parse import parse_qs, urlsplit
                     params = parse_qs(urlsplit(self.path).query)
@@ -860,6 +865,42 @@ class HttpMonitor:
                     return
                 self._send(self._json_bytes(result), "application/json; charset=utf-8")
 
+            def _post_pid_sitl_lockstep(self):
+                import json as _json
+                from .flight_physics import PhysicsError
+                from tools import sitl_simclock_probe
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length <= 0 or length > 131072:
+                        self.close_connection = True
+                        raise ValueError("Недопустимый размер запроса")
+                    data = _json.loads(self.rfile.read(length))
+                    required = {"axis", "profile", "expected", "aircraft"}
+                    if not isinstance(data, dict) or set(data) != required:
+                        raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
+                    axis, profile, expected = data["axis"], data["profile"], data["expected"]
+                    if axis not in _pid_trainer.AXES or type(profile) is not int:
+                        raise ValueError("Неверная ось или профиль PID")
+                    if (not isinstance(expected, dict) or set(expected) != set("pid") or
+                            any(type(expected[k]) is not int or not 0 <= expected[k] <= 250 for k in "pid")):
+                        raise ValueError("P, I и D Max должны быть целыми числами от 0 до 250")
+                    snapshot = _pid_trainer.profile_state(fc, axis)
+                    if snapshot["profile"] != profile or snapshot["values"] != expected:
+                        self._send(self._json_bytes({"error": "Профиль PID изменился. Обновите значения и повторите запуск."}),
+                                   "application/json; charset=utf-8", 409)
+                        return
+                    aircraft = data["aircraft"]
+                    if aircraft is None:
+                        aircraft = _json.loads((Path(__file__).parent / "data" / "aircraft_build03.json").read_text(encoding="utf-8"))
+                    elif not isinstance(aircraft, dict):
+                        raise ValueError("Некорректный профиль аппарата")
+                    result = sitl_simclock_probe.experiment_lockstep(aircraft, expected, axis)
+                    result["pid_profile"] = profile
+                except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:
+                    self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
+                    return
+                self._send(self._json_bytes(result), "application/json; charset=utf-8")
+
             def _post_pid_sitl(self):
                 import json as _json
                 from .aircraft_sitl import experiment
@@ -1020,6 +1061,14 @@ class HttpMonitor:
                     return
                 if path == "/api/pid-trainer":
                     self._post_pid_trainer()
+                    return
+                if path == "/api/pid-trainer/sitl-lockstep/prepare":
+                    from tools import sitl_simclock_probe
+                    self._send(self._json_bytes(sitl_simclock_probe.start_lockstep_build()),
+                               "application/json; charset=utf-8")
+                    return
+                if path == "/api/pid-trainer/sitl-lockstep":
+                    self._post_pid_sitl_lockstep()
                     return
                 if path == "/api/pid-trainer/sitl":
                     self._post_pid_sitl()

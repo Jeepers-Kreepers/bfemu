@@ -17,7 +17,7 @@ const assert=require('assert');
 let sent=[],lastSeries=[],period='4',motorMode='poll',failed=false,saturation=0,dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
 let baseline={axis:'roll',profile:0,values:{p:45,i:80,d:40}}, scenario='step', aircraftMode='example',stored=null;
 let markerLines=[];const terms=['p','i','d'],ctx={setLineDash(){},beginPath(){},moveTo(x){this.x=x},lineTo(){},stroke(){markerLines.push([this.x,this.strokeStyle])}},nodes={
-  'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-comparison':{},'pid-sitl-graph-title':{},'pid-sitl-axis-caption':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
+  'sitl-run':{},'sitl-lockstep-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-comparison':{},'pid-sitl-graph-title':{},'pid-sitl-axis-caption':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'pid-sitl-motors':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'sitl-zoom':{value:'1'},'sitl-pan':{value:'0',max:'0'},'sitl-window':{},'sitl-rate-scale':{value:'auto'},'sitl-motor-scale':{value:'full'},'sitl-view-reset':{},
   ...Object.fromEntries(['current','previous','motor-1','motor-2','motor-3','motor-4'].map(x=>['sitl-show-'+x,{checked:true}])),
@@ -26,8 +26,9 @@ let markerLines=[];const terms=['p','i','d'],ctx={setLineDash(){},beginPath(){},
 const $=id=>nodes[id], window={addEventListener(){}},localStorage={getItem(){return stored}};
 let motorSeries=[],rateRange=[],motorRange=[],rangeSeen=[],graphUnits={};const chart=(canvas,rows,series,min,max,decimals,range,unit)=>{graphUnits[canvas===nodes['pid-sitl-graph']?'rates':'motor']=unit;rangeSeen=range;if(canvas===nodes['pid-sitl-graph']){lastSeries=series;rateRange=[min,max]}else{motorSeries=series;motorRange=[min,max]}};
 const fetch=async (url,opts)=>{
- if(url==='/api/aircraft-sitl/prepare')return {ok:true,json:async()=>({state:'ready'})};
+ if(url==='/api/aircraft-sitl/prepare'||url==='/api/pid-trainer/sitl-lockstep/prepare')return {ok:true,json:async()=>({state:'ready'})};
  let body=JSON.parse(opts.body);sent.push(body);if(failed)return {ok:false,json:async()=>({error:'Нарушен темп расчёта: задержка'})};
+ if(url==='/api/pid-trainer/sitl-lockstep')return {ok:true,json:async()=>({mode:'lockstep',axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'frame-locked',sensor_period_ms:4,motor_mode:'lockstep',pid_process_denom:1,diagnostics:{peak_abs_dps:30,pid_cycles_min:32,pid_cycles_max:32,motor_saturated_samples:saturation,samples:300},command_window_s:[.6,1.8],disarm_requested_s:2.3,samples:[{t:.6,rates:[20,0,0],motors:[0,.25,.5,1]},{t:1.8,rates:[30,0,0],motors:[1,.5,.25,0]}]})};
  return {ok:true,json:async()=>({axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'model',sensor_period_ms:body.sensor_period_ms,motor_mode:body.motor_mode,diagnostics:{peak_abs_dps:30,sensor_interval_max_ms:4.1,motor_no_update_samples:1,motor_full_output_samples:saturation,samples:10},command_window_s:[4,5.2],disarm_requested_s:5.7,samples:[{t:4,rates:[20,0,0],motors:[0,.25,.5,1]},{t:5,rates:[30,0,0],motors:[1,.5,.25,0]}]})};
 };
 let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
@@ -83,6 +84,11 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  assert(explanation.includes('100,0 → 130,0 °/с')&&explanation.includes('не доказывают'));
  assert(explainSitlComparison(sample,{...changed,pid_profile:1}).includes('нельзя приписать'));
  assert(explainSitlComparison(sample,{...changed,axis:'yaw'}).includes('другой оси'));
+ await nodes['sitl-lockstep-run'].onclick();
+ assert.deepStrictEqual(sent.at(-1),{axis:'yaw',profile:0,expected:{p:55,i:80,d:40},aircraft:{schema:1,values:{mass_g:'931'}}});
+ assert(nodes['pid-sitl-status'].textContent.includes('Lockstep завершён'));
+ assert(nodes['pid-sitl-diagnostics'].textContent.includes('32–32 циклов PID'));
+ assert(nodes['pid-sitl-summary'].textContent.includes('lockstep · кадр 4 мс'));
  assert(!nodes['sitl-run'].disabled);
 })().catch(e=>{console.error(e);process.exit(1)});
 '''

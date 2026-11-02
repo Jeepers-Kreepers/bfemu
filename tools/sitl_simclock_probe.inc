@@ -8,6 +8,7 @@ extern uint32_t bfemu_gyro_consumed_sequence;
 static udpLink_t bfemu_sync_input, bfemu_sync_output;
 static uint32_t bfemu_step_mask, bfemu_frame_pid_count;
 static uint32_t bfemu_frame_sequence;
+static uint32_t bfemu_frame_axis;
 static uint64_t bfemu_simulated_us;
 static bool bfemu_simclock_active;
 

@@ -2,7 +2,8 @@
 
 Исследование меняет target, планировщик и часы Betaflight SITL, не расчёт PID.
 Инициализация и настройка пока происходят по часам хоста, поэтому полная
-детерминированность не предполагается. Не используется веб-тренажёром.
+детерминированность не предполагается. Экспериментальный режим тренажёра использует
+тот же кадровый протокол и отдельную сборку; CLI сохраняет исследовательские повторы.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -28,6 +30,7 @@ from bfemu import aircraft_sitl
 from bfemu.flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
 from bfemu.flight_physics import Aircraft, PhysicsError, State, step
 from bfemu.sitl_feedback import sensor_packet
+from bfemu.sitl_capture import CaptureError
 from tools.sitl_pid_cycle_probe import digest
 from tools.sitl_scheduler_probe import MAIN_HASH
 from tools.sitl_step_probe import patch_sources as patch_step, replace_unique
@@ -120,14 +123,16 @@ def decode_response(data, expected, mapping, previous_clock):
         raise PhysicsError('Некорректный снимок RC или задания угловой скорости FC.')
     return {'sequence': seq, 'read_sequence': gyro_seq, 'mask': mask, 'pid_cycles': pid_cycles,
             'armed': bool(armed), 'disable_flags': flags, 'sim_us': sim_us, 'motors': motors,
-            'rc_pitch': rc_pitch, 'setpoint_pitch_dps': setpoint_pitch}
+            'rc_axis': rc_pitch, 'setpoint_axis_dps': setpoint_pitch}
 
 
-def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=None,
+def run_frames(profile, frames, *, scenario='stationary', axis='pitch', timeout=3., on_frame=None,
                pause_every=0, pause_ms=0):
     """Сценарии: свободное падение без ARM либо ступень PITCH после ARM."""
     if scenario not in ('stationary', 'flight'):
         raise PhysicsError('Неизвестный сценарий моделируемого времени.')
+    if axis not in aircraft_sitl.AXES:
+        raise PhysicsError('Неизвестная ось моделируемого времени.')
     if (type(pause_every) is not int or type(pause_ms) is not int or
             not 0 <= pause_every <= 10000 or not 0 <= pause_ms <= 1000 or bool(pause_every) != bool(pause_ms)):
         raise PhysicsError('Период и длительность паузы должны быть заданы вместе.')
@@ -136,6 +141,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     actuators = Actuators(read_curves(aircraft_sitl.theoretical_curves(profile)))
     state = State()
     records, last_clock, commands = [], None, (0., 0., 0., 0.)
+    axis_index, rc_index = aircraft_sitl.AXES[axis]
     arm_request = armed_at = command_start = command_end = disarm_request = None
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rx:
         rx.bind(('127.0.0.1', 9011))
@@ -148,7 +154,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             if armed_at is not None and seq > armed_at:
                 channels[2] = 1300
                 if command_start <= seq < command_end:
-                    channels[1] = 1650
+                    channels[rc_index] = 1650
                 if seq >= disarm_request:
                     channels[2], channels[4] = 1000, 1000
             thrust, reaction = actuators.advance(commands, FRAME_US/1e6)
@@ -156,13 +162,16 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             timestamp = seq*FRAME_US/1e6
             fdm = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=timestamp, pressure_pa=101325)
             rc = RC.pack(timestamp, *channels)
-            tx.sendto(INPUT_HEADER.pack(seq, 0)+fdm+rc, ('127.0.0.1', 9010))
+            tx.sendto(INPUT_HEADER.pack(seq, axis_index)+fdm+rc, ('127.0.0.1', 9010))
             if not select.select([rx], [], [], timeout)[0]:
                 raise PhysicsError(f'Нет подтверждения кадра {seq}; получено {len(records)}.')
             data, sender = rx.recvfrom(65535)
             if sender[0] != '127.0.0.1':
                 raise PhysicsError('Ответ получен не с localhost.')
             rec = decode_response(data, seq, mapping, last_clock)
+            if axis == 'pitch':  # Keep the archived CLI analyzer's historical field names.
+                rec['rc_pitch'] = rec['rc_axis']
+                rec['setpoint_pitch_dps'] = rec['setpoint_axis_dps']
             last_clock = rec['sim_us']
             row = {'fdm_time_s': timestamp, 'channels': channels, 'applied_commands': commands,
                    'state': asdict(state), **rec}
@@ -200,6 +209,232 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     return records, None
 
 
+
+_SIMCLOCK_CACHE = aircraft_sitl.CACHE.parent / 'simclock' / aircraft_sitl.REVISION
+_SIMCLOCK_BINARY = _SIMCLOCK_CACHE / 'betaflight_SITL.elf'
+_SIMCLOCK_MARKER = _SIMCLOCK_CACHE / 'bfemu-simclock.json'
+_SIMCLOCK_GUARD = threading.Lock()
+_SIMCLOCK_THREAD = None
+_SIMCLOCK_ERROR = None
+
+
+def _simclock_build_inputs():
+    return {
+        'schema': 1,
+        'revision': aircraft_sitl.REVISION,
+        'normal_elf_sha256': digest(aircraft_sitl.BINARY),
+        'driver_sha256': digest(Path(__file__)),
+        'includes_sha256': {
+            name: digest(Path(__file__).with_name(name))
+            for name in ('sitl_simclock_probe.inc', 'sitl_simclock_target.inc')
+        },
+        'patch_helpers_sha256': {
+            name: digest(Path(__file__).with_name(name))
+            for name in ('sitl_scheduler_probe.py', 'sitl_step_probe.py')
+        },
+        'scheduler_sha256': SCHEDULER_HASH,
+    }
+
+
+def lockstep_build_status():
+    """Return status for the optional deterministic SITL target."""
+    global _SIMCLOCK_THREAD
+    try:
+        expected = _simclock_build_inputs()
+        marker = json.loads(_SIMCLOCK_MARKER.read_text(encoding='utf-8'))
+        if _SIMCLOCK_BINARY.is_file() and marker.get('inputs') == expected and marker.get('elf_sha256') == digest(_SIMCLOCK_BINARY):
+            return {'state': 'ready'}
+    except (OSError, ValueError):
+        pass
+    with _SIMCLOCK_GUARD:
+        if _SIMCLOCK_THREAD is not None and _SIMCLOCK_THREAD.is_alive():
+            return {'state': 'building'}
+        if _SIMCLOCK_ERROR:
+            return {'state': 'error', 'error': _SIMCLOCK_ERROR}
+    return {'state': 'missing'}
+
+
+def _build_lockstep_binary(jobs=4):
+    """Build/cache a separate frame-stepped SITL. Never modify the normal build."""
+    if sys.platform != 'linux' or sys.byteorder != 'little':
+        raise PhysicsError('Lockstep SITL сейчас поддерживается только на Linux/WSL x86 little-endian.')
+    if not aircraft_sitl.sitl_available():
+        raise PhysicsError('Сначала нужно подготовить штатный Betaflight SITL.')
+    inputs = _simclock_build_inputs()
+    _SIMCLOCK_CACHE.mkdir(parents=True, exist_ok=True)
+    lock_path = _SIMCLOCK_CACHE.parent / '.simclock-build.lock'
+    try:
+        import fcntl
+    except ImportError as exc:
+        raise PhysicsError('Для безопасной сборки lockstep нужен Linux flock.') from exc
+    with lock_path.open('a') as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            marker = json.loads(_SIMCLOCK_MARKER.read_text(encoding='utf-8'))
+            if (_SIMCLOCK_BINARY.is_file() and marker.get('inputs') == inputs
+                    and marker.get('elf_sha256') == digest(_SIMCLOCK_BINARY)):
+                return _SIMCLOCK_BINARY
+        except (OSError, ValueError):
+            pass
+        with tempfile.TemporaryDirectory(prefix='bfemu-simclock-build-') as tmp:
+            work = Path(tmp)
+            source = work / 'source'
+            shutil.copytree(aircraft_sitl.CACHE, source)
+            patch_sources(source)
+            sdk = work / 'sdk'
+            sdk.mkdir()
+            log_path = _SIMCLOCK_CACHE / 'build.log'
+            with log_path.open('w', encoding='utf-8') as log:
+                subprocess.run(['make', 'TARGET=SITL', f'ARM_SDK_DIR={sdk}', f'-j{jobs}'],
+                               cwd=source, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
+            binary = source / 'obj/main/betaflight_SITL.elf'
+            if not binary.is_file() or digest(binary) == digest(aircraft_sitl.BINARY):
+                raise PhysicsError('Сборка lockstep не отличается от штатного SITL.')
+            staged = _SIMCLOCK_CACHE / 'betaflight_SITL.elf.tmp'
+            shutil.copy2(binary, staged)
+            os.replace(staged, _SIMCLOCK_BINARY)
+            record = {'inputs': inputs, 'elf_sha256': digest(_SIMCLOCK_BINARY)}
+            tmp_marker = _SIMCLOCK_CACHE / 'bfemu-simclock.json.tmp'
+            tmp_marker.write_text(json.dumps(record, sort_keys=True), encoding='utf-8')
+            os.replace(tmp_marker, _SIMCLOCK_MARKER)
+    return _SIMCLOCK_BINARY
+
+
+def _lockstep_build_worker():
+    global _SIMCLOCK_ERROR
+    try:
+        result = aircraft_sitl.start_sitl_build()
+        if result.get('state') == 'error':
+            raise PhysicsError(result.get('error', 'Не удалось подготовить штатный SITL.'))
+        deadline = time.monotonic() + 660
+        while not aircraft_sitl.sitl_available():
+            state = aircraft_sitl.build_status()
+            if state.get('state') == 'error':
+                raise PhysicsError(state.get('error', 'Не удалось собрать штатный SITL.'))
+            if time.monotonic() >= deadline:
+                raise PhysicsError('Подготовка штатного SITL заняла слишком много времени.')
+            time.sleep(.25)
+        _build_lockstep_binary()
+    except Exception as exc:
+        with _SIMCLOCK_GUARD:
+            _SIMCLOCK_ERROR = str(exc)
+
+
+def start_lockstep_build():
+    """Start an explicit background build for the experimental deterministic mode."""
+    global _SIMCLOCK_THREAD, _SIMCLOCK_ERROR
+    if sys.platform != 'linux' or sys.byteorder != 'little':
+        return {'state': 'error', 'error': 'Lockstep SITL сейчас доступен только на Linux/WSL x86 little-endian.'}
+    state = lockstep_build_status()
+    if state['state'] == 'ready' or state['state'] == 'building':
+        return state
+    with _SIMCLOCK_GUARD:
+        if _SIMCLOCK_THREAD is not None and _SIMCLOCK_THREAD.is_alive():
+            return {'state': 'building'}
+        _SIMCLOCK_ERROR = None
+        _SIMCLOCK_THREAD = threading.Thread(target=_lockstep_build_worker, name='sitl-lockstep-build', daemon=True)
+        _SIMCLOCK_THREAD.start()
+    return {'state': 'building'}
+
+
+def _assert_lockstep_ports():
+    for kind, port in ((socket.SOCK_STREAM, 5761), (socket.SOCK_DGRAM, 9003),
+                       (socket.SOCK_DGRAM, 9004), (socket.SOCK_DGRAM, 9010),
+                       (socket.SOCK_DGRAM, 9011)):
+        with socket.socket(socket.AF_INET, kind) as probe:
+            try:
+                probe.bind(('127.0.0.1', port))
+            except OSError as exc:
+                raise PhysicsError(f'Порт {port} занят. Для lockstep нужны TCP 5761 и UDP 9003, 9004, 9010, 9011.') from exc
+
+
+def experiment_lockstep(profile, pid, axis):
+    """Run one fixed-step 4 ms Betaflight SITL experiment and return raw frame data."""
+    if axis not in aircraft_sitl.AXES:
+        raise PhysicsError('Неизвестная ось lockstep.')
+    if not isinstance(pid, dict) or set(pid) != {'p', 'i', 'd'} or any(
+            type(pid[key]) is not int or not 0 <= pid[key] <= 250 for key in ('p', 'i', 'd')):
+        raise PhysicsError('P, I и D Max должны быть целыми числами от 0 до 250.')
+    if lockstep_build_status()['state'] != 'ready':
+        raise PhysicsError('Lockstep SITL ещё не подготовлен. Нажмите подготовку и повторите запуск.')
+    aircraft_sitl.theoretical_curves(profile)
+    if not aircraft_sitl._LOCK.acquire(blocking=False):
+        raise PhysicsError('Другой эксперимент SITL уже выполняется.')
+    original_binary = aircraft_sitl.BINARY
+    process = None
+    try:
+        _assert_lockstep_ports()
+        aircraft_sitl.BINARY = _SIMCLOCK_BINARY
+        with tempfile.TemporaryDirectory(prefix='bfemu-simclock-run-') as state_dir:
+            def start():
+                return subprocess.Popen([str(_SIMCLOCK_BINARY)], cwd=state_dir,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process = start()
+            aircraft_sitl._configure_pwm(process, pid_process_denom=1)
+            process = start()
+            client = aircraft_sitl._connect(process)
+            try:
+                client.identify()
+                aircraft_sitl.verify_pid_denom(client, 1)
+                verified_pid = aircraft_sitl.set_pid_snapshot(client, axis, pid)
+                aircraft_sitl._write(client, 35, bytes([0, 0, 0, 32, 48]))
+                deadline = time.monotonic() + 8
+                while True:
+                    status = client.request(101)
+                    if len(status) >= 6 and struct.unpack_from('<H', status, 4)[0] & 0x21 == 0x21:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise PhysicsError('Lockstep SITL не инициализировал датчики.')
+                    time.sleep(.05)
+            finally:
+                client.close()
+            records, events = run_frames(profile, 2500, scenario='flight', axis=axis)
+        start_t, end_t = events['command_start'] * .004, events['command_end'] * .004
+        selected = [row for row in records if events['command_start'] <= row['sequence'] < events['command_end']]
+        axis_index = aircraft_sitl.AXES[axis][0]
+        peak = max(abs(math.degrees(row['state']['angular_velocity_rad_s'][axis_index])) for row in selected)
+        pid_cycles = [row['pid_cycles'] for row in records]
+        motor_saturated = sum(any(value <= 0.0001 or value >= .9999 for value in row['motors']) for row in selected)
+        points = []
+        for row in records:
+            points.append({
+                't': round(row['fdm_time_s'], 4),
+                'rates': [round(math.degrees(v), 2) for v in row['state']['angular_velocity_rad_s']],
+                'motors': [round(v, 4) for v in row['motors']],
+                'applied_motors': [round(v, 4) for v in row['applied_commands']],
+                'rc_us': row['rc_axis'],
+                'setpoint_dps': round(row['setpoint_axis_dps'], 3),
+                'pid_cycles': row['pid_cycles'],
+                'frame': row['sequence'],
+            })
+        return {
+            'mode': 'lockstep', 'firmware': 'Betaflight 4.5.4 SITL',
+            'source_revision': aircraft_sitl.REVISION,
+            'simclock_elf_sha256': digest(_SIMCLOCK_BINARY),
+            'profile': profile['values'].get('profile_name', ''), 'axis': axis,
+            'verified_pid': verified_pid, 'sensor_period_ms': 4, 'motor_mode': 'lockstep',
+            'pid_process_denom': 1,
+            'command_window_s': [round(start_t, 4), round(end_t, 4)],
+            'disarm_requested_s': round(events['disarm_request'] * .004, 4),
+            'diagnostics': {
+                'peak_abs_dps': round(peak, 2), 'samples': len(selected),
+                'pid_cycles_min': min(pid_cycles), 'pid_cycles_max': max(pid_cycles),
+                'motor_saturated_samples': motor_saturated,
+            },
+            'samples': points,
+            'note': ('Кадровый обмен и время SITL синхронизированы шагом 4 мс; код PID Betaflight сохранён. '
+                     'Изменены target/планировщик для виртуального времени. Это повторяемый эксперимент на теоретической '
+                     'модели приводов без земли, сопротивления воздуха, шума IMU и батареи; не прогноз полёта реального аппарата.'),
+        }
+    except (OSError, subprocess.SubprocessError, ValueError, CaptureError) as exc:
+        raise PhysicsError(f'Lockstep эксперимент SITL не выполнен: {exc}') from exc
+    finally:
+        aircraft_sitl.BINARY = original_binary
+        try:
+            aircraft_sitl._stop(process)
+        finally:
+            aircraft_sitl._LOCK.release()
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, required=True)
@@ -207,6 +442,7 @@ def main(argv=None):
     parser.add_argument('--scenario', choices=('stationary', 'flight'), default='stationary')
     parser.add_argument('--repeats', type=int, default=2)
     parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'), default=[49, 84, 46])
+    parser.add_argument('--axis', choices=tuple(aircraft_sitl.AXES), default='pitch')
     parser.add_argument('--pause-every', type=int, default=0, help='вставлять задержку хоста каждые N кадров')
     parser.add_argument('--pause-ms', type=int, default=0, help='длительность задержки хоста в миллисекундах')
     parser.add_argument('--jobs', type=int, default=4)
@@ -254,7 +490,7 @@ def main(argv=None):
                       'driver_sha256': digest(Path(__file__)),
                       'includes_sha256': {p.name: digest(p) for p in (ROOT/'sitl_simclock_probe.inc', ROOT/'sitl_simclock_target.inc')},
                       'platform': platform.platform(), 'aircraft': profile, 'frames': args.frames, 'scenario': args.scenario,
-                      'repeats': args.repeats, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
+                      'repeats': args.repeats, 'axis': args.axis, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
                       'pause_every': args.pause_every, 'pause_ms': args.pause_ms,
                       'note': 'Модель свободного тела без земли. Инициализация и MSP асинхронны, планировщик изменён.'})
                 for cycle in range(1, args.repeats+1):
@@ -278,7 +514,7 @@ def main(argv=None):
                                 client.identify()
                                 aircraft_sitl.verify_pid_denom(client, 1)
                                 row['verified_pid'] = aircraft_sitl.set_pid_snapshot(
-                                    client, 'pitch', dict(zip(('p', 'i', 'd'), args.pid, strict=True)))
+                                    client, args.axis, dict(zip(('p', 'i', 'd'), args.pid, strict=True)))
                                 aircraft_sitl._write(client, 35, bytes([0, 0, 0, 32, 48]))
                                 deadline = time.monotonic()+8
                                 while True:
@@ -295,7 +531,7 @@ def main(argv=None):
                             with path.open('x') as f:
                                 def save_frame(sample):
                                     f.write(json.dumps(sample, ensure_ascii=False, allow_nan=False)+'\n')
-                                result, events = run_frames(profile, args.frames, scenario=args.scenario, on_frame=save_frame,
+                                result, events = run_frames(profile, args.frames, scenario=args.scenario, axis=args.axis, on_frame=save_frame,
                                                             pause_every=args.pause_every, pause_ms=args.pause_ms)
                             row['events'] = events
                         row['ok'] = True
