@@ -66,3 +66,8 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
 '''
     result = subprocess.run([node, '-e', harness], capture_output=True, text=True, timeout=10, check=False)
     assert result.returncode == 0, result.stderr
+
+
+def test_sensor_period_annotation_distinguishes_nominal_pid_frequency():
+    assert 'а не частоту PID' in PID_TRAINER_PAGE
+    assert 'целевой период PID — 125 мкс (8 кГц)' in PID_TRAINER_PAGE

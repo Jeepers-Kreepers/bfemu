@@ -277,7 +277,8 @@ def _sample_points(rows):
             for row in rows]
 
 
-def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None):
+def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None,
+               _event_loop=None):
     """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
@@ -285,6 +286,8 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
         raise PhysicsError('Период датчиков SITL должен быть 2, 4 или 8 мс.')
     if motor_mode not in ('poll', 'event'):
         raise PhysicsError('Неизвестный режим обработки команд моторов.')
+    if _event_loop is not None and (motor_mode != 'event' or not callable(_event_loop)):
+        raise PhysicsError('Исследовательский цикл допустим только для событийного режима.')
     curves = theoretical_curves(profile)
     if not _LOCK.acquire(blocking=False):
         raise PhysicsError('Другой эксперимент SITL уже выполняется.')
@@ -341,7 +344,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         done.wait(.02)
                 def simulate():
                     try:
-                        loop = run_event_loop if motor_mode == 'event' else run_loop
+                        loop = (_event_loop or run_event_loop) if motor_mode == 'event' else run_loop
                         loop(profile, curves, motor_input, fdm, output, duration=12, period=sensor_period_ms/1000,
                              max_gap=.5, pressure_pa=101325, clock=clock)
                     except Exception as exc:

@@ -275,6 +275,13 @@ def test_experiment_rejects_unsupported_motor_mode_before_start():
         experiment(build03(), motor_mode='lockstep')
 
 
+def test_research_loop_is_only_callable_in_event_mode():
+    with pytest.raises(PhysicsError, match='событийного режима'):
+        experiment(build03(), motor_mode='poll', _event_loop=lambda *a, **kw: None)
+    with pytest.raises(PhysicsError, match='событийного режима'):
+        experiment(build03(), motor_mode='event', _event_loop='invalid')
+
+
 @pytest.mark.parametrize('axis,sign', [('roll', 1), ('pitch', -1), ('yaw', 1)])
 @pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен собранный Betaflight SITL и свободные порты')
 def test_real_event_motor_mode_covers_each_axis(axis, sign):
