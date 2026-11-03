@@ -63,8 +63,9 @@ def experiment(axis, before, after, profile):
             result = analyze(out)
             if process.returncode and result['status'] == 'reproducible':
                 raise PhysicsError('Результат не воспроизводится: процесс завершился с ошибкой.')
-            from .sitl_pair_report import render
-            return {'status': result['status'], 'reason': result['reason'], 'html': render(result)}
+            from .sitl_pair_report import render, technical_content
+            return {'status': result['status'], 'reason': result['reason'],
+                    'html': render(result, include_technical=False), 'technical_html': technical_content(result)}
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise PhysicsError(f'Результат не воспроизводится: {exc}') from exc
     finally:

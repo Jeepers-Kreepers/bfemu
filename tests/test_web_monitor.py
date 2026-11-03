@@ -498,7 +498,8 @@ def test_pid_lockstep_pair_uses_snapshot_and_rejects_stale(fc, monitor, monkeypa
     seen = []
     def fake(axis, before, after, aircraft):
         seen.append((axis, before, after, aircraft))
-        return {'status': 'not_reproducible', 'reason': 'test failure', 'html': '<p>Результат не воспроизводится</p>'}
+        return {'status': 'not_reproducible', 'reason': 'test failure', 'html': '<p>Результат не воспроизводится</p>',
+                'technical_html': '<p>Технические сведения</p>'}
     monkeypatch.setattr(sitl_pair_web, 'experiment', fake)
     snapshot = pid_trainer.profile_state(fc, 'pitch')
     before = snapshot['values']
@@ -511,5 +512,6 @@ def test_pid_lockstep_pair_uses_snapshot_and_rejects_stale(fc, monitor, monkeypa
     assert not seen
     status, response = post(url, payload)
     assert status == 200 and json.loads(response)['status'] == 'not_reproducible'
+    assert 'Технические сведения' in json.loads(response)['technical_html']
     assert seen[0][:3] == ('pitch', before, payload['after'])
     assert seen[0][3]['values']['mass_g'] == '931'

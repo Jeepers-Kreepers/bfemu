@@ -35,7 +35,33 @@ def chart(title, unit, curves):
     return ''.join(parts)
 
 
-def render(report):
+def technical_content(report):
+    """Технические сведения текущего опыта для веб-страницы и скачиваемого отчёта."""
+    header = report['header']
+    return (
+        '<h3>Парный эксперимент Betaflight SITL</h3>'
+        '<p>Задание, гироскоп и P/I/D/F записываются в каждом цикле расчёта PID. '
+        'Это не MSP-опрос и не данные Blackbox. На каждый кадр приходится 32 отсчёта PID; '
+        'снимки моторов доступны только в конце кадра.</p>'
+        '<p>Показатели и графики относятся к первому успешному повтору каждой настройки. '
+        'Допуски заданы заранее и не являются критериями пригодности для полёта. '
+        'В снимке максимального отклика виден один PID-цикл; на движение также влияют '
+        'другие составляющие, микшер и динамика модели.</p>'
+        '<p>Остальные PID-настройки и фильтры — заводские для этой сборки. До ARM аппарат '
+        'удерживается на стенде; после ARM движется без модели земли. Воздух, батарея и '
+        'шум датчиков не моделируются. Проверяются физическое состояние, приводы и '
+        'снимок PID перед командой, но не все скрытые состояния FC.</p>'
+        '<p>Betaflight 4.5.4, ревизия <code>'+esc(header['revision'])+'</code>. '
+        'SHA-256 исследовательской сборки SITL: <code>'+esc(header['simclock_elf_sha256'])+'</code>. '
+        'Планировщик и часы изменены, PID инструментирован; инициализация и MSP-настройка '
+        'происходят по времени хоста.</p>'
+        '<details><summary>Полная запись условий, модели и допусков</summary><pre>'+
+        esc(json.dumps({'header': header, 'tolerances': report['tolerances'], 'failures': report['failures']},
+                       ensure_ascii=False, indent=2))+'</pre></details>'
+    )
+
+
+def render(report, *, include_technical=True):
     h = report['header']
     title = 'Парное сравнение Betaflight SITL в заданной модели'
     before = h['pid']
@@ -46,12 +72,12 @@ def render(report):
               else 'Результат не воспроизводится — сравнение недоступно')
     out = [f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;background:#10171f;color:#e9f2f4;margin:auto;max-width:1100px;padding:24px}}h1{{font-size:26px}}h2{{margin-top:2em}}section,article{{background:#192530;border:1px solid #344757;border-radius:10px;padding:16px;margin:16px 0}}p{{color:#cad5db}}svg{{width:100%;height:auto;background:#0e171f}}svg text{{fill:#cad5db;font:12px system-ui}}.legend{{display:flex;gap:20px;flex-wrap:wrap}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;padding:9px;border-bottom:1px solid #344757}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}.ok{{color:#80dfbe}}.warning{{color:#ffbf8a}}</style></head><body>
-<h1>{title}</h1><p>Лабораторный эксперимент с реальным кодом регулятора Betaflight в явно заданной физической модели. Это не прогноз реального полёта и не абстрактная учебная реакция.</p>
+<h1>{title}</h1><p>Результат рассчитан в выбранной модели с кодом регулятора Betaflight.</p>
 <article><h2 class="{'ok' if report['status'] == 'reproducible' else 'warning'}">{status}</h2><p>{esc(report['reason'])}</p>
 <p>Ось: {esc(h['axis'].upper())}. До: {esc(pid_label(before))}. После: {esc(pid_label(after))}. Повторов каждой настройки: {esc(h['repeats'])}.</p>
-<p>Betaflight 4.5.4, ревизия <code>{esc(h['revision'])}</code>. SHA-256 исследовательской сборки SITL: <code>{esc(h['simclock_elf_sha256'])}</code>. Планировщик и часы изменены, PID инструментирован.</p></article>''']
+</article>''']
     if report.get('spread'):
-        out.append('<h2>Разброс повторов</h2><p>Максимальные абсолютные различия по всем парам повторов и всем осям; RMS рассчитан для гироскопа выбранной оси. Допуски заданы заранее и не являются критериями пригодности для полёта.</p><table><tr><th>Показатель</th><th>До</th><th>После</th><th>Допуск</th></tr>')
+        out.append('<h2>Разброс повторов</h2><p>Каждая колонка показывает различия между повторами одной настройки, а не между настройками. Указаны максимальные различия по всем осям; RMS рассчитан для гироскопа выбранной оси.</p><table><tr><th>Показатель</th><th>До</th><th>После</th><th>Допуск</th></tr>')
         for key, label in (('gyro_dps', 'Гироскоп, °/с'), ('setpoint_dps', 'Задание, °/с'),
                            ('pid', 'P/I/D/F/Sum, внутренние единицы FC'), ('motor', 'Команда мотора, б/р'),
                            ('position_m', 'Положение, м'), ('velocity_m_s', 'Скорость, м/с'),
@@ -88,9 +114,8 @@ def render(report):
                 text += 'P направлена по знаку ошибки и в этот момент стремится уменьшить расхождение. '
             if abs(p) > 1e-6 and abs(i) > 1e-6 and p*i < 0:
                 text += 'I имеет противоположный P знак и частично компенсирует её вклад в сумму. '
-            text += 'Это снимок одного PID-цикла; на движение также влияют остальные составляющие, микшер и динамика модели.'
             out.append('<p>'+esc(text)+'</p>')
-        out.append('<p>Показатели и графики отображают первый успешный повтор каждой настройки. Допуск подтверждён отдельным сравнением всех повторов; это не доказывает, что различие метрик возникло исключительно из-за коэффициента.</p><h2>Телеметрия регулятора</h2><p>Каждая линия содержит все 32 отсчёта PID на четырёхмиллисекундный кадр. Задание, гироскоп и P/I/D/F сняты внутри расчёта PID; PID-составляющие — внутренние единицы FC. Это не MSP-опрос и не данные Blackbox.</p>')
+        out.append('<p>Показатели и графики показывают первый повтор каждой настройки; все повторы проверены на совпадение.</p><h2>Телеметрия регулятора</h2><p>Задание и гироскоп показаны в градусах в секунду, составляющие PID — во внутренних единицах FC.</p>')
         before, after = report['curves']['before'], report['curves']['after']
         out.append(chart('Задание и гироскоп выбранной оси', '°/с', [
             ('Задание до', COLORS[0], [(r[0], r[1]) for r in before]),
@@ -101,6 +126,8 @@ def render(report):
             out.append(chart(f'{name} · составляющая PID', 'внутренние единицы FC', [
                 (f'{name} до', COLORS[0], [(r[0], r[index]) for r in before]),
                 (f'{name} после', COLORS[1], [(r[0], r[index]) for r in after])]))
-    out.append('<h2>Условия и допуски</h2><p>Остальные PID-настройки и фильтры — заводские для этой сборки. До ARM аппарат жёстко удерживается на ровном стенде; после ARM — свободное тело без земли. Не моделируются воздух, батарея и шум датчиков. Инициализация и MSP-настройка происходят по времени хоста. Проверяются физическое состояние, приводы и снимок PID непосредственно перед командой, но не все скрытые состояния FC. Значения приведены для выбранного окна, модели и экспериментального протокола.</p>')
-    out.append('<details><summary>Полная запись условий, модели и SHA-256</summary><pre>'+esc(json.dumps({'header': h, 'tolerances': report['tolerances'], 'failures': report['failures']}, ensure_ascii=False, indent=2))+'</pre></details></body></html>')
+    if include_technical:
+        out.append('<details id="pair-technical"><summary>Технические сведения</summary>' +
+                   technical_content(report) + '</details>')
+    out.append('</body></html>')
     return ''.join(out)

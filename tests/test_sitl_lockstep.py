@@ -171,3 +171,47 @@ def test_additional_axis_archives_repeat_and_change_pid(name, before, after):
     assert report['status'] == 'reproducible'
     assert report['metrics']['before']['overshoot_percent'] == pytest.approx(before)
     assert report['metrics']['after']['overshoot_percent'] == pytest.approx(after)
+
+
+def test_technical_details_are_at_the_end_of_download_and_separate_from_embedded_report(tmp_path, monkeypatch):
+    from bfemu.sitl_pair_report import technical_content
+
+    pair_summary(tmp_path)
+    monkeypatch.setattr(sitl_pair, '_read_run', lambda d, r, h: artificial_run(r['condition'], r['cycle']))
+    report = sitl_pair.analyze(tmp_path)
+    embedded, complete, technical = render(report, include_technical=False), render(report), technical_content(report)
+    phrase = 'Это не MSP-опрос и не данные Blackbox.'
+    assert phrase not in embedded and phrase in technical and phrase in complete
+    assert 'Каждая колонка показывает различия между повторами одной настройки' in embedded
+    assert 'Технические сведения' in complete and complete.index('Технические сведения') > complete.index('Телеметрия регулятора')
+    assert technical in complete and 'hash' in technical and 'rev' in technical
+    assert 'PID-составляющие' not in embedded or 'внутренних единицах FC' in embedded
+
+
+def test_web_experiment_returns_report_and_separate_technical_details(tmp_path, monkeypatch):
+    from bfemu import aircraft_sitl, sitl_pair_web
+
+    pair_summary(tmp_path)
+    monkeypatch.setattr(sitl_pair, '_read_run', lambda d, r, h: artificial_run(r['condition'], r['cycle']))
+    result = sitl_pair.analyze(tmp_path)
+    result['header']['revision'] = '<script>bad</script>'
+    monkeypatch.setattr(sitl_pair_web, 'analyze', lambda path: result)
+    monkeypatch.setattr(aircraft_sitl, 'sitl_available', lambda: True)
+    class FakeProcess:
+        returncode = 0
+        def __init__(self, command, **kwargs):
+            from pathlib import Path
+            output = Path(command[command.index('--output-dir')+1])
+            output.mkdir()
+            (output/'summary.jsonl').write_text('{}')
+        def wait(self, timeout):
+            return 0
+    monkeypatch.setattr(sitl_pair_web.subprocess, 'Popen', FakeProcess)
+    profile = json.loads((sitl_pair_web.ROOT/'bfemu/data/aircraft_build03.json').read_text())
+    response = sitl_pair_web.experiment('pitch', {'p': 49, 'i': 84, 'd': 46},
+                                        {'p': 55, 'i': 84, 'd': 46}, profile)
+    assert response['status'] == 'reproducible'
+    assert 'Это не MSP-опрос и не данные Blackbox.' not in response['html']
+    assert 'Это не MSP-опрос и не данные Blackbox.' in response['technical_html']
+    assert '<script>bad</script>' not in response['technical_html']
+    assert '&lt;script&gt;bad&lt;/script&gt;' in response['technical_html']
