@@ -368,7 +368,7 @@ def test_gust_validation_and_failed_repeats_never_yield_metrics(tmp_path, monkey
     assert report['status'] == 'not_reproducible' and 'metrics' not in report
     html = render(report)
     assert 'Возмущение — порыв ветра' in html and 'не расчёт аэродинамики' not in html
-    assert 'скорость ветра' in html and 'Пиковая абсолютная ошибка' not in html
+    assert 'скорость порыва' in html and 'Пиковая абсолютная ошибка' not in html
     h['gust']['torque_body_nm'][0] = .1
     write()
     with pytest.raises(ValueError):
@@ -465,3 +465,60 @@ def test_web_gust_rejects_invalid_parameters_before_build():
             sitl_pair_web.experiment('pitch', before, after, profile, scenario='gust', gust=gust)
     with pytest.raises(sitl_pair_web.PhysicsError):
         sitl_pair_web.experiment('pitch', before, after, profile, scenario='step', gust={'moment_nm': .05})
+
+
+@pytest.mark.parametrize(('scenario', 'metric', 'before', 'after'), [
+    ('step', 'overshoot_percent', 24.510904947916668, 25.243489583333336),
+    ('gust', 'peak_abs_error_dps', 5.554197788238525, 5.3099365234375),
+])
+def test_ground_air_archives_have_reproducible_pid_and_verified_sources(scenario, metric, before, after):
+    import hashlib
+    from pathlib import Path
+    d = Path(__file__).resolve().parents[1]/f'docs/research/sitl-ground-air-{scenario}-v1'
+    header = json.loads((d/'summary.jsonl').read_text().splitlines()[0])
+    for filename, key in (('sitl_lockstep_probe.py', 'driver_sha256'), ('input-profile.json', 'profile_sha256'),
+                          ('flight_physics.py', 'physics_sha256'), ('flight_environment.py', 'environment_sha256'),
+                          ('sitl_pair_scenario.py', 'scenario_sha256')):
+        assert hashlib.sha256((d/filename).read_bytes()).hexdigest() == header[key]
+    report = sitl_pair.analyze(d)
+    assert report['status'] == 'reproducible', report['reason']
+    assert report['metrics']['before'][metric] == pytest.approx(before)
+    assert report['metrics']['after'][metric] == pytest.approx(after)
+    assert all(item['gyro_dps'] <= sitl_pair.TOLERANCES['gyro_dps'] for item in report['spread'].values())
+    assert 'Плоская земля' in render(report)
+
+
+def test_ground_contact_during_comparison_blocks_all_metrics(monkeypatch):
+    from pathlib import Path
+    directory = Path(__file__).resolve().parents[1]/'docs/research/sitl-ground-air-step-v1'
+    original = sitl_pair._lines
+    def damaged(path):
+        yield from mutate(path)
+    def mutate(path):
+        for row in original(path):
+            if path.name.startswith('frames-') and row['sequence'] == 1300:
+                row['ground_contact'] = True
+            yield row
+    monkeypatch.setattr(sitl_pair, '_lines', damaged)
+    report = sitl_pair.analyze(directory)
+    assert report['status'] == 'not_reproducible' and 'metrics' not in report
+    assert 'касается земли' in report['reason']
+
+
+def test_ground_check_archive_is_still_before_arm_and_reports_gravity():
+    import hashlib
+    from pathlib import Path
+    d = Path(__file__).resolve().parents[1]/'docs/research/sitl-ground-check-v1'
+    summary = list(sitl_pair._lines(d/'summary.jsonl'))
+    header = summary[0]
+    for filename, key in (('sitl_lockstep_probe.py', 'driver_sha256'), ('input-profile.json', 'profile_sha256'),
+                          ('flight_environment.py', 'environment_sha256')):
+        assert hashlib.sha256((d/filename).read_bytes()).hexdigest() == header[key]
+    for run in summary[1:-1]:
+        assert run['ok'] and run['frames'] == 1500
+        for row in sitl_pair._lines(d/(run['file']+'.gz')):
+            assert not row['armed'] and row['ground_contact']
+            assert row['state']['position_m'] == [0, 0, 0]
+            assert row['state']['angular_velocity_rad_s'] == [0, 0, 0]
+            assert row['fdm_accel_m_s2'] == pytest.approx([0, 0, -9.80665])
+            assert all(a['gyro_dps'] == 0 for sample in row['pid_samples'] for a in sample['axes'])

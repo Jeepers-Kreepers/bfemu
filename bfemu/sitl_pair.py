@@ -5,11 +5,13 @@
 from __future__ import annotations
 
 import gzip
+from dataclasses import asdict
 import itertools
 import json
 import math
 from pathlib import Path
 
+from .flight_environment import DEFAULT_ENVIRONMENT, ENVIRONMENT_NAME, SOURCE_REVISION
 from .sitl_pair_scenario import GUST_RECOVERY_BAND_DPS, gust_torque, validate_gust
 
 FIELDS = ('setpoint_dps', 'gyro_dps', 'p', 'i', 'd', 'f', 'sum')
@@ -41,7 +43,8 @@ def _read_run(directory, item, header):
     axis = AXES[header['axis']]
     events = item['events']
     start, end = events['command_start'], events['command_end']
-    if end-start != 300 or events['bench_release'] != events['armed_at']+1:
+    ground_air = header.get('environment') is not None
+    if end-start != 300 or (events['bench_release'] is not None if ground_air else events['bench_release'] != events['armed_at']+1):
         raise ValueError('Неизвестный сценарий или границы команды.')
     gust = header.get('maneuver', 'step') == 'gust'
     duration = header['gust']['duration_frames'] if gust else 0
@@ -59,6 +62,15 @@ def _read_run(directory, item, header):
                 (previous_clock is not None and row['sim_us']-previous_clock != 4000)):
             raise ValueError('Нарушена последовательность или время кадров.')
         previous_clock = row['sim_us']
+        if ground_air:
+            if type(row.get('ground_contact')) is not bool:
+                raise ValueError('Нет признака контакта с землёй.')
+            if count < events['armed_at'] and (not row['ground_contact'] or row['armed']):
+                raise ValueError('До ARM аппарат не удерживается землёй при дизарме.')
+            if start-1 <= count < end and row['ground_contact']:
+                raise ValueError('В окне сравнения аппарат касается земли.')
+            if count >= events['disarmed_at'] and row['armed']:
+                raise ValueError('После дизарма обнаружен повторный ARM.')
         if gust:
             expected_torque = torque if start <= count < start+duration else [0., 0., 0.]
             if row.get('external_torque_nm') != expected_torque:
@@ -191,11 +203,18 @@ def analyze(directory):
         raise ValueError('Нет полного журнала эксперимента.')
     header = summary[0]
     maneuver = header.get('maneuver', 'step')
+    environment = header.get('environment')
+    ground_air = environment is not None
+    if ground_air:
+        expected = {'name': ENVIRONMENT_NAME, 'parameters': asdict(DEFAULT_ENVIRONMENT), 'source_revision': SOURCE_REVISION}
+        expected['parameters']['wind_ned_m_s'] = list(expected['parameters']['wind_ned_m_s'])
+        if environment != expected or header.get('prearm_bench') is not False:
+            raise ValueError('Неизвестные условия среды или несовместимый стенд.')
     if maneuver not in ('step', 'gust'):
         raise ValueError('Неизвестный сценарий парного опыта.')
     if maneuver == 'gust':
         gust = header.get('gust')
-        if (header.get('axis') not in AXES or header.get('throttle') != 1300 or
+        if (header.get('axis') not in AXES or header.get('throttle') != (1400 if ground_air else 1300) or
                 header.get('impulse_dps') != [0., 0., 0.] or not isinstance(gust, dict) or
                 set(gust) != {'torque_body_nm', 'duration_frames'} or
                 not isinstance(gust['torque_body_nm'], list) or len(gust['torque_body_nm']) != 3):
@@ -204,7 +223,7 @@ def analyze(directory):
         validate_gust(moment, gust['duration_frames'])
         if gust['torque_body_nm'] != list(gust_torque(header['axis'], moment)):
             raise ValueError('Момент возмущения должен действовать по выбранной оси.')
-    if (header.get('scenario') != 'flight' or not header.get('prearm_bench') or header.get('axis') not in AXES or
+    if (header.get('scenario') != 'flight' or (not ground_air and not header.get('prearm_bench')) or header.get('axis') not in AXES or
             header.get('repeats', 0) < 2 or not isinstance(header.get('pid'), dict) or
             not isinstance(header.get('compare_pid'), dict) or
             set(header['pid']) != {'p', 'i', 'd'} or set(header['compare_pid']) != {'p', 'i', 'd'} or

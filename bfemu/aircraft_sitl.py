@@ -402,8 +402,9 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                 def simulate():
                     try:
                         loop = (_event_loop or run_event_loop) if motor_mode == 'event' else run_loop
+                        extra = {'environment': 'ground-air-v1'} if _event_loop is None else {}
                         loop(profile, curves, motor_input, fdm, output, duration=12, period=sensor_period_ms/1000,
-                             max_gap=.5, pressure_pa=101325, clock=clock)
+                             max_gap=.5, pressure_pa=101325, clock=clock, **extra)
                     except Exception as exc:
                         errors.append(exc)
                 tx = threading.Thread(target=send_rc, daemon=True)
@@ -432,7 +433,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         if time.monotonic() >= deadline:
                             raise PhysicsError('SITL не подтвердил ARM.')
                         time.sleep(.1)
-                    channels[2] = 1300
+                    channels[2] = 1400
                     time.sleep(.6)
                     if not worker.is_alive():
                         raise PhysicsError('Расчёт завершился до команды стика.')
@@ -462,6 +463,9 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         raise PhysicsError('Расчёт не охватил всю команду стика.')
                     # Метрики по всем отсчётам физики, не по прореженному графику.
                     command_start, command_end = event_start-run_start[0], event_end-run_start[0]
+                    if _event_loop is None and any(row.get('ground_contact') for row in rows
+                                                   if command_start <= row['elapsed_s'] <= command_end):
+                        raise PhysicsError('Во время команды аппарат касается земли; измените профиль аппарата.')
                     diagnostics = _diagnostics(rows, command_start, command_end, axis)
                     # Время переключения RC на стороне отправителя, не момент получения FC.
                     points = _sample_points(rows)

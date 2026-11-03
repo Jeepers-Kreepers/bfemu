@@ -466,3 +466,30 @@ def test_discard_stale_motor_packets_before_start():
     queued.packets = [b'flood']*4096
     with pytest.raises(PhysicsError, match='Очередь'):
         discard_queued_motors(queued)
+
+
+def test_environment_loop_reports_ground_support_to_fc():
+    clock = FakeClock()
+    sender, output = FakeStateSocket(), io.StringIO()
+    run_loop(aircraft_profile(), model(), FakeMotorSocket(struct.pack('=4f', 0, 0, 0, 0)),
+             sender, output, duration=.03, period=.004, max_gap=.1, pressure_pa=101325,
+             clock=clock.clock, sleep=clock.sleep, environment='ground-air-v1')
+    rows = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert rows[0]['environment'] == 'ground-air-v1'
+    assert all(row['ground_contact'] and row['state']['position_m'] == [0, 0, 0] for row in rows[1:])
+    assert all(packet[4:7] == pytest.approx((0, 0, -GRAVITY)) for packet in sender.packets)
+
+
+def test_event_environment_keeps_initial_accelerometer_and_ground_consistent():
+    from bfemu.sitl_closed_loop import run_event_loop
+    clock = FakeClock()
+    def wait(readers, _write, _errors, timeout):
+        clock.now += timeout
+        return readers, [], []
+    sender, output = FakeStateSocket(), io.StringIO()
+    run_event_loop(aircraft_profile(), model(), FakeMotorSocket(struct.pack('=4f', 0, 0, 0, 0)),
+                   sender, output, duration=.03, period=.004, max_gap=.1, pressure_pa=101325,
+                   clock=clock.clock, wait=wait, environment='ground-air-v1')
+    rows = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert all(row['ground_contact'] and row['state']['position_m'] == [0, 0, 0] for row in rows[1:])
+    assert all(packet[4:7] == pytest.approx((0, 0, -GRAVITY)) for packet in sender.packets)

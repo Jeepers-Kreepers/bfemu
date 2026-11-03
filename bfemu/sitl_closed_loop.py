@@ -1,7 +1,8 @@
 """Экспериментальная замкнутая связь свободного тела с Betaflight 4.5.4 SITL.
 
-Только localhost:9002 (моторы) и localhost:9003 (состояние/IMU); нет земли,
-батареи, ветра, шума, задержки IMU, GPS или автоматического управления RC.
+Только localhost:9002 (моторы) и localhost:9003 (состояние/IMU).
+Возможна упрощённая среда ground-air-v1; батарея, шум, задержка IMU,
+GPS и автоматическое управление RC здесь не моделируются.
 """
 from __future__ import annotations
 
@@ -17,7 +18,8 @@ import sys
 import time
 
 from .flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
-from .flight_physics import Aircraft, PhysicsError, State, step
+from .flight_physics import GRAVITY, Aircraft, PhysicsError, State, add, step
+from .flight_environment import ENVIRONMENT_NAME, ground_air_step, inverse_rotate
 from .sitl_feedback import sensor_packet
 from .sitl_capture import CaptureError, SitlMspClient
 
@@ -49,16 +51,20 @@ def discard_queued_motors(motor_socket):
 
 
 def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
-             clock=time.monotonic, sleep=time.sleep):
+             clock=time.monotonic, sleep=time.sleep, environment='free'):
     _validate_loop(duration, period, max_gap)
+    if environment not in ('free', ENVIRONMENT_NAME):
+        raise PhysicsError('Неизвестная среда.')
     aircraft, mapping, curves = Aircraft.from_profile(profile), output_mapping(profile), read_curves(model)
     actuators, state = Actuators(curves), State()
     # Валидируем давление и начальное состояние до отправки и записи.
-    first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa)
+    first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa,
+                          specific_force_m_s2=(0., 0., -GRAVITY) if environment == ENVIRONMENT_NAME else None)
     header = {'type': 'header', 'schema': 1, 'profile': profile, 'actuator_model': model,
               'time_basis': 'host_monotonic', 'sensor_period_s': period, 'pressure_pa': pressure_pa,
-              'feedback_to_sitl': True, 'note': 'Эксперимент: идеальный IMU в центре масс, постоянное давление, '
-              'свободное тело без земли и сопротивления воздуха. UDP-отправитель не подтверждён.'}
+              'feedback_to_sitl': True, 'environment': environment, 'note': ('Плоская земля и приближённое сопротивление воздуха.'
+              if environment == ENVIRONMENT_NAME else 'Свободное тело без земли и сопротивления воздуха.')+
+              ' Идеальный IMU в центре масс; UDP-отправитель не подтверждён.'}
     stream.write(json.dumps(header, ensure_ascii=False, allow_nan=False)+'\n')
     stream.flush()
     motor_socket.setblocking(False)
@@ -98,13 +104,18 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
         if now-(last_motor if last_motor is not None else start) > max_gap:
             raise PhysicsError('Нет пакетов моторов SITL: связь остановлена; проверьте выходы моторов.')
         average_thrust, average_reaction = actuators.advance(commands, dt)
-        state = step(aircraft, state, average_thrust, average_reaction, dt)
-        state_socket.sendto(sensor_packet(aircraft, state, actuators.thrust_n, timestamp=elapsed, pressure_pa=pressure_pa),
+        contact, specific = None, None
+        if environment == ENVIRONMENT_NAME:
+            state, contact, specific = ground_air_step(aircraft, state, average_thrust, average_reaction, dt)
+        else:
+            state = step(aircraft, state, average_thrust, average_reaction, dt)
+        state_socket.sendto(sensor_packet(aircraft, state, actuators.thrust_n, timestamp=elapsed, pressure_pa=pressure_pa,
+                                          specific_force_m_s2=specific),
                             ('127.0.0.1', 9003))
         stream.write(json.dumps({'type': 'sample', 'elapsed_s': elapsed, 'dt_s': dt,
                                  'applied_commands': commands, 'next_commands': latest,
                                  'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                                 'state': asdict(state)}, ensure_ascii=False, allow_nan=False)+'\n')
+                                 'state': asdict(state), 'ground_contact': contact}, ensure_ascii=False, allow_nan=False)+'\n')
         count += 1
         if latest is not None:
             commands = latest
@@ -118,26 +129,32 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
 
 
 def run_event_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
-                   clock=time.monotonic, wait=select.select):
+                   clock=time.monotonic, wait=select.select, environment='free'):
     """Интегрировать модель при чтении команд и отправлять датчики по собственному таймеру.
 
     Время чтения сокета — не метка формирования команды FC. Пакеты UDP не имеют
     номера кадра, поэтому этот режим не обеспечивает lockstep с Betaflight.
     """
     _validate_loop(duration, period, max_gap)
+    if environment not in ('free', ENVIRONMENT_NAME):
+        raise PhysicsError('Неизвестная среда.')
     aircraft, mapping, curves = Aircraft.from_profile(profile), output_mapping(profile), read_curves(model)
     actuators, state = Actuators(curves), State()
-    first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa)
+    first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa,
+                          specific_force_m_s2=(0., 0., -GRAVITY) if environment == ENVIRONMENT_NAME else None)
     header = {'type': 'header', 'schema': 1, 'profile': profile, 'actuator_model': model,
               'time_basis': 'host_monotonic', 'sensor_period_s': period, 'pressure_pa': pressure_pa,
-              'feedback_to_sitl': True, 'motor_mode': 'event',
+              'feedback_to_sitl': True, 'motor_mode': 'event', 'environment': environment,
               'note': 'Команды применяются в момент чтения UDP на стороне модели; соответствие пакетам FDM неизвестно. '
-              'Идеальный IMU в центре масс, постоянное давление, свободное тело без земли и сопротивления воздуха.'}
+              + ('Плоская земля, приближённое сопротивление воздуха.' if environment == ENVIRONMENT_NAME else
+               'Свободное тело без земли и сопротивления воздуха.')}
     stream.write(json.dumps(header, ensure_ascii=False, allow_nan=False)+'\n')
     stream.flush()
     motor_socket.setblocking(False)
     start = clock()
     last_step = last_sensor = start
+    last_sensor_state = state
+    contact = environment == ENVIRONMENT_NAME
     last_motor = None
     next_tick = start + period
     commands = (0., 0., 0., 0.)
@@ -147,13 +164,16 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
     state_socket.sendto(first, ('127.0.0.1', 9003))
 
     def advance(now):
-        nonlocal state, last_step
+        nonlocal state, last_step, contact
         dt = now-last_step
         if dt < 0:
             raise PhysicsError('Время расчёта модели пошло назад.')
         if dt > 0:
             thrust, reaction = actuators.advance(commands, dt)
-            state = step(aircraft, state, thrust, reaction, dt)
+            if environment == ENVIRONMENT_NAME:
+                state, contact, _ = ground_air_step(aircraft, state, thrust, reaction, dt)
+            else:
+                state = step(aircraft, state, thrust, reaction, dt)
             last_step = now
 
     while True:
@@ -167,14 +187,19 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
             if now-(last_motor if last_motor is not None else start) > max_gap:
                 raise PhysicsError('Нет пакетов моторов SITL: связь остановлена; проверьте выходы моторов.')
             advance(now)
+            specific = None
+            if environment == ENVIRONMENT_NAME:
+                acceleration = tuple((a-b)/interval for a, b in zip(state.velocity_m_s, last_sensor_state.velocity_m_s, strict=True))
+                specific = inverse_rotate(state.orientation, add(acceleration, (0., 0., -GRAVITY)))
             state_socket.sendto(sensor_packet(aircraft, state, actuators.thrust_n, timestamp=now-start,
-                                              pressure_pa=pressure_pa), ('127.0.0.1', 9003))
+                                              pressure_pa=pressure_pa, specific_force_m_s2=specific), ('127.0.0.1', 9003))
             stream.write(json.dumps({'type': 'sample', 'elapsed_s': now-start, 'dt_s': interval,
                                      'applied_commands': commands, 'next_commands': latest,
                                      'motor_full_output_since_sensor': full_output,
                                      'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                                     'state': asdict(state)}, ensure_ascii=False, allow_nan=False)+'\n')
+                                     'state': asdict(state), 'ground_contact': contact}, ensure_ascii=False, allow_nan=False)+'\n')
             last_sensor = now
+            last_sensor_state = state
             latest = None
             full_output = any(value >= 1.0 for value in commands)
             count += 1

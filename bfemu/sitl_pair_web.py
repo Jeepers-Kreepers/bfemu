@@ -59,7 +59,7 @@ def experiment(axis, before, after, profile, scenario='step', gust=None):
             profile_path, out = root/'profile.json', root/'results'
             profile_path.write_text(json.dumps(profile, ensure_ascii=False, allow_nan=False), encoding='utf-8')
             command = [sys.executable, str(script), '--output-dir', str(out), '--profile', str(profile_path),
-                       '--scenario', 'flight', '--prearm-bench', '--axis', axis, '--repeats', '2',
+                       '--scenario', 'flight', '--environment', 'ground-air-v1', '--throttle', '1400', '--axis', axis, '--repeats', '2',
                        '--pid', *(str(before[k]) for k in ('p', 'i', 'd')),
                        '--compare-pid', *(str(after[k]) for k in ('p', 'i', 'd'))]
             if scenario == 'gust':

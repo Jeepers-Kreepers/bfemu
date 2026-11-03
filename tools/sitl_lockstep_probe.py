@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from bfemu import aircraft_sitl
 from bfemu.flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
 from bfemu.flight_physics import GRAVITY, Aircraft, PhysicsError, State, step
+from bfemu.flight_environment import DEFAULT_ENVIRONMENT, ENVIRONMENT_NAME, SOURCE_REVISION, ground_air_step
 from bfemu.sitl_feedback import FDM_PACKET, sensor_packet
 from bfemu.sitl_pair_scenario import GUST_FRAMES, GUST_TORQUE_NM, gust_torque, validate_gust
 from tools.sitl_pid_cycle_probe import digest
@@ -186,8 +187,10 @@ def decode_response(data, expected, mapping, previous_clock):
 def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=None,
                pause_every=0, pause_ms=0, axis='pitch', stick=1650, throttle=1300,
                impulse_dps=(0., 0., 0.), prearm_frames=0, prearm_bench=False, maneuver='step',
-               gust_moment_nm=GUST_TORQUE_NM, gust_frames=GUST_FRAMES):
+               gust_moment_nm=GUST_TORQUE_NM, gust_frames=GUST_FRAMES, environment='free'):
     """Сценарии: свободное падение без ARM либо ступень выбранной оси после ARM."""
+    if environment not in ('free', ENVIRONMENT_NAME) or (environment != 'free' and prearm_bench):
+        raise PhysicsError('Неизвестная среда или несовместимость земли со стендом.')
     if axis not in aircraft_sitl.AXES:
         raise PhysicsError('Неизвестная ось.')
     if scenario not in ('stationary', 'flight') or maneuver not in ('step', 'gust'):
@@ -215,7 +218,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     actuators = Actuators(read_curves(aircraft_sitl.theoretical_curves(profile)))
     state = State()
     records, last_clock, commands = [], None, (0., 0., 0., 0.)
-    arm_request = armed_at = command_start = command_end = disarm_request = ready_at = None
+    arm_request = armed_at = command_start = command_end = disarm_request = ready_at = disarmed_at = None
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rx:
         rx.bind(('127.0.0.1', 9011))
         for seq in range(1, frames+1):
@@ -236,9 +239,13 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
                     v+math.radians(delta) for v, delta in zip(state.angular_velocity_rad_s, impulse_dps, strict=True)))
             thrust, reaction = actuators.advance(commands, FRAME_US/1e6)
             external = gust_torque(axis, gust_moment_nm) if maneuver == 'gust' and command_start is not None and command_start <= seq < command_start+gust_frames else (0., 0., 0.)
-            state = State() if held else step(aircraft, state, thrust, reaction, FRAME_US/1e6, external_torque_nm=external)
+            contact, specific = None, None
+            if environment == ENVIRONMENT_NAME:
+                state, contact, specific = ground_air_step(aircraft, state, thrust, reaction, FRAME_US/1e6, external_torque_nm=external)
+            else:
+                state = State() if held else step(aircraft, state, thrust, reaction, FRAME_US/1e6, external_torque_nm=external)
             timestamp = seq*FRAME_US/1e6
-            fdm = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=timestamp, pressure_pa=101325)
+            fdm = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=timestamp, pressure_pa=101325, specific_force_m_s2=specific)
             fields = list(FDM_PACKET.unpack(fdm))
             if held:
                 # Жёстко закреплённый ровный стенд: опора вместе с моторами
@@ -256,7 +263,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             last_clock = rec['sim_us']
             row = {'fdm_time_s': timestamp, 'channels': channels, 'applied_commands': commands,
                    'state': asdict(state), 'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                   'bench_held': held, 'fdm_accel_m_s2': fields[4:7], 'external_torque_nm': external, **rec}
+                   'bench_held': held, 'ground_contact': contact, 'fdm_accel_m_s2': fields[4:7], 'external_torque_nm': external, **rec}
             if seq == command_start and any(impulse_dps):
                 row['impulse_dps'] = list(impulse_dps)
             if on_frame:
@@ -290,12 +297,17 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             elif seq < disarm_request and not rec['armed']:
                 raise PhysicsError(f'SITL вышел из ARM на кадре {seq}; флаги {rec["disable_flags"]:#x}.')
             elif seq >= disarm_request and not rec['armed']:
-                return records, {'ready_at': ready_at, 'arm_request': arm_request, 'armed_at': armed_at,
-                                 'bench_release': armed_at+1 if prearm_bench else None,
-                                 'command_start': command_start, 'command_end': command_end,
-                                 'disturbance_start': command_start if maneuver == 'gust' else None,
-                                 'disturbance_end': command_start+gust_frames if maneuver == 'gust' else None,
-                                 'disarm_request': disarm_request, 'disarmed_at': seq}
+                if disarmed_at is None:
+                    disarmed_at = seq
+                if environment == 'free' or seq >= disarmed_at+500:
+                    return records, {'ready_at': ready_at, 'arm_request': arm_request, 'armed_at': armed_at,
+                                     'bench_release': armed_at+1 if prearm_bench else None,
+                                     'command_start': command_start, 'command_end': command_end,
+                                     'disturbance_start': command_start if maneuver == 'gust' else None,
+                                     'disturbance_end': command_start+gust_frames if maneuver == 'gust' else None,
+                                     'disarm_request': disarm_request, 'disarmed_at': disarmed_at}
+            elif disarmed_at is not None:
+                raise PhysicsError('Неожиданный повторный ARM после дизарма.')
             elif seq >= disarm_request+250:
                 raise PhysicsError('SITL не подтвердил дизарм за 250 кадров.')
     if scenario == 'flight':
@@ -312,6 +324,7 @@ def parse_args(argv=None):
     parser.add_argument('--maneuver', choices=('step', 'gust'), default='step', help='ступень стика или заданное возмущение')
     parser.add_argument('--gust-moment-nm', type=float, default=GUST_TORQUE_NM, help='знаковый момент в Н·м по оси тела')
     parser.add_argument('--gust-frames', type=int, default=GUST_FRAMES, help='длительность порыва в кадрах по 4 мс')
+    parser.add_argument('--environment', choices=('free', ENVIRONMENT_NAME), default='free', help='земля и сопротивление воздуха либо прежнее свободное тело')
     parser.add_argument('--repeats', type=int, default=2)
     parser.add_argument('--axis', choices=tuple(aircraft_sitl.AXES), default='pitch')
     parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'),
@@ -345,7 +358,9 @@ def parse_args(argv=None):
             validate_gust(args.gust_moment_nm, args.gust_frames)
         except ValueError as exc:
             parser.error(str(exc))
-    if args.compare_pid is not None and (args.scenario != 'flight' or not args.prearm_bench or args.repeats < 2 or
+    if args.environment != 'free' and args.prearm_bench:
+        parser.error('Стенд нельзя совмещать с моделью земли.')
+    if args.compare_pid is not None and (args.scenario != 'flight' or (not args.prearm_bench and args.environment == 'free') or args.repeats < 2 or
             any(v not in range(251) for v in args.compare_pid) or
             sum(a != b for a, b in zip(args.pid, args.compare_pid, strict=True)) != 1):
         parser.error('Для парного опыта нужны flight, стенд, минимум два повтора и ровно один изменённый P/I/D Max.')
@@ -399,6 +414,9 @@ def main(argv=None):
                       'includes_sha256': {p.name: digest(p) for p in (ROOT/'sitl_lockstep_probe.inc', ROOT/'sitl_lockstep_target.inc')},
                       'platform': platform.platform(), 'aircraft': profile, 'profile_file': profile_path.name,
                       'profile_sha256': profile_sha256, 'frames': args.frames, 'scenario': args.scenario,
+                      'environment': ({'name': ENVIRONMENT_NAME, 'parameters': asdict(DEFAULT_ENVIRONMENT), 'source_revision': SOURCE_REVISION}
+                                      if args.environment == ENVIRONMENT_NAME else None),
+                      'environment_sha256': digest(ROOT.parent/'bfemu/flight_environment.py'),
                       'maneuver': args.maneuver, 'physics_sha256': digest(ROOT.parent/'bfemu/flight_physics.py'),
                       'scenario_sha256': digest(ROOT.parent/'bfemu/sitl_pair_scenario.py'),
                       'gust': ({'torque_body_nm': gust_torque(args.axis, args.gust_moment_nm), 'duration_frames': args.gust_frames}
@@ -409,7 +427,9 @@ def main(argv=None):
                       'stick': args.stick, 'throttle': args.throttle, 'impulse_dps': args.impulse_dps,
                       'prearm_frames': args.prearm_frames, 'prearm_bench': args.prearm_bench,
                       'external_fdm_rc': 'discarded',
-                      'note': ('Жёсткий ровный стенд до ARM, после него свободное тело без земли. '
+                      'note': ('Упрощённая плоская земля и сопротивление воздуха. '
+                               if args.environment == ENVIRONMENT_NAME else
+                               'Жёсткий ровный стенд до ARM, после него свободное тело без земли. '
                                if args.prearm_bench else 'Модель свободного тела без земли. ') +
                               'Инициализация и MSP асинхронны, планировщик изменён.'})
                 conditions = [('before', args.pid)] + ([('after', args.compare_pid)] if args.compare_pid else [])
@@ -464,7 +484,8 @@ def main(argv=None):
                                                                 axis=args.axis, stick=args.stick, throttle=args.throttle,
                                                                 impulse_dps=args.impulse_dps, prearm_frames=args.prearm_frames,
                                                                 prearm_bench=args.prearm_bench, maneuver=args.maneuver,
-                                                                gust_moment_nm=args.gust_moment_nm, gust_frames=args.gust_frames)
+                                                                gust_moment_nm=args.gust_moment_nm, gust_frames=args.gust_frames,
+                                                                environment=args.environment)
                                 row['events'] = events
                             row['ok'] = True
                             row['frames'] = len(result)
