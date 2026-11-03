@@ -9,7 +9,7 @@ def esc(value):
     return html.escape(str(value), quote=True)
 
 
-def chart(title, unit, curves):
+def chart(title, unit, curves, *, markers=()):
     """Все PID-отсчёты отображаются без прореживания; отдельная шкала на график."""
     samples = [value for _, _, points in curves for _, value in points]
     low, high = min(samples), max(samples)
@@ -29,8 +29,18 @@ def chart(title, unit, curves):
     for _, color, points in curves:
         path = ' '.join(f'{75+910*t/end:.2f},{210-198*(v-low)/(high-low):.2f}' for t, v in points)
         parts.append(f'<polyline points="{path}" fill="none" stroke="{color}" stroke-width="1.3"/>')
+    for condition, time_s, color, offset in markers:
+        if not 0 <= time_s <= end:
+            raise ValueError('Момент максимального отклика за пределами графика.')
+        x = 75+910*time_s/end
+        parts.append(f'<line class="peak-marker" data-condition="{esc(condition)}" x1="{x:.2f}" x2="{x:.2f}" '
+                     f'y1="12" y2="210" stroke="{color}" stroke-width="2" stroke-dasharray="5 5" '
+                     f'stroke-dashoffset="{offset}"><title>Пик {esc(condition)}: {time_s:.4f} с</title></line>')
     parts.append(f'<text x="530" y="247" text-anchor="middle">Время от начала команды, с</text></svg><p>По вертикали: {esc(unit)}.</p><div class="legend">')
     parts.extend(f'<span style="color:{color}">■ {esc(label)}</span>' for label, color, _ in curves)
+    parts.extend(f'<span style="color:{color}"><i aria-hidden="true" style="display:inline-block;width:1.4em;'
+                 f'border-top:2px dashed {color};vertical-align:middle"></i> Пик {esc(condition)} · {time_s:.4f} с</span>'
+                 for condition, time_s, color, _ in markers)
     parts.append('</div></section>')
     return ''.join(parts)
 
@@ -115,17 +125,23 @@ def render(report, *, include_technical=True):
             if abs(p) > 1e-6 and abs(i) > 1e-6 and p*i < 0:
                 text += 'I имеет противоположный P знак и частично компенсирует её вклад в сумму. '
             out.append('<p>'+esc(text)+'</p>')
-        out.append('<p>Показатели и графики показывают первый повтор каждой настройки; все повторы проверены на совпадение.</p><h2>Телеметрия регулятора</h2><p>Задание и гироскоп показаны в градусах в секунду, составляющие PID — во внутренних единицах FC.</p>')
         before, after = report['curves']['before'], report['curves']['after']
+        # Противоположные фазы пунктира позволяют увидеть обе отметки, даже когда их время совпадает.
+        markers = [(label, report['metrics'][name]['peak_sample'][0], color, offset)
+                   for name, label, color, offset in (('before', 'до', '#c39aff', 0),
+                                                      ('after', 'после', '#ffffff', 5))
+                   if report['metrics'][name]['peak_sample'] is not None]
+        out.append('<p>Показатели и графики показывают первый повтор каждой настройки; все повторы проверены на совпадение.</p><h2>Телеметрия регулятора</h2><p>Задание и гироскоп показаны в градусах в секунду, составляющие PID — во внутренних единицах FC.' +
+                   (' Пунктир отмечает моменты максимального отклика, описанные выше.' if markers else '') + '</p>')
         out.append(chart('Задание и гироскоп выбранной оси', '°/с', [
             ('Задание до', COLORS[0], [(r[0], r[1]) for r in before]),
             ('Гироскоп до', COLORS[1], [(r[0], r[2]) for r in before]),
             ('Задание после', COLORS[2], [(r[0], r[1]) for r in after]),
-            ('Гироскоп после', COLORS[3], [(r[0], r[2]) for r in after])]))
+            ('Гироскоп после', COLORS[3], [(r[0], r[2]) for r in after])], markers=markers))
         for index, name in enumerate(('P', 'I', 'D', 'F'), 3):
             out.append(chart(f'{name} · составляющая PID', 'внутренние единицы FC', [
                 (f'{name} до', COLORS[0], [(r[0], r[index]) for r in before]),
-                (f'{name} после', COLORS[1], [(r[0], r[index]) for r in after])]))
+                (f'{name} после', COLORS[1], [(r[0], r[index]) for r in after])], markers=markers))
     if include_technical:
         out.append('<details id="pair-technical"><summary>Технические сведения</summary>' +
                    technical_content(report) + '</details>')

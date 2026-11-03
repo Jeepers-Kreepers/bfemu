@@ -215,3 +215,75 @@ def test_web_experiment_returns_report_and_separate_technical_details(tmp_path, 
     assert 'Это не MSP-опрос и не данные Blackbox.' in response['technical_html']
     assert '<script>bad</script>' not in response['technical_html']
     assert '&lt;script&gt;bad&lt;/script&gt;' in response['technical_html']
+
+
+def test_peak_markers_match_described_times_on_every_telemetry_graph(tmp_path, monkeypatch):
+    import re
+    from xml.etree import ElementTree
+
+    pair_summary(tmp_path)
+    monkeypatch.setattr(sitl_pair, '_read_run', lambda d, r, h: artificial_run(r['condition'], r['cycle']))
+    report = sitl_pair.analyze(tmp_path)
+    for name, time_s in (('before', .072), ('after', .064)):
+        peak = report['metrics'][name]['peak_sample']
+        report['metrics'][name]['peak_sample'] = (time_s, *peak[1:])
+    rendered = render(report, include_technical=False)
+    assert 'До: через 0.0720 с' in rendered
+    assert 'После: через 0.0640 с' in rendered
+    graphs = re.findall(r'<svg\b.*?</svg>', rendered, flags=re.DOTALL)
+    assert len(graphs) == 5
+    for svg in graphs:
+        root = ElementTree.fromstring(svg)
+        lines = root.findall(".//line[@class='peak-marker']")
+        assert len(lines) == 2
+        for line, name, time_s, offset in zip(lines, ('до', 'после'), (.072, .064), ('0', '5'), strict=True):
+            assert line.attrib['data-condition'] == name
+            assert float(line.attrib['x1']) == pytest.approx(75+910*time_s/1.2, abs=.01)
+            assert line.attrib['x1'] == line.attrib['x2']
+            assert line.attrib['stroke-dasharray'] == '5 5'
+            assert line.attrib['stroke-dashoffset'] == offset
+    assert rendered.count('Пик до · 0.0720 с') == 5
+    assert rendered.count('Пик после · 0.0640 с') == 5
+
+
+def test_peak_markers_handle_overlapping_and_undefined_peaks(tmp_path, monkeypatch):
+    import re
+    from xml.etree import ElementTree
+
+    pair_summary(tmp_path)
+    monkeypatch.setattr(sitl_pair, '_read_run', lambda d, r, h: artificial_run(r['condition'], r['cycle']))
+    report = sitl_pair.analyze(tmp_path)
+    rendered = render(report, include_technical=False)
+    lines = ElementTree.fromstring(re.search(r'<svg\b.*?</svg>', rendered, re.DOTALL).group()).findall(".//line[@class='peak-marker']")
+    assert len(lines) == 2 and lines[0].attrib['x1'] == lines[1].attrib['x1']
+    assert lines[0].attrib['stroke'] != lines[1].attrib['stroke']
+    assert [line.attrib['stroke-dashoffset'] for line in lines] == ['0', '5']
+    report['metrics']['after']['peak_sample'] = None
+    rendered = render(report, include_technical=False)
+    assert 'После: задание близко к нулю' in rendered
+    assert rendered.count('class="peak-marker"') == 5
+    assert 'Пик после ·' not in rendered
+    report['metrics']['before']['peak_sample'] = None
+    rendered = render(report, include_technical=False)
+    assert 'class="peak-marker"' not in rendered
+
+
+@pytest.mark.parametrize('name', ['p49-p55-v2', 'yaw-i80-i40-v1'])
+def test_peak_markers_use_archived_pid_sample_timestamps(name):
+    import re
+    from pathlib import Path
+    from xml.etree import ElementTree
+
+    directory = Path(__file__).resolve().parents[1]/f'docs/research/sitl-lockstep-pair-{name}'
+    report = sitl_pair.analyze(directory)
+    html = render(report)
+    graphs = re.findall(r'<svg\b.*?</svg>', html, flags=re.DOTALL)
+    assert len(graphs) == 5
+    for svg in graphs:
+        lines = ElementTree.fromstring(svg).findall(".//line[@class='peak-marker']")
+        assert len(lines) == 2
+        for line, condition in zip(lines, ('before', 'after'), strict=True):
+            peak_time = report['metrics'][condition]['peak_sample'][0]
+            end_time = report['curves'][condition][-1][0]
+            assert float(line.attrib['x1']) == pytest.approx(75+910*peak_time/end_time, abs=.01)
+            assert f'{peak_time:.4f}' in line.find('title').text
