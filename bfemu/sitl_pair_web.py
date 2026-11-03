@@ -13,11 +13,26 @@ from . import aircraft_sitl
 from .flight_actuators import output_mapping, read_curves
 from .flight_physics import Aircraft, PhysicsError
 from .sitl_pair import analyze
+from .sitl_pair_scenario import GUST_FRAMES, GUST_TORQUE_NM, validate_gust
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def experiment(axis, before, after, profile):
+def experiment(axis, before, after, profile, scenario='step', gust=None):
+    if scenario not in ('step', 'gust'):
+        raise PhysicsError('Неизвестный сценарий парного опыта.')
+    if scenario == 'gust':
+        if gust is None:
+            gust = {'moment_nm': GUST_TORQUE_NM, 'duration_ms': GUST_FRAMES*4}
+        if (not isinstance(gust, dict) or set(gust) != {'moment_nm', 'duration_ms'} or
+                type(gust['duration_ms']) is not int or gust['duration_ms'] % 4):
+            raise PhysicsError('Укажите момент и длительность порыва с шагом 4 мс.')
+        try:
+            validate_gust(gust['moment_nm'], gust['duration_ms']//4)
+        except ValueError as exc:
+            raise PhysicsError(str(exc)) from exc
+    elif gust is not None:
+        raise PhysicsError('Параметры порыва применимы только к сценарию возмущения.')
     if axis not in ('roll', 'pitch', 'yaw'):
         raise PhysicsError('Неизвестная ось.')
     for values in (before, after):
@@ -47,6 +62,9 @@ def experiment(axis, before, after, profile):
                        '--scenario', 'flight', '--prearm-bench', '--axis', axis, '--repeats', '2',
                        '--pid', *(str(before[k]) for k in ('p', 'i', 'd')),
                        '--compare-pid', *(str(after[k]) for k in ('p', 'i', 'd'))]
+            if scenario == 'gust':
+                command += ['--maneuver', 'gust', '--gust-moment-nm', str(gust['moment_nm']),
+                            '--gust-frames', str(gust['duration_ms']//4)]
             with (root/'run.log').open('w', encoding='utf-8') as log:
                 process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
                                            start_new_session=True)

@@ -115,3 +115,16 @@ def test_cli_needs_explicit_forces_and_reads_export(tmp_path):
     assert data['state']['position_m'][2] == pytest.approx(GRAVITY*.2**2/2)
     no_forces = subprocess.run(args[:5], text=True, capture_output=True, check=False)
     assert no_forces.returncode != 0
+
+
+def test_external_body_torque_affects_rotation_not_translation():
+    aircraft = Aircraft.from_profile(profile())
+    state = State()
+    no_force = derivative(aircraft, state, [0]*4, [0]*4)
+    forced = derivative(aircraft, state, [0]*4, [0]*4, external_torque_nm=(0, -0.6, 0))
+    assert forced.acceleration_m_s2 == no_force.acceleration_m_s2
+    assert forced.angular_acceleration_rad_s2 == pytest.approx((0, -0.2, 0))
+    result = step(aircraft, state, [0]*4, [0]*4, .1, external_torque_nm=(0, -0.6, 0))
+    assert result.angular_velocity_rad_s == pytest.approx((0, -.02, 0))
+    with pytest.raises(PhysicsError):
+        derivative(aircraft, state, [0]*4, [0]*4, external_torque_nm=(float('nan'), 0, 0))

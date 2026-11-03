@@ -10,6 +10,8 @@ import json
 import math
 from pathlib import Path
 
+from .sitl_pair_scenario import GUST_RECOVERY_BAND_DPS, gust_torque, validate_gust
+
 FIELDS = ('setpoint_dps', 'gyro_dps', 'p', 'i', 'd', 'f', 'sum')
 AXES = {'roll': 0, 'pitch': 1, 'yaw': 2}
 # Это фиксированные допуски численной повторяемости, не пределы пригодности полёта.
@@ -41,6 +43,11 @@ def _read_run(directory, item, header):
     start, end = events['command_start'], events['command_end']
     if end-start != 300 or events['bench_release'] != events['armed_at']+1:
         raise ValueError('Неизвестный сценарий или границы команды.')
+    gust = header.get('maneuver', 'step') == 'gust'
+    duration = header['gust']['duration_frames'] if gust else 0
+    torque = header['gust']['torque_body_nm'] if gust else None
+    if gust and (events.get('disturbance_start') != start or events.get('disturbance_end') != start+duration):
+        raise ValueError('Неверные границы возмущения.')
     frames, initial, previous_clock, count = [], None, None, 0
     path = directory/filename
     if not path.exists():
@@ -52,6 +59,10 @@ def _read_run(directory, item, header):
                 (previous_clock is not None and row['sim_us']-previous_clock != 4000)):
             raise ValueError('Нарушена последовательность или время кадров.')
         previous_clock = row['sim_us']
+        if gust:
+            expected_torque = torque if start <= count < start+duration else [0., 0., 0.]
+            if row.get('external_torque_nm') != expected_torque:
+                raise ValueError('Возмущение не соответствует условиям сценария.')
         if count == start-1:
             initial = {key: row[key] for key in ('state', 'motors', 'thrust_n', 'reaction_nm', 'applied_commands')}
             initial['pid_axes'] = row['pid_samples'][-1]['axes']
@@ -59,6 +70,9 @@ def _read_run(directory, item, header):
             if not row['armed'] or row['bench_held'] or len(row['motors']) != 4:
                 raise ValueError('Некорректное состояние в окне команды.')
             _finite(row['motors'])
+            if gust:
+                if row['channels'] != [1500, 1500, header['throttle'], 1500, 1900]+[1000]*11:
+                    raise ValueError('Возмущение или команды не соответствуют условиям сценария.')
             samples = []
             last_time = None
             for sample_index, sample in enumerate(row['pid_samples']):
@@ -70,13 +84,15 @@ def _read_run(directory, item, header):
                     raise ValueError('В PID-цикле отсутствует ось.')
                 axes = [tuple(a[k] for k in FIELDS) for a in sample['axes']]
                 _finite(v for a in axes for v in a)
+                if gust and abs(axes[axis][0]) > TOLERANCES['setpoint_dps']:
+                    raise ValueError('Задание оси при возмущении должно быть нулевым.')
                 samples.append((offset, axes))
             frames.append({'channels': row['channels'], 'motors': row['motors'],
                            'state': row['state'], 'samples': samples})
     if count != item['frames'] or initial is None or len(frames) != 300:
         raise ValueError('Трасса неполная.')
     return {'condition': item['condition'], 'cycle': item['cycle'], 'initial': initial,
-            'frames': frames, 'axis': axis}
+            'frames': frames, 'axis': axis, 'maneuver': header.get('maneuver', 'step'), 'gust_frames': duration}
 
 
 def _initial_matches(a, b):
@@ -141,6 +157,17 @@ def _metrics(run):
     errors = [row[1]-row[2] for row in series]
     integral = sum(abs(x)*.000125 for x in errors)
     peak = None
+    if run.get('maneuver', 'step') == 'gust':
+        peak = max(series, key=lambda row: abs(row[1]-row[2]))
+        end_s = run['gust_frames']*.004
+        post = [row for row in series if row[0] >= end_s-1e-10]
+        outside = [i for i, row in enumerate(post) if abs(row[1]-row[2]) > GUST_RECOVERY_BAND_DPS]
+        recovery = (post[outside[-1]+1][0]-end_s if outside and outside[-1]+1 < len(post)
+                    else (0. if not outside else None))
+        saturated = sum(any(m <= 0 or m >= 1 for m in frame['motors']) for frame in run['frames'])
+        return {'peak_abs_error_dps': abs(peak[1]-peak[2]), 'recovery_s': recovery,
+                'integral_abs_error_deg': integral, 'saturated_frames': saturated,
+                'saturated_time_s': saturated*.004, 'peak_sample': peak}
     if abs(target) < 1e-9:
         overshoot, settling = None, None
     else:
@@ -163,6 +190,20 @@ def analyze(directory):
     if len(summary) < 2 or summary[0].get('type') != 'header' or summary[-1].get('type') != 'summary':
         raise ValueError('Нет полного журнала эксперимента.')
     header = summary[0]
+    maneuver = header.get('maneuver', 'step')
+    if maneuver not in ('step', 'gust'):
+        raise ValueError('Неизвестный сценарий парного опыта.')
+    if maneuver == 'gust':
+        gust = header.get('gust')
+        if (header.get('axis') not in AXES or header.get('throttle') != 1300 or
+                header.get('impulse_dps') != [0., 0., 0.] or not isinstance(gust, dict) or
+                set(gust) != {'torque_body_nm', 'duration_frames'} or
+                not isinstance(gust['torque_body_nm'], list) or len(gust['torque_body_nm']) != 3):
+            raise ValueError('Некорректные условия возмущения.')
+        moment = gust['torque_body_nm'][AXES[header['axis']]]
+        validate_gust(moment, gust['duration_frames'])
+        if gust['torque_body_nm'] != list(gust_torque(header['axis'], moment)):
+            raise ValueError('Момент возмущения должен действовать по выбранной оси.')
     if (header.get('scenario') != 'flight' or not header.get('prearm_bench') or header.get('axis') not in AXES or
             header.get('repeats', 0) < 2 or not isinstance(header.get('pid'), dict) or
             not isinstance(header.get('compare_pid'), dict) or

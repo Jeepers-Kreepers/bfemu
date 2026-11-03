@@ -287,3 +287,181 @@ def test_peak_markers_use_archived_pid_sample_timestamps(name):
             end_time = report['curves'][condition][-1][0]
             assert float(line.attrib['x1']) == pytest.approx(75+910*peak_time/end_time, abs=.01)
             assert f'{peak_time:.4f}' in line.find('title').text
+
+
+def test_gust_metrics_are_absolute_and_recovery_starts_after_forcing(monkeypatch):
+    # A negative angular rate is deliberately the largest absolute error.
+    values = [(0.0, 0, 0), (.1, 0, -20), (.2, 0, -10), (.3, 0, -4), (.4, 0, -6), (.5, 0, 0)]
+    series = [(*v, 1, 2, 3, 4, 10) for v in values]
+    run = artificial_run()
+    run.update(maneuver='gust', gust_frames=50)
+    monkeypatch.setattr(sitl_pair, '_series', lambda run: series)
+    metrics = sitl_pair._metrics(run)
+    assert metrics['peak_abs_error_dps'] == 20
+    assert metrics['peak_sample'] == series[1]
+    assert metrics['recovery_s'] == pytest.approx(.3)
+    assert 'overshoot_percent' not in metrics
+    series[-1] = (.5, 0, 6, 1, 2, 3, 4, 10)
+    assert sitl_pair._metrics(run)['recovery_s'] is None
+    series[:] = [(t, 0, 2, 1, 2, 3, 4, 10) for t in (0, .2, .3)]
+    assert sitl_pair._metrics(run)['recovery_s'] == 0
+
+
+def test_gust_trace_validates_duration_torque_and_centered_sticks(tmp_path):
+    from bfemu.sitl_pair_scenario import gust_torque
+    axis = dict.fromkeys(sitl_pair.FIELDS, 0.)
+    start, duration, n = 2, 5, 301
+    rows = []
+    for seq in range(1, n+1):
+        rows.append({'sequence': seq, 'read_sequence': seq, 'mask': 15, 'pid_cycles': 32,
+                     'input_time_s': seq*.004, 'fdm_time_s': seq*.004, 'sim_us': seq*4000,
+                     'state': {'position_m': [0]*3, 'velocity_m_s': [0]*3, 'orientation': [1, 0, 0, 0],
+                               'angular_velocity_rad_s': [0]*3},
+                     'motors': [.5]*4, 'thrust_n': [0]*4, 'reaction_nm': [0]*4, 'applied_commands': [0]*4,
+                     'armed': True, 'bench_held': False, 'channels': [1500, 1500, 1300, 1500, 1900]+[1000]*11,
+                     'external_torque_nm': list(gust_torque('pitch', -.08)) if start <= seq < start+duration else [0]*3,
+                     'pid_samples': [{'time_us': seq*4000-125*(31-i), 'axes': [axis.copy() for _ in range(3)]}
+                                     for i in range(32)]})
+    path = tmp_path/'trace.jsonl'
+    def write():
+        path.write_text('\n'.join(json.dumps(row) for row in rows))
+    header = {'axis': 'pitch', 'maneuver': 'gust', 'throttle': 1300,
+              'gust': {'torque_body_nm': list(gust_torque('pitch', -.08)), 'duration_frames': duration}}
+    item = {'file': path.name, 'condition': 'before', 'cycle': 1, 'frames': n,
+            'events': {'command_start': start, 'command_end': start+300, 'bench_release': 2,
+                       'armed_at': 1, 'disturbance_start': start, 'disturbance_end': start+duration}}
+    write()
+    assert len(sitl_pair._read_run(tmp_path, item, header)['frames']) == 300
+    rows[start+duration-1]['external_torque_nm'] = list(gust_torque('pitch', -.08))
+    write()
+    with pytest.raises(ValueError, match='Возмущение'):
+        sitl_pair._read_run(tmp_path, item, header)
+    rows[start+duration-1]['external_torque_nm'] = [0]*3
+    rows[start]['channels'][1] = 1650
+    write()
+    with pytest.raises(ValueError, match='команды'):
+        sitl_pair._read_run(tmp_path, item, header)
+    rows[start]['channels'][1] = 1500
+    rows[start]['pid_samples'][0]['axes'][1]['setpoint_dps'] = 1
+    write()
+    with pytest.raises(ValueError, match='Задание оси'):
+        sitl_pair._read_run(tmp_path, item, header)
+
+
+def test_gust_validation_and_failed_repeats_never_yield_metrics(tmp_path, monkeypatch):
+    from bfemu.sitl_pair_scenario import gust_torque, validate_gust
+    for moment, frames in ((0, 50), (float('nan'), 50), (.21, 50), (.05, 4), (.05, 201), (True, 50)):
+        with pytest.raises(ValueError):
+            validate_gust(moment, frames)
+    validate_gust(-.05, 50)
+    base = ['--output-dir', 'out', '--scenario', 'flight', '--maneuver', 'gust', '--prearm-bench']
+    assert probe.parse_args([*base, '--gust-moment-nm', '-0.05', '--gust-frames', '5']).gust_frames == 5
+    for invalid in (['--gust-frames', '4'], ['--gust-moment-nm', '0'], ['--impulse-dps', '0', '1', '0']):
+        with pytest.raises(SystemExit):
+            probe.parse_args(base + invalid)
+    h, rows, write = pair_summary(tmp_path)
+    h.update(maneuver='gust', throttle=1300, impulse_dps=[0., 0., 0.],
+             gust={'torque_body_nm': list(gust_torque('pitch', -.05)), 'duration_frames': 50})
+    rows[0]['ok'] = False
+    write()
+    report = sitl_pair.analyze(tmp_path)
+    assert report['status'] == 'not_reproducible' and 'metrics' not in report
+    html = render(report)
+    assert 'Возмущение — порыв ветра' in html and 'не расчёт аэродинамики' not in html
+    assert 'скорость ветра' in html and 'Пиковая абсолютная ошибка' not in html
+    h['gust']['torque_body_nm'][0] = .1
+    write()
+    with pytest.raises(ValueError):
+        sitl_pair.analyze(tmp_path)
+
+
+@pytest.mark.parametrize('axis', ['roll', 'pitch', 'yaw'])
+def test_gust_applies_requested_torque_for_exact_frames_and_keeps_sticks_centered(axis, monkeypatch):
+    from bfemu.sitl_pair_scenario import gust_torque
+    from pathlib import Path
+
+    profile = json.loads((Path(__file__).resolve().parents[1]/'bfemu/data/aircraft_build03.json').read_text())
+    class FakeSocket:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def bind(self, *args):
+            pass
+        def sendto(self, *args):
+            pass
+        def recvfrom(self, *args):
+            return b'', ('127.0.0.1', 9011)
+    monkeypatch.setattr(probe.socket, 'socket', lambda *args: FakeSocket())
+    monkeypatch.setattr(probe.select, 'select', lambda *args: ([1], [], []))
+    def decode(data, seq, mapping, last_clock):
+        return {'sequence': seq, 'sim_us': seq*4000, 'motors': [0.2]*4,
+                'armed': 2 <= seq < 578, 'disable_flags': 0, 'pid_samples': []}
+    monkeypatch.setattr(probe, 'decode_response', decode)
+    records, events = probe.run_frames(profile, 600, scenario='flight', prearm_bench=True,
+                                       axis=axis, maneuver='gust', gust_moment_nm=-.08, gust_frames=30)
+    start, end = events['disturbance_start'], events['disturbance_end']
+    assert end-start == 30 and start == events['command_start']
+    for row in records:
+        seq = row['sequence']
+        expected = gust_torque(axis, -.08) if start <= seq < end else (0., 0., 0.)
+        assert row['external_torque_nm'] == expected
+        if start <= seq < events['command_end']:
+            assert row['channels'][:4] == [1500, 1500, 1300, 1500]
+    # The external torque is integrated into the physical state, not just recorded as metadata.
+    assert records[start-1]['state']['angular_velocity_rad_s'] != records[start-2]['state']['angular_velocity_rad_s']
+
+
+def test_gust_report_has_peak_and_end_markers_and_no_step_metrics(tmp_path, monkeypatch):
+    from bfemu.sitl_pair_scenario import gust_torque
+    h, _rows, write = pair_summary(tmp_path)
+    h.update(maneuver='gust', throttle=1300, impulse_dps=[0., 0., 0.],
+             gust={'torque_body_nm': list(gust_torque('pitch', -.08)), 'duration_frames': 30})
+    write()
+    def load(d, row, header):
+        run = artificial_run(row['condition'], row['cycle'], gyro=0)
+        run.update(maneuver='gust', gust_frames=30)
+        frame = dict(run['frames'][0])
+        frame['samples'] = [(offset, [(0., -10., 3., 2., 1., 0., 6.)]*3) for offset, _ in frame['samples']]
+        run['frames'] = [frame]*300
+        return run
+    monkeypatch.setattr(sitl_pair, '_read_run', load)
+    report = sitl_pair.analyze(tmp_path)
+    assert report['status'] == 'reproducible'
+    output = render(report)
+    assert 'Пиковая абсолютная ошибка, °/с' in output and 'Время восстановления после воздействия' in output
+    assert 'Перерегулирование, %' not in output and 'Не восстановилось в окне' in output
+    assert 'момент -0.08 Н·м' in output and '0.12 с' in output
+    assert output.count('class="peak-marker"') == 10 and output.count('class="event-marker"') == 5
+
+
+def test_archived_gust_uses_real_pid_cycles_and_verified_sources():
+    import hashlib
+    from pathlib import Path
+    directory = Path(__file__).resolve().parents[1]/'docs/research/sitl-lockstep-gust-roll-v1'
+    header = json.loads((directory/'summary.jsonl').read_text().splitlines()[0])
+    for filename, key in (('sitl_lockstep_probe.py', 'driver_sha256'), ('input-profile.json', 'profile_sha256'),
+                          ('flight_physics.py', 'physics_sha256'), ('sitl_pair_scenario.py', 'scenario_sha256')):
+        assert hashlib.sha256((directory/filename).read_bytes()).hexdigest() == header[key]
+    for filename, digest in header['includes_sha256'].items():
+        assert hashlib.sha256((directory/filename).read_bytes()).hexdigest() == digest
+    report = sitl_pair.analyze(directory)
+    assert report['status'] == 'reproducible'
+    assert report['metrics']['before']['peak_abs_error_dps'] == pytest.approx(11.169337272644043)
+    assert report['metrics']['after']['recovery_s'] == pytest.approx(.061625)
+    assert len(report['curves']['before']) == 9600
+    html = render(report)
+    assert html.count('class="peak-marker"') == 10
+    assert html.count('class="event-marker"') == 5
+
+
+def test_web_gust_rejects_invalid_parameters_before_build():
+    from bfemu import sitl_pair_web
+    profile = {}
+    before, after = {'p': 49, 'i': 84, 'd': 46}, {'p': 55, 'i': 84, 'd': 46}
+    for gust in ({'moment_nm': 0, 'duration_ms': 200}, {'moment_nm': .05, 'duration_ms': 201},
+                 {'moment_nm': .05, 'duration_ms': 804}, {'moment_nm': True, 'duration_ms': 200}):
+        with pytest.raises(sitl_pair_web.PhysicsError):
+            sitl_pair_web.experiment('pitch', before, after, profile, scenario='gust', gust=gust)
+    with pytest.raises(sitl_pair_web.PhysicsError):
+        sitl_pair_web.experiment('pitch', before, after, profile, scenario='step', gust={'moment_nm': .05})

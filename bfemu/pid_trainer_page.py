@@ -32,7 +32,10 @@ __NAV_STYLE__
 <div class="field"><label for="pair-term">Изменяемый коэффициент</label><select id="pair-term"><option value="p">P</option><option value="i">I</option><option value="d">D Max</option></select></div>
 <div class="field"><label for="pair-value">Новое значение, от 0 до 250</label><input id="pair-value" type="number" min="0" max="250" step="1" value="55"></div>
 <div class="field"><label for="pair-aircraft">Аппарат для обоих вариантов</label><select id="pair-aircraft"><option value="example">Теоретический пример 7″ Build 03</option><option value="saved">Профиль, сохранённый на вкладке «Аппарат»</option></select></div>
-<p class="small">Сценарий — ступень стика 1650, газ 1300, кадр 4 мс. До ARM аппарат удерживается стендом. Остальные настройки и фильтры SITL заводские.</p>
+<div class="field"><label for="pair-scenario">Сценарий парного SITL</label><select id="pair-scenario"><option value="step">Ступень стика</option><option value="gust">Возмущение — порыв ветра</option></select></div>
+<div class="field"><label for="pair-gust-moment">Момент порыва по выбранной оси, Н·м</label><input id="pair-gust-moment" type="number" min="-0.2" max="0.2" step="any" value="0.05"><p class="small">Момент задаёт вращающее воздействие на корпус; знак меняет его направление по правилу правой руки в осях тела FRD. Диапазон модели: от −0,2 до +0,2 Н·м, кроме нуля.</p></div>
+<div class="field"><label for="pair-gust-duration">Длительность порыва, мс</label><input id="pair-gust-duration" type="number" min="20" max="800" step="4" value="200"></div>
+<p class="small">Параметры порыва используются только в сценарии возмущения. Порыв задаётся постоянным моментом, а не расчётом аэродинамики. При порыве стики по центру; при ступени стик 1650. В обоих сценариях газ 1300, кадр 4 мс; до ARM аппарат удерживается стендом. Остальные настройки и фильтры SITL заводские.</p>
 <div class="actions"><button class="primary" id="pair-run">Сравнить настройки в Betaflight SITL</button><a id="pair-download" hidden download="betaflight-pair-report.html">Скачать отчёт</a></div>
 <p class="status" id="pair-status" role="status" aria-live="polite">Результат появится здесь после проверки повторов.</p><p class="small"><a id="pair-technical-link" href="#technical-information">Технические сведения</a> находятся внизу страницы.</p>
 <iframe id="pair-report" title="Отчёт парного сравнения Betaflight SITL" sandbox hidden style="width:100%;height:900px;border:1px solid #30363d;border-radius:8px"></iframe></section>
@@ -215,7 +218,8 @@ $('pair-run').onclick=async()=>{const button=$('pair-run'),status=$('pair-status
  const term=$('pair-term').value,value=Number($('pair-value').value),before={...baseline.values};
  if($('pair-value').value===''||!Number.isInteger(value)||value<0||value>250||!terms.includes(term))throw Error('Введите целое значение от 0 до 250.');
  if(value===before[term])throw Error('Новое значение должно отличаться от применённого.');
- const after={...before,[term]:value},snapshot={axis:baseline.axis,profile:baseline.profile,before,after,aircraft:null};
+ const after={...before,[term]:value},snapshot={axis:baseline.axis,profile:baseline.profile,before,after,aircraft:null,scenario:$('pair-scenario').value};
+ if(snapshot.scenario==='gust')snapshot.gust={moment_nm:Number($('pair-gust-moment').value),duration_ms:Number($('pair-gust-duration').value)};
  if($('pair-aircraft').value==='saved'){const raw=localStorage.getItem('bfemu.aircraft-profile.v1');if(!raw)throw Error('На вкладке «Аппарат» нет сохранённого профиля.');snapshot.aircraft=JSON.parse(raw)}
  status.textContent='Подготавливается Betaflight SITL.';await preparePidSitl();status.textContent='Выполняется сборка и четыре независимых запуска. Это может занять несколько минут.';
  const response=await fetch('/api/pid-trainer/lockstep',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)}),data=await response.json();

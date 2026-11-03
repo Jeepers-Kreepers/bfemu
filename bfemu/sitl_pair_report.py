@@ -2,6 +2,8 @@
 import html
 import json
 
+from .sitl_pair_scenario import GUST_RECOVERY_BAND_DPS
+
 COLORS = ('#66dec6', '#ffb85c', '#6ab5ff', '#f487ad')
 
 
@@ -9,7 +11,7 @@ def esc(value):
     return html.escape(str(value), quote=True)
 
 
-def chart(title, unit, curves, *, markers=()):
+def chart(title, unit, curves, *, markers=(), event=None, start_label='команды'):
     """Все PID-отсчёты отображаются без прореживания; отдельная шкала на график."""
     samples = [value for _, _, points in curves for _, value in points]
     low, high = min(samples), max(samples)
@@ -36,11 +38,17 @@ def chart(title, unit, curves, *, markers=()):
         parts.append(f'<line class="peak-marker" data-condition="{esc(condition)}" x1="{x:.2f}" x2="{x:.2f}" '
                      f'y1="12" y2="210" stroke="{color}" stroke-width="2" stroke-dasharray="5 5" '
                      f'stroke-dashoffset="{offset}"><title>Пик {esc(condition)}: {time_s:.4f} с</title></line>')
-    parts.append(f'<text x="530" y="247" text-anchor="middle">Время от начала команды, с</text></svg><p>По вертикали: {esc(unit)}.</p><div class="legend">')
+    if event is not None:
+        x = 75+910*event/end
+        parts.append(f'<line class="event-marker" x1="{x:.2f}" x2="{x:.2f}" y1="12" y2="210" '
+                     f'stroke="#89ccff" stroke-width="1.5" stroke-dasharray="2 4"><title>Конец возмущения: {event:.4f} с</title></line>')
+    parts.append(f'<text x="530" y="247" text-anchor="middle">Время от начала {esc(start_label)}, с</text></svg><p>По вертикали: {esc(unit)}.</p><div class="legend">')
     parts.extend(f'<span style="color:{color}">■ {esc(label)}</span>' for label, color, _ in curves)
     parts.extend(f'<span style="color:{color}"><i aria-hidden="true" style="display:inline-block;width:1.4em;'
                  f'border-top:2px dashed {color};vertical-align:middle"></i> Пик {esc(condition)} · {time_s:.4f} с</span>'
                  for condition, time_s, color, _ in markers)
+    if event is not None:
+        parts.append(f'<span style="color:#89ccff">┊ Конец возмущения · {event:.4f} с</span>')
     parts.append('</div></section>')
     return ''.join(parts)
 
@@ -52,7 +60,8 @@ def technical_content(report):
         '<h3>Парный эксперимент Betaflight SITL</h3>'
         '<p>Задание, гироскоп и P/I/D/F записываются в каждом цикле расчёта PID. '
         'Это не MSP-опрос и не данные Blackbox. На каждый кадр приходится 32 отсчёта PID; '
-        'снимки моторов доступны только в конце кадра.</p>'
+        'снимки моторов доступны только в конце кадра. Физика обновляется шагом 4 мс перед передачей состояния, '
+        'затем FC выполняет 32 PID-цикла по полученным данным IMU; физика не пересчитывается каждые 125 мкс.</p>'
         '<p>Показатели и графики относятся к первому успешному повтору каждой настройки. '
         'Допуски заданы заранее и не являются критериями пригодности для полёта. '
         'В снимке максимального отклика виден один PID-цикл; на движение также влияют '
@@ -61,6 +70,7 @@ def technical_content(report):
         'удерживается на стенде; после ARM движется без модели земли. Воздух, батарея и '
         'шум датчиков не моделируются. Проверяются физическое состояние, приводы и '
         'снимок PID перед командой, но не все скрытые состояния FC.</p>'
+        + ('<p>Момент задан в осях тела FRD. В этой связке SITL инвертирует знаки гироскопа PITCH и YAW при приёме FDM, поэтому знак момента и знак гироскопа FC могут отличаться.</p>' if header.get('maneuver') == 'gust' else '') +
         '<p>Betaflight 4.5.4, ревизия <code>'+esc(header['revision'])+'</code>. '
         'SHA-256 исследовательской сборки SITL: <code>'+esc(header['simclock_elf_sha256'])+'</code>. '
         'Планировщик и часы изменены, PID инструментирован; инициализация и MSP-настройка '
@@ -74,6 +84,9 @@ def technical_content(report):
 def render(report, *, include_technical=True):
     h = report['header']
     title = 'Парное сравнение Betaflight SITL в заданной модели'
+    gust = h.get('maneuver', 'step') == 'gust'
+    duration = h['gust']['duration_frames']*.004 if gust else None
+    moment = h['gust']['torque_body_nm'][{'roll': 0, 'pitch': 1, 'yaw': 2}[h['axis']]] if gust else None
     before = h['pid']
     after = h['compare_pid']
     def pid_label(value):
@@ -86,6 +99,14 @@ def render(report, *, include_technical=True):
 <article><h2 class="{'ok' if report['status'] == 'reproducible' else 'warning'}">{status}</h2><p>{esc(report['reason'])}</p>
 <p>Ось: {esc(h['axis'].upper())}. До: {esc(pid_label(before))}. После: {esc(pid_label(after))}. Повторов каждой настройки: {esc(h['repeats'])}.</p>
 </article>''']
+    if gust:
+        out.append('<p><strong>Сценарий: Возмущение — порыв ветра.</strong> Стики по центру, газ 1300. '
+                   f'На тело действует постоянный момент {moment:+g} Н·м вокруг выбранной оси FRD от 0 до {duration:g} с, '
+                   'затем момент равен нулю. Это один заданный вариант порыва, а не модель воздуха: '
+                   'скорость ветра, аэродинамическое сопротивление и сила ветра на корпус не рассчитываются.</p>')
+    else:
+        out.append('<p><strong>Сценарий: ступень стика.</strong> Стик '+esc(h.get('stick', 'не указан'))+
+                   ', газ '+esc(h.get('throttle', 'не указан'))+'.</p>')
     if report.get('spread'):
         out.append('<h2>Разброс повторов</h2><p>Каждая колонка показывает различия между повторами одной настройки, а не между настройками. Указаны максимальные различия по всем осям; RMS рассчитан для гироскопа выбранной оси.</p><table><tr><th>Показатель</th><th>До</th><th>После</th><th>Допуск</th></tr>')
         for key, label in (('gyro_dps', 'Гироскоп, °/с'), ('setpoint_dps', 'Задание, °/с'),
@@ -100,16 +121,25 @@ def render(report, *, include_technical=True):
             out.append(f'<tr><td>{esc(label)}</td><td>{left:.6g}</td><td>{right:.6g}</td><td>{limit}</td></tr>')
         out.append('</table>')
     if report['status'] == 'reproducible':
-        out.append('<h2>Измерения на интервале команды</h2><p>Цель — среднее задания за последние 100 мс команды. Перерегулирование относительно этой цели; установление — первое время, после которого ошибка относительно цели остаётся в ±5% до конца команды. «Не установилось» означает, что условие не выполнено в этом окне. Интегральная ошибка — интеграл модуля разности текущего задания и гироскопа. Насыщение — число конечных снимков кадров с командой любого мотора 0 или 1; промежуточные команды моторов между снимками не наблюдаются.</p>')
-        labels = (('target_dps', 'Цель, °/с'), ('overshoot_percent', 'Перерегулирование, %'),
-                  ('settling_s', 'Время установления, с'), ('integral_abs_error_deg', 'Интегральная абсолютная ошибка, °'),
-                  ('saturated_frames', 'Кадры насыщения моторов'), ('saturated_time_s', 'Время насыщения, с'))
+        if gust:
+            out.append('<h2>Отклонение и восстановление угловой скорости</h2><p>Это оценка угловой скорости, а не возвращения корпуса к исходному углу. Пиковая ошибка — максимальный модуль разности задания и гироскопа за 1,2 с от начала возмущения. '
+                       f'Время восстановления отсчитывается от окончания воздействия: это первое время, после которого модуль ошибки остаётся не более {GUST_RECOVERY_BAND_DPS:g} °/с до конца окна. '
+                       'Если условие уже выполнено в момент окончания воздействия, указано 0; если до конца окна оно не выполнено, восстановление не зафиксировано. '
+                       'Интегральная ошибка — интеграл модуля ошибки за всё окно. Насыщение — число конечных снимков кадров с командой любого мотора 0 или 1; промежуточные команды не наблюдаются.</p>')
+            labels = (('peak_abs_error_dps', 'Пиковая абсолютная ошибка, °/с'), ('recovery_s', 'Время восстановления после воздействия, с'),
+                      ('integral_abs_error_deg', 'Интегральная абсолютная ошибка, °'), ('saturated_frames', 'Кадры насыщения моторов'),
+                      ('saturated_time_s', 'Время насыщения, с'))
+        else:
+            out.append('<h2>Измерения на интервале команды</h2><p>Цель — среднее задания за последние 100 мс команды. Перерегулирование относительно этой цели; установление — первое время, после которого ошибка относительно цели остаётся в ±5% до конца команды. «Не установилось» означает, что условие не выполнено в этом окне. Интегральная ошибка — интеграл модуля разности текущего задания и гироскопа. Насыщение — число конечных снимков кадров с командой любого мотора 0 или 1; промежуточные команды моторов между снимками не наблюдаются.</p>')
+            labels = (('target_dps', 'Цель, °/с'), ('overshoot_percent', 'Перерегулирование, %'),
+                      ('settling_s', 'Время установления, с'), ('integral_abs_error_deg', 'Интегральная абсолютная ошибка, °'),
+                      ('saturated_frames', 'Кадры насыщения моторов'), ('saturated_time_s', 'Время насыщения, с'))
         out.append('<table><tr><th>Показатель</th><th>До</th><th>После</th></tr>')
         for key, label in labels:
             def display(value, key=key):
-                return ('Не установилось' if key == 'settling_s' else 'Не определено') if value is None else (f'{value:.4f}' if isinstance(value, float) else str(value))
+                return ('Не установилось' if key == 'settling_s' else 'Не восстановилось в окне' if key == 'recovery_s' else 'Не определено') if value is None else (f'{value:.4f}' if isinstance(value, float) else str(value))
             out.append(f'<tr><td>{esc(label)}</td><td>{display(report["metrics"]["before"][key])}</td><td>{display(report["metrics"]["after"][key])}</td></tr>')
-        out.append('</table><h3>Что видно в момент максимального отклика</h3>')
+        out.append('</table><h3>Что видно в момент '+('максимальной ошибки' if gust else 'максимального отклика')+'</h3>')
         for name, label in (('before', 'До'), ('after', 'После')):
             peak = report['metrics'][name]['peak_sample']
             if peak is None:
@@ -132,16 +162,17 @@ def render(report, *, include_technical=True):
                                                       ('after', 'после', '#ffffff', 5))
                    if report['metrics'][name]['peak_sample'] is not None]
         out.append('<p>Показатели и графики показывают первый повтор каждой настройки; все повторы проверены на совпадение.</p><h2>Телеметрия регулятора</h2><p>Задание и гироскоп показаны в градусах в секунду, составляющие PID — во внутренних единицах FC.' +
-                   (' Пунктир отмечает моменты максимального отклика, описанные выше.' if markers else '') + '</p>')
+                   ((' Пунктир отмечает моменты максимальной ошибки, описанные выше.' if gust else ' Пунктир отмечает моменты максимального отклика, описанные выше.') if markers else '') +
+                   (' Голубой пунктир отмечает конец воздействия.' if gust else '') + '</p>')
         out.append(chart('Задание и гироскоп выбранной оси', '°/с', [
             ('Задание до', COLORS[0], [(r[0], r[1]) for r in before]),
             ('Гироскоп до', COLORS[1], [(r[0], r[2]) for r in before]),
             ('Задание после', COLORS[2], [(r[0], r[1]) for r in after]),
-            ('Гироскоп после', COLORS[3], [(r[0], r[2]) for r in after])], markers=markers))
+            ('Гироскоп после', COLORS[3], [(r[0], r[2]) for r in after])], markers=markers, event=duration, start_label='возмущения' if gust else 'команды'))
         for index, name in enumerate(('P', 'I', 'D', 'F'), 3):
             out.append(chart(f'{name} · составляющая PID', 'внутренние единицы FC', [
                 (f'{name} до', COLORS[0], [(r[0], r[index]) for r in before]),
-                (f'{name} после', COLORS[1], [(r[0], r[index]) for r in after])], markers=markers))
+                (f'{name} после', COLORS[1], [(r[0], r[index]) for r in after])], markers=markers, event=duration, start_label='возмущения' if gust else 'команды'))
     if include_technical:
         out.append('<details id="pair-technical"><summary>Технические сведения</summary>' +
                    technical_content(report) + '</details>')

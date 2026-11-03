@@ -104,7 +104,7 @@ def test_pair_web_mode_gates_failures_and_sends_only_one_change():
 const assert=require('assert');
 const terms=['p','i','d'];let dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
 let baseline={axis:'pitch',profile:0,values:{p:49,i:84,d:46}},pairReportUrl=null,sent=[];
-const nodes={'pair-run':{},'pair-status':{},'pair-report':{},'pair-download':{},'pair-term':{value:'p'},'pair-value':{value:'55'},'pair-aircraft':{value:'example'},'pair-technical-report':{},'pair-technical-empty':{}};
+const nodes={'pair-run':{},'pair-status':{},'pair-report':{},'pair-download':{},'pair-term':{value:'p'},'pair-value':{value:'55'},'pair-aircraft':{value:'example'},'pair-scenario':{value:'gust'},'pair-gust-moment':{value:'-0.05'},'pair-gust-duration':{value:'200'},'pair-technical-report':{},'pair-technical-empty':{}};
 const $=id=>nodes[id];let lastBlob='';const localStorage={getItem(){return null}},URL={revokeObjectURL(){},createObjectURL(){return 'blob:test'}};
 class Blob{constructor(parts){lastBlob=parts.join('')}};async function preparePidSitl(){};
 let result={status:'reproducible',html:'<body><p>report</p></body></html>',technical_html:'<p>техника</p>'};
@@ -112,7 +112,7 @@ async function fetch(path,request){sent.push([path,JSON.parse(request.body)]);re
 ''' + script + r'''
 (async()=>{
  await nodes['pair-run'].onclick();assert.equal(sent[0][0],'/api/pid-trainer/lockstep');
- assert.deepStrictEqual(sent[0][1],{axis:'pitch',profile:0,before:{p:49,i:84,d:46},after:{p:55,i:84,d:46},aircraft:null});
+ assert.deepStrictEqual(sent[0][1],{axis:'pitch',profile:0,before:{p:49,i:84,d:46},after:{p:55,i:84,d:46},aircraft:null,scenario:'gust',gust:{moment_nm:-0.05,duration_ms:200}});
  assert.equal(nodes['pair-report'].srcdoc,'<body><p>report</p></body></html>');assert.equal(nodes['pair-report'].hidden,false);assert.equal(nodes['pair-download'].hidden,false);assert(nodes['pair-technical-report'].srcdoc.includes('техника'));assert(!nodes['pair-technical-report'].hidden);assert(nodes['pair-technical-empty'].hidden);assert(lastBlob.includes('Технические сведения'));assert(lastBlob.includes('техника'));assert(lastBlob.indexOf('report')<lastBlob.indexOf('Технические сведения'));
  result={status:'not_reproducible',html:'<body><p>failed</p></body></html>',technical_html:'<p>ошибка</p>'};await nodes['pair-run'].onclick();assert(nodes['pair-status'].textContent.includes('не воспроизводится'));
  nodes['pair-value'].value='49';await nodes['pair-run'].onclick();assert.equal(sent.length,2);assert(nodes['pair-report'].hidden);assert(nodes['pair-download'].hidden);assert(nodes['pair-technical-report'].hidden);assert(!nodes['pair-technical-empty'].hidden);

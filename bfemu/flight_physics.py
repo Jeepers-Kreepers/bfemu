@@ -155,10 +155,12 @@ class Derivative:
     angular_acceleration_rad_s2: Vec3
 
 
-def derivative(aircraft: Aircraft, state: State, thrust_n: Sequence[float], reaction_nm: Sequence[float]) -> Derivative:
-    """Силы: тяга каждого ротора по -Z тела, заданный отдельно реактивный момент по +Z тела."""
+def derivative(aircraft: Aircraft, state: State, thrust_n: Sequence[float], reaction_nm: Sequence[float], *,
+               external_torque_nm: Sequence[float] = (0., 0., 0.)) -> Derivative:
+    """Тяга и реактивные моменты моторов; внешний момент задан в осях тела FRD."""
     thrust = vec(thrust_n, 4, 'Тяга моторов')
     moments = vec(reaction_nm, 4, 'Реактивные моменты моторов')
+    external = vec(external_torque_nm, 3, 'Внешний момент')
     if any(t < 0 for t in thrust):
         raise PhysicsError('Отрицательная тяга не поддерживается этой моделью.')
     vel = vec(state.velocity_m_s, 3, 'Скорость')
@@ -169,6 +171,8 @@ def derivative(aircraft: Aircraft, state: State, thrust_n: Sequence[float], reac
     torque: Vec3 = (0., 0., sum(moments))
     for position, force in zip(aircraft.motor_positions_m, thrust, strict=True):
         torque = add(torque, cross(position, (0., 0., -force)))
+    if any(external):
+        torque = add(torque, external)
     angular_momentum = matvec(aircraft.inertia, omega)
     angular_acceleration = matvec(aircraft.inverse_inertia, add(torque, scale(cross(omega, angular_momentum), -1)))
     acceleration = add(rotate(q, scale(body_force, 1/aircraft.mass_kg)), (0., 0., GRAVITY))
@@ -186,14 +190,15 @@ def _state_add(state: State, d: Derivative, factor: float) -> State:
                  vec(add(state.angular_velocity_rad_s, scale(d.angular_acceleration_rad_s2, factor)), 3, 'Угловая скорость'))
 
 
-def step(aircraft: Aircraft, state: State, thrust_n: Sequence[float], reaction_nm: Sequence[float], dt: float) -> State:
-    """Один шаг RK4 при постоянных силах за шаг, без земли, сопротивления воздуха и датчиков."""
+def step(aircraft: Aircraft, state: State, thrust_n: Sequence[float], reaction_nm: Sequence[float], dt: float, *,
+         external_torque_nm: Sequence[float] = (0., 0., 0.)) -> State:
+    """Шаг RK4 с постоянными силами и внешним моментом за шаг, без земли и сопротивления воздуха."""
     if not math.isfinite(dt) or dt <= 0:
         raise PhysicsError('Шаг времени должен быть положительным и конечным.')
-    k1 = derivative(aircraft, state, thrust_n, reaction_nm)
-    k2 = derivative(aircraft, _state_add(state, k1, dt/2), thrust_n, reaction_nm)
-    k3 = derivative(aircraft, _state_add(state, k2, dt/2), thrust_n, reaction_nm)
-    k4 = derivative(aircraft, _state_add(state, k3, dt), thrust_n, reaction_nm)
+    k1 = derivative(aircraft, state, thrust_n, reaction_nm, external_torque_nm=external_torque_nm)
+    k2 = derivative(aircraft, _state_add(state, k1, dt/2), thrust_n, reaction_nm, external_torque_nm=external_torque_nm)
+    k3 = derivative(aircraft, _state_add(state, k2, dt/2), thrust_n, reaction_nm, external_torque_nm=external_torque_nm)
+    k4 = derivative(aircraft, _state_add(state, k3, dt), thrust_n, reaction_nm, external_torque_nm=external_torque_nm)
     def mean(name: str) -> tuple[float, ...]:
         return tuple((a+2*b+2*c+d)/6 for a, b, c, d in zip(*(getattr(k, name) for k in (k1, k2, k3, k4)), strict=True))
     return _state_add(state, Derivative(mean('position_m_s'), mean('acceleration_m_s2'),

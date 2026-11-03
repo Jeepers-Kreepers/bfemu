@@ -29,6 +29,7 @@ from bfemu import aircraft_sitl
 from bfemu.flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
 from bfemu.flight_physics import GRAVITY, Aircraft, PhysicsError, State, step
 from bfemu.sitl_feedback import FDM_PACKET, sensor_packet
+from bfemu.sitl_pair_scenario import GUST_FRAMES, GUST_TORQUE_NM, gust_torque, validate_gust
 from tools.sitl_pid_cycle_probe import digest
 from tools.sitl_scheduler_probe import MAIN_HASH
 from tools.sitl_step_probe import patch_sources as patch_step, replace_unique
@@ -184,11 +185,12 @@ def decode_response(data, expected, mapping, previous_clock):
 
 def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=None,
                pause_every=0, pause_ms=0, axis='pitch', stick=1650, throttle=1300,
-               impulse_dps=(0., 0., 0.), prearm_frames=0, prearm_bench=False):
+               impulse_dps=(0., 0., 0.), prearm_frames=0, prearm_bench=False, maneuver='step',
+               gust_moment_nm=GUST_TORQUE_NM, gust_frames=GUST_FRAMES):
     """Сценарии: свободное падение без ARM либо ступень выбранной оси после ARM."""
     if axis not in aircraft_sitl.AXES:
         raise PhysicsError('Неизвестная ось.')
-    if scenario not in ('stationary', 'flight'):
+    if scenario not in ('stationary', 'flight') or maneuver not in ('step', 'gust'):
         raise PhysicsError('Неизвестный сценарий моделируемого времени.')
     if (type(pause_every) is not int or type(pause_ms) is not int or
             not 0 <= pause_every <= 10000 or not 0 <= pause_ms <= 1000 or bool(pause_every) != bool(pause_ms)):
@@ -199,6 +201,13 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
     if (not isinstance(impulse_dps, (list, tuple)) or len(impulse_dps) != 3 or
             any(not isinstance(v, (int, float)) or not math.isfinite(v) or abs(v) > 720 for v in impulse_dps)):
         raise PhysicsError('Импульс должен содержать три конечные скорости до 720 °/с.')
+    if maneuver == 'gust' and (scenario != 'flight' or any(impulse_dps)):
+        raise PhysicsError('Возмущение доступно только в полётном сценарии без углового импульса.')
+    if maneuver == 'gust':
+        try:
+            validate_gust(gust_moment_nm, gust_frames)
+        except ValueError as exc:
+            raise PhysicsError(str(exc)) from exc
     if type(prearm_bench) is not bool:
         raise PhysicsError('Флаг испытательного стенда должен быть логическим.')
     aircraft = Aircraft.from_profile(profile)
@@ -217,7 +226,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
                 channels[4] = 1900
             if armed_at is not None and seq > armed_at:
                 channels[2] = throttle
-                if command_start <= seq < command_end:
+                if maneuver == 'step' and command_start <= seq < command_end:
                     channels[aircraft_sitl.AXES[axis][1]] = stick
                 if seq >= disarm_request:
                     channels[2], channels[4] = 1000, 1000
@@ -226,7 +235,8 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
                 state = replace(state, angular_velocity_rad_s=tuple(
                     v+math.radians(delta) for v, delta in zip(state.angular_velocity_rad_s, impulse_dps, strict=True)))
             thrust, reaction = actuators.advance(commands, FRAME_US/1e6)
-            state = State() if held else step(aircraft, state, thrust, reaction, FRAME_US/1e6)
+            external = gust_torque(axis, gust_moment_nm) if maneuver == 'gust' and command_start is not None and command_start <= seq < command_start+gust_frames else (0., 0., 0.)
+            state = State() if held else step(aircraft, state, thrust, reaction, FRAME_US/1e6, external_torque_nm=external)
             timestamp = seq*FRAME_US/1e6
             fdm = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=timestamp, pressure_pa=101325)
             fields = list(FDM_PACKET.unpack(fdm))
@@ -246,7 +256,7 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
             last_clock = rec['sim_us']
             row = {'fdm_time_s': timestamp, 'channels': channels, 'applied_commands': commands,
                    'state': asdict(state), 'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                   'bench_held': held, 'fdm_accel_m_s2': fields[4:7], **rec}
+                   'bench_held': held, 'fdm_accel_m_s2': fields[4:7], 'external_torque_nm': external, **rec}
             if seq == command_start and any(impulse_dps):
                 row['impulse_dps'] = list(impulse_dps)
             if on_frame:
@@ -283,6 +293,8 @@ def run_frames(profile, frames, *, scenario='stationary', timeout=3., on_frame=N
                 return records, {'ready_at': ready_at, 'arm_request': arm_request, 'armed_at': armed_at,
                                  'bench_release': armed_at+1 if prearm_bench else None,
                                  'command_start': command_start, 'command_end': command_end,
+                                 'disturbance_start': command_start if maneuver == 'gust' else None,
+                                 'disturbance_end': command_start+gust_frames if maneuver == 'gust' else None,
                                  'disarm_request': disarm_request, 'disarmed_at': seq}
             elif seq >= disarm_request+250:
                 raise PhysicsError('SITL не подтвердил дизарм за 250 кадров.')
@@ -297,6 +309,9 @@ def parse_args(argv=None):
     parser.add_argument('--profile', type=Path, help='JSON профиля аппарата; по умолчанию пример Build 03')
     parser.add_argument('--frames', type=int, help='Предел кадров: по умолчанию 500 для stationary, 12000 для flight')
     parser.add_argument('--scenario', choices=('stationary', 'flight'), default='stationary')
+    parser.add_argument('--maneuver', choices=('step', 'gust'), default='step', help='ступень стика или заданное возмущение')
+    parser.add_argument('--gust-moment-nm', type=float, default=GUST_TORQUE_NM, help='знаковый момент в Н·м по оси тела')
+    parser.add_argument('--gust-frames', type=int, default=GUST_FRAMES, help='длительность порыва в кадрах по 4 мс')
     parser.add_argument('--repeats', type=int, default=2)
     parser.add_argument('--axis', choices=tuple(aircraft_sitl.AXES), default='pitch')
     parser.add_argument('--pid', nargs=3, type=int, metavar=('P', 'I', 'D_MAX'),
@@ -323,6 +338,13 @@ def parse_args(argv=None):
             not 1000 <= args.throttle <= 2000 or not 0 <= args.prearm_frames <= 2000 or
             any(not math.isfinite(v) or abs(v) > 720 for v in args.impulse_dps)):
         parser.error('Недопустимые кадры, повторы, PID, газ, стик, пауза или импульс.')
+    if args.maneuver == 'gust':
+        if args.scenario != 'flight' or any(args.impulse_dps):
+            parser.error('Возмущение требует flight и не совмещается с --impulse-dps.')
+        try:
+            validate_gust(args.gust_moment_nm, args.gust_frames)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.compare_pid is not None and (args.scenario != 'flight' or not args.prearm_bench or args.repeats < 2 or
             any(v not in range(251) for v in args.compare_pid) or
             sum(a != b for a, b in zip(args.pid, args.compare_pid, strict=True)) != 1):
@@ -377,6 +399,10 @@ def main(argv=None):
                       'includes_sha256': {p.name: digest(p) for p in (ROOT/'sitl_lockstep_probe.inc', ROOT/'sitl_lockstep_target.inc')},
                       'platform': platform.platform(), 'aircraft': profile, 'profile_file': profile_path.name,
                       'profile_sha256': profile_sha256, 'frames': args.frames, 'scenario': args.scenario,
+                      'maneuver': args.maneuver, 'physics_sha256': digest(ROOT.parent/'bfemu/flight_physics.py'),
+                      'scenario_sha256': digest(ROOT.parent/'bfemu/sitl_pair_scenario.py'),
+                      'gust': ({'torque_body_nm': gust_torque(args.axis, args.gust_moment_nm), 'duration_frames': args.gust_frames}
+                               if args.maneuver == 'gust' else None),
                       'repeats': args.repeats, 'axis': args.axis, 'pid': dict(zip(('p', 'i', 'd'), args.pid, strict=True)),
                       'compare_pid': (dict(zip(('p', 'i', 'd'), args.compare_pid, strict=True)) if args.compare_pid else None),
                       'pause_every': args.pause_every, 'pause_ms': args.pause_ms,
@@ -437,7 +463,8 @@ def main(argv=None):
                                                                 pause_every=args.pause_every, pause_ms=args.pause_ms,
                                                                 axis=args.axis, stick=args.stick, throttle=args.throttle,
                                                                 impulse_dps=args.impulse_dps, prearm_frames=args.prearm_frames,
-                                                                prearm_bench=args.prearm_bench)
+                                                                prearm_bench=args.prearm_bench, maneuver=args.maneuver,
+                                                                gust_moment_nm=args.gust_moment_nm, gust_frames=args.gust_frames)
                                 row['events'] = events
                             row['ok'] = True
                             row['frames'] = len(result)

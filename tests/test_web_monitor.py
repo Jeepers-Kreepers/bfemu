@@ -496,8 +496,8 @@ def test_pid_sitl_uses_selected_axis(fc, monitor, monkeypatch, axis):
 def test_pid_lockstep_pair_uses_snapshot_and_rejects_stale(fc, monitor, monkeypatch):
     from bfemu import pid_trainer, sitl_pair_web
     seen = []
-    def fake(axis, before, after, aircraft):
-        seen.append((axis, before, after, aircraft))
+    def fake(axis, before, after, aircraft, scenario='step', gust=None):
+        seen.append((axis, before, after, aircraft, scenario))
         return {'status': 'not_reproducible', 'reason': 'test failure', 'html': '<p>Результат не воспроизводится</p>',
                 'technical_html': '<p>Технические сведения</p>'}
     monkeypatch.setattr(sitl_pair_web, 'experiment', fake)
@@ -510,8 +510,10 @@ def test_pid_lockstep_pair_uses_snapshot_and_rejects_stale(fc, monitor, monkeypa
     assert post(url, {**payload, 'profile': snapshot['profile']+1})[0] == 409
     assert post(url, {**payload, 'axis': 'invalid'})[0] == 400
     assert not seen
-    status, response = post(url, payload)
+    assert post(url, {**payload, 'scenario': 'invalid'})[0] == 400
+    status, response = post(url, {**payload, 'scenario': 'gust'})
     assert status == 200 and json.loads(response)['status'] == 'not_reproducible'
+    assert seen[-1][-1] == 'gust'
     assert 'Технические сведения' in json.loads(response)['technical_html']
     assert seen[0][:3] == ('pitch', before, payload['after'])
     assert seen[0][3]['values']['mass_g'] == '931'
