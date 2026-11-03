@@ -17,7 +17,7 @@ const assert=require('assert');
 let sent=[],lastSeries=[],period='4',motorMode='poll',failed=false,saturation=0,dirty=false,conflict=false,formDirty=false,formConflict=false,writeBusy=false;
 let baseline={axis:'roll',profile:0,values:{p:45,i:80,d:40}}, scenario='step', aircraftMode='example',stored=null;
 let markerLines=[];const terms=['p','i','d'],ctx={setLineDash(){},beginPath(){},moveTo(x){this.x=x},lineTo(){},stroke(){markerLines.push([this.x,this.strokeStyle])}},nodes={
-  'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-comparison':{},'pid-sitl-graph-title':{},'pid-sitl-axis-caption':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
+  'sitl-marker-start':{},'sitl-marker-end':{},'sitl-gust-moment':{value:'0.05'},'sitl-gust-duration':{value:'200'},'sitl-run':{},'pid-sitl-status':{},'pid-sitl-summary':{},'pid-sitl-diagnostics':{},'pid-sitl-warning':{},'pid-sitl-comparison':{},'pid-sitl-graph-title':{},'pid-sitl-axis-caption':{},'pid-sitl-graph':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'pid-sitl-motors':{getBoundingClientRect(){return {width:600,height:190}},getContext(){return ctx}},
   'sitl-zoom':{value:'1'},'sitl-pan':{value:'0',max:'0'},'sitl-window':{},'sitl-rate-scale':{value:'auto'},'sitl-motor-scale':{value:'full'},'sitl-view-reset':{},
   ...Object.fromEntries(['current','previous','motor-1','motor-2','motor-3','motor-4'].map(x=>['sitl-show-'+x,{checked:true}])),
@@ -28,7 +28,7 @@ let motorSeries=[],rateRange=[],motorRange=[],rangeSeen=[],graphUnits={};const c
 const fetch=async (url,opts)=>{
  if(url==='/api/aircraft-sitl/prepare')return {ok:true,json:async()=>({state:'ready'})};
  let body=JSON.parse(opts.body);sent.push(body);if(failed)return {ok:false,json:async()=>({error:'Нарушен темп расчёта: задержка'})};
- return {ok:true,json:async()=>({axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'model',sensor_period_ms:body.sensor_period_ms,motor_mode:body.motor_mode,diagnostics:{peak_abs_dps:30,sensor_interval_max_ms:4.1,motor_no_update_samples:1,motor_full_output_samples:saturation,samples:10},command_window_s:[4,5.2],disarm_requested_s:5.7,samples:[{t:4,rates:[20,0,0],motors:[0,.25,.5,1]},{t:5,rates:[30,0,0],motors:[1,.5,.25,0]}]})};
+ return {ok:true,json:async()=>({axis:body.axis,pid_profile:body.profile,verified_pid:{axis:body.axis,values:body.expected},profile:'7',note:'model',sensor_period_ms:body.sensor_period_ms,motor_mode:body.motor_mode,scenario:body.scenario||'step',gust:body.gust?{...body.gust,applied_duration_s:body.gust.duration_ms/1000}:null,gust_window_s:body.gust?[4,4+body.gust.duration_ms/1000]:null,diagnostics:{gust_recovery_s:0.03,peak_abs_dps:30,sensor_interval_max_ms:4.1,motor_no_update_samples:1,motor_full_output_samples:saturation,samples:10},command_window_s:[4,5.2],disarm_requested_s:5.7,samples:[{t:4,rates:[20,0,0],motors:[0,.25,.5,1]},{t:5,rates:[30,0,0],motors:[1,.5,.25,0]}]})};
 };
 let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
 ''' + script + r'''
@@ -56,16 +56,18 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  priorSitlResult.samples[0].rates[0]=1000;drawPidSitl();assert.equal(rateRange[1],1150);
  nodes['sitl-show-previous'].checked=false;nodes['sitl-show-previous'].onchange();assert.equal(lastSeries[0].rows,null);assert.equal(rateRange[1],34.5);nodes['sitl-show-previous'].checked=true;nodes['sitl-show-previous'].onchange();assert(lastSeries[0].rows);
  failed=true;await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-status'].textContent.includes('Нарушен темп'));assert(nodes['pid-sitl-comparison'].textContent.includes('не завершился'));failed=false;sent.length=1;
- saturation=0;period='2';await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-comparison'].textContent.includes('нельзя приписать'));assert.equal(nodes['pid-sitl-warning'].textContent,'');assert.equal(sent[1].sensor_period_ms,2);assert(!nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-summary'].textContent.includes('период датчиков 2 мс'));assert(nodes['pid-sitl-summary'].textContent.includes('период датчиков 4 мс'));sent.length=1;
- motorMode='event';await nodes['sitl-run'].onclick();assert.equal(sent[1].motor_mode,'event');assert(nodes['pid-sitl-summary'].textContent.includes('моторы: по поступлению'));assert(nodes['pid-sitl-summary'].textContent.includes('моторы: опрос по шагу'));assert(!nodes['pid-sitl-diagnostics'].textContent.split('Учитываются')[0].includes(';'));sent.length=1;
+ saturation=0;period='2';await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-comparison'].textContent.includes('Сравнение не выполняется'));assert.equal(nodes['pid-sitl-warning'].textContent,'');assert.equal(sent[1].sensor_period_ms,2);assert(!nodes['pid-sitl-diagnostics'].textContent.includes('не завершён'));assert(nodes['pid-sitl-summary'].textContent.includes('период датчиков 2 мс'));assert(!nodes['pid-sitl-summary'].textContent.includes('период датчиков 4 мс'));sent.length=1;
+ motorMode='event';await nodes['sitl-run'].onclick();assert.equal(sent[1].motor_mode,'event');assert(nodes['pid-sitl-summary'].textContent.includes('моторы: по поступлению'));assert(!nodes['pid-sitl-summary'].textContent.includes('моторы: опрос по шагу'));assert(!nodes['pid-sitl-diagnostics'].textContent.split('Учитываются')[0].includes(';'));sent.length=1;
  baseline.values.p=55;await nodes['sitl-run'].onclick();assert(nodes['pid-sitl-comparison'].textContent.includes('P 45 → 55'));assert(nodes['pid-sitl-comparison'].textContent.includes('пропорциональной реакции на ошибку'));assert(nodes['pid-sitl-comparison'].textContent.includes('не доказывают'));assert(nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));assert(lastSeries[0].rows);
  aircraftMode='saved';await nodes['sitl-run'].onclick();assert.equal(sent.length,2);assert(nodes['pid-sitl-status'].textContent.includes('нет сохранённого'));
- stored=JSON.stringify({schema:1,values:{mass_g:'931'}});await nodes['sitl-run'].onclick();assert.equal(sent.length,3);assert.equal(lastSeries[0].rows,null);assert(nodes['pid-sitl-comparison'].textContent.includes('другому аппарату'));assert(!nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));
+ stored=JSON.stringify({schema:1,values:{mass_g:'931'}});await nodes['sitl-run'].onclick();assert.equal(sent.length,3);assert.equal(lastSeries[0].rows,null);assert(nodes['pid-sitl-comparison'].textContent.includes('аппарат'));assert(!nodes['pid-sitl-summary'].textContent.includes('Предыдущая кривая'));
  for(const [axis,label,direction,index] of [['pitch','PITCH · тангаж','носом вверх',1],['yaw','YAW · рыскание','носом вправо',2]]){
   baseline.axis=axis;await nodes['sitl-run'].onclick();sitlResult.samples[0].rates=[1,2,3];drawPidSitl();
   assert(nodes['pid-sitl-graph-title'].textContent.includes(label));assert(nodes['pid-sitl-axis-caption'].textContent.includes(direction));
   assert.equal(lastSeries[1].rows[0][1],[1,2,3][index]);
  }
+ scenario='disturbance';markerLines=[];await nodes['sitl-run'].onclick();assert.equal(sent.at(-1).scenario,'disturbance');assert.deepStrictEqual(sent.at(-1).gust,{moment_nm:0.05,duration_ms:200});assert.equal(lastSeries[0].rows,null);assert(nodes['pid-sitl-comparison'].textContent.includes('Сравнение не выполняется'));assert.equal(nodes['sitl-marker-start'].textContent,'Начало порыва');assert.equal(nodes['sitl-marker-end'].textContent,'Конец порыва');assert(Math.abs(markerLines[1][0]-(72+.6/3*516))<1e-6);
+ await nodes['sitl-run'].onclick();assert(lastSeries[0].rows);nodes['sitl-gust-duration'].value='120';await nodes['sitl-run'].onclick();assert.equal(lastSeries[0].rows,null);nodes['sitl-gust-duration'].value='21';const beforeGust=sent.length;await nodes['sitl-run'].onclick();assert.equal(sent.length,beforeGust);assert(nodes['pid-sitl-status'].textContent.includes('длительность'));
  const makeSeries=(values,axis='roll')=>({axis,command_window_s:[1,1.03],disarm_requested_s:1.04,samples:values.map((v,i)=>({t:1+i*.01,rates:axis==='roll'?[v,0,0]:[0,v,0]}))});
  const stable=sitlRepeatDifference(makeSeries([0,10,20,30,40]),makeSeries([0,10,20,30,40]));
  assert.equal(stable.samples,5);assert(Math.abs(stable.rms)<1e-9&&Math.abs(stable.max)<1e-9);
@@ -81,8 +83,8 @@ let sitlResult=null,priorSitlResult=null,repeatKey=null,repeatPeaks=[];
  assert(explanation.includes('I 84 → 90')&&explanation.includes('D Max 46 → 50'));
  assert(explanation.includes('накопленной ошибки')&&explanation.includes('динамической составляющей D'));
  assert(explanation.includes('100,0 → 130,0 °/с')&&explanation.includes('не доказывают'));
- assert(explainSitlComparison(sample,{...changed,pid_profile:1}).includes('нельзя приписать'));
- assert(explainSitlComparison(sample,{...changed,axis:'yaw'}).includes('другой оси'));
+ assert(explainSitlComparison(sample,{...changed,pid_profile:1}).includes('Сравнение не выполняется'));
+ assert(explainSitlComparison(sample,{...changed,axis:'yaw'}).includes('ось'));
  assert(!nodes['sitl-run'].disabled);
 })().catch(e=>{console.error(e);process.exit(1)});
 '''

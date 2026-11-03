@@ -20,6 +20,7 @@ import time
 from .flight_actuators import Actuators, decode_sitl_motors, output_mapping, read_curves
 from .flight_physics import GRAVITY, Aircraft, PhysicsError, State, add, step
 from .flight_environment import ENVIRONMENT_NAME, ground_air_step, inverse_rotate
+from .sitl_gust import advance_with_gust
 from .sitl_feedback import sensor_packet
 from .sitl_capture import CaptureError, SitlMspClient
 
@@ -51,10 +52,10 @@ def discard_queued_motors(motor_socket):
 
 
 def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
-             clock=time.monotonic, sleep=time.sleep, environment='free'):
+             clock=time.monotonic, sleep=time.sleep, environment='free', gust_schedule=None):
     _validate_loop(duration, period, max_gap)
-    if environment not in ('free', ENVIRONMENT_NAME):
-        raise PhysicsError('Неизвестная среда.')
+    if environment not in ('free', ENVIRONMENT_NAME) or (gust_schedule is not None and environment != ENVIRONMENT_NAME):
+        raise PhysicsError('Неизвестная среда или недопустимое воздействие.')
     aircraft, mapping, curves = Aircraft.from_profile(profile), output_mapping(profile), read_curves(model)
     actuators, state = Actuators(curves), State()
     # Валидируем давление и начальное состояние до отправки и записи.
@@ -104,8 +105,10 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
         if now-(last_motor if last_motor is not None else start) > max_gap:
             raise PhysicsError('Нет пакетов моторов SITL: связь остановлена; проверьте выходы моторов.')
         average_thrust, average_reaction = actuators.advance(commands, dt)
-        contact, specific = None, None
-        if environment == ENVIRONMENT_NAME:
+        contact, specific, gust_active_s = None, None, 0.
+        if gust_schedule is not None:
+            state, contact, specific, gust_active_s = advance_with_gust(aircraft, state, average_thrust, average_reaction, previous, now, gust_schedule)
+        elif environment == ENVIRONMENT_NAME:
             state, contact, specific = ground_air_step(aircraft, state, average_thrust, average_reaction, dt)
         else:
             state = step(aircraft, state, average_thrust, average_reaction, dt)
@@ -115,7 +118,7 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
         stream.write(json.dumps({'type': 'sample', 'elapsed_s': elapsed, 'dt_s': dt,
                                  'applied_commands': commands, 'next_commands': latest,
                                  'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                                 'state': asdict(state), 'ground_contact': contact}, ensure_ascii=False, allow_nan=False)+'\n')
+                                 'state': asdict(state), 'ground_contact': contact, 'gust_active_s': gust_active_s}, ensure_ascii=False, allow_nan=False)+'\n')
         count += 1
         if latest is not None:
             commands = latest
@@ -129,15 +132,15 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
 
 
 def run_event_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
-                   clock=time.monotonic, wait=select.select, environment='free'):
+                   clock=time.monotonic, wait=select.select, environment='free', gust_schedule=None):
     """Интегрировать модель при чтении команд и отправлять датчики по собственному таймеру.
 
     Время чтения сокета — не метка формирования команды FC. Пакеты UDP не имеют
     номера кадра, поэтому этот режим не обеспечивает lockstep с Betaflight.
     """
     _validate_loop(duration, period, max_gap)
-    if environment not in ('free', ENVIRONMENT_NAME):
-        raise PhysicsError('Неизвестная среда.')
+    if environment not in ('free', ENVIRONMENT_NAME) or (gust_schedule is not None and environment != ENVIRONMENT_NAME):
+        raise PhysicsError('Неизвестная среда или недопустимое воздействие.')
     aircraft, mapping, curves = Aircraft.from_profile(profile), output_mapping(profile), read_curves(model)
     actuators, state = Actuators(curves), State()
     first = sensor_packet(aircraft, state, actuators.thrust_n, timestamp=0., pressure_pa=pressure_pa,
@@ -155,6 +158,8 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
     last_step = last_sensor = start
     last_sensor_state = state
     contact = environment == ENVIRONMENT_NAME
+    gust_active_since_sensor = 0.
+    contact_since_sensor = False
     last_motor = None
     next_tick = start + period
     commands = (0., 0., 0., 0.)
@@ -164,16 +169,20 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
     state_socket.sendto(first, ('127.0.0.1', 9003))
 
     def advance(now):
-        nonlocal state, last_step, contact
+        nonlocal state, last_step, contact, contact_since_sensor, gust_active_since_sensor
         dt = now-last_step
         if dt < 0:
             raise PhysicsError('Время расчёта модели пошло назад.')
         if dt > 0:
             thrust, reaction = actuators.advance(commands, dt)
-            if environment == ENVIRONMENT_NAME:
+            if gust_schedule is not None:
+                state, contact, _, active = advance_with_gust(aircraft, state, thrust, reaction, last_step, now, gust_schedule)
+                gust_active_since_sensor += active
+            elif environment == ENVIRONMENT_NAME:
                 state, contact, _ = ground_air_step(aircraft, state, thrust, reaction, dt)
             else:
                 state = step(aircraft, state, thrust, reaction, dt)
+            contact_since_sensor = contact_since_sensor or bool(contact)
             last_step = now
 
     while True:
@@ -197,9 +206,12 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
                                      'applied_commands': commands, 'next_commands': latest,
                                      'motor_full_output_since_sensor': full_output,
                                      'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                                     'state': asdict(state), 'ground_contact': contact}, ensure_ascii=False, allow_nan=False)+'\n')
+                                     'state': asdict(state), 'ground_contact': contact_since_sensor if gust_schedule else contact,
+                                     'gust_active_s': gust_active_since_sensor}, ensure_ascii=False, allow_nan=False)+'\n')
             last_sensor = now
             last_sensor_state = state
+            gust_active_since_sensor = 0.
+            contact_since_sensor = False
             latest = None
             full_output = any(value >= 1.0 for value in commands)
             count += 1

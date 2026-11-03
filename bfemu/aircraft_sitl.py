@@ -24,6 +24,8 @@ from .flight_physics import Aircraft, PhysicsError
 from .msp import FROM_FC, encode_v1
 from .sitl_capture import CaptureError, SitlMspClient
 from .sitl_closed_loop import discard_queued_motors, run_loop, run_event_loop
+from .sitl_gust import GustSchedule
+from .sitl_pair_scenario import GUST_RECOVERY_BAND_DPS
 
 STAMP = {"revision": "25356b59a96dc975d777844f896b7c7855ea90e6",
          "archive_sha256": "0613fcc69675ae82891d97ee8aaa91545b73ba43f7e9120a8e1799e897dde4e3",
@@ -304,6 +306,31 @@ def _diagnostics(rows, start, end, axis):
     }
 
 
+def _gust_delivery(rows, start, end, duration_s):
+    """Не возвращать результат при неполном воздействии или контакте в окне."""
+    if any(row.get('ground_contact') for row in rows
+           if row['elapsed_s'] > start and row['elapsed_s']-row['dt_s'] < end):
+        raise PhysicsError('Во время воздействия аппарат касается земли; измените профиль аппарата.')
+    applied = sum(row.get('gust_active_s', 0.) for row in rows)
+    if abs(applied-duration_s) > 1e-5:
+        raise PhysicsError('Полная длительность порыва не была применена; результат недоступен.')
+    return applied
+
+
+def _gust_metrics(rows, start, duration_s, axis):
+    """Восстановление скорости тела до ±5 °/с в оставшемся окне, не gyro FC."""
+    index = AXES[axis][0]
+    post = [row for row in rows if start+duration_s <= row['elapsed_s'] <= start+1.2]
+    if not post:
+        raise PhysicsError('Нет отсчётов после окончания порыва.')
+    outside = [i for i, row in enumerate(post)
+               if abs(math.degrees(row['state']['angular_velocity_rad_s'][index])) > GUST_RECOVERY_BAND_DPS]
+    recovery = (post[outside[-1]+1]['elapsed_s']-(start+duration_s) if outside and outside[-1]+1 < len(post)
+                else (0. if not outside else None))
+    return {'gust_recovery_s': None if recovery is None else round(recovery, 4),
+            'gust_recovery_band_dps': GUST_RECOVERY_BAND_DPS}
+
+
 def _sample_points(rows):
     """Все отсчёты датчиков; команды упорядочены по номерам моторов профиля."""
     return [{'t': round(row['elapsed_s'], 4),
@@ -328,10 +355,24 @@ def _live_status(client, errors):
 
 
 def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None,
-               _event_loop=None, _pid_process_denom=None):
-    """Изолированный SITL, ступень стика; без pid используются заводские коэффициенты."""
+               scenario='step', gust=None, _event_loop=None, _pid_process_denom=None):
+    """Изолированный SITL: ступень или внешний момент при центрированных стиках."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
+    if scenario not in ('step', 'disturbance'):
+        raise PhysicsError('Неизвестный сценарий SITL.')
+    schedule = None
+    if scenario == 'disturbance':
+        if not isinstance(gust, dict) or set(gust) != {'moment_nm', 'duration_ms'}:
+            raise PhysicsError('Укажите момент и длительность порыва.')
+        try:
+            schedule = GustSchedule(axis, gust['moment_nm'], gust['duration_ms'])
+        except (ValueError, TypeError) as exc:
+            raise PhysicsError(str(exc)) from exc
+    elif gust is not None:
+        raise PhysicsError('Параметры порыва недопустимы для ступени.')
+    if schedule is not None and _event_loop is not None:
+        raise PhysicsError('Порыв не поддерживается исследовательским событийным адаптером.')
     if type(sensor_period_ms) is not int or sensor_period_ms not in (2, 4, 8):
         raise PhysicsError('Период датчиков SITL должен быть 2, 4 или 8 мс.')
     if motor_mode not in ('poll', 'event'):
@@ -403,6 +444,8 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     try:
                         loop = (_event_loop or run_event_loop) if motor_mode == 'event' else run_loop
                         extra = {'environment': 'ground-air-v1'} if _event_loop is None else {}
+                        if schedule is not None:
+                            extra['gust_schedule'] = schedule
                         loop(profile, curves, motor_input, fdm, output, duration=12, period=sensor_period_ms/1000,
                              max_gap=.5, pressure_pa=101325, clock=clock, **extra)
                     except Exception as exc:
@@ -437,11 +480,18 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     time.sleep(.6)
                     if not worker.is_alive():
                         raise PhysicsError('Расчёт завершился до команды стика.')
-                    event_start = time.monotonic()
-                    channels[AXES[axis][1]] = 1650
-                    time.sleep(1.2)
-                    event_end = time.monotonic()
-                    channels[AXES[axis][1]] = 1500
+                    if schedule is None:
+                        event_start = time.monotonic()
+                        channels[AXES[axis][1]] = 1650
+                        time.sleep(1.2)
+                        event_end = time.monotonic()
+                        channels[AXES[axis][1]] = 1500
+                    else:
+                        # Задаём окно заранее: поток физики сам делит шаг на его границах.
+                        event_start = time.monotonic()+.05
+                        schedule.schedule(event_start)
+                        event_end = event_start+1.2
+                        time.sleep(1.25)
                     status = _live_status(client, errors)
                     if len(status) < 10:
                         raise PhysicsError('SITL вернул неполный MSP_STATUS при проверке ARM.')
@@ -460,13 +510,17 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     if not rows:
                         raise PhysicsError('SITL не вернул результаты эксперимента.')
                     if not run_start or rows[-1]['elapsed_s'] < event_end-run_start[0]:
-                        raise PhysicsError('Расчёт не охватил всю команду стика.')
+                        raise PhysicsError('Расчёт не охватил всё окно воздействия.')
                     # Метрики по всем отсчётам физики, не по прореженному графику.
                     command_start, command_end = event_start-run_start[0], event_end-run_start[0]
-                    if _event_loop is None and any(row.get('ground_contact') for row in rows
-                                                   if command_start <= row['elapsed_s'] <= command_end):
+                    if schedule is not None:
+                        applied = _gust_delivery(rows, command_start, command_end, schedule.duration_s)
+                    elif _event_loop is None and any(row.get('ground_contact') for row in rows
+                                                     if command_start <= row['elapsed_s'] <= command_end):
                         raise PhysicsError('Во время команды аппарат касается земли; измените профиль аппарата.')
                     diagnostics = _diagnostics(rows, command_start, command_end, axis)
+                    if schedule is not None:
+                        diagnostics.update(_gust_metrics(rows, command_start, schedule.duration_s, axis))
                     # Время переключения RC на стороне отправителя, не момент получения FC.
                     points = _sample_points(rows)
                     return {'profile': profile['values'].get('profile_name', ''), 'samples': points,
@@ -474,7 +528,10 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                             'disarm_requested_s': round(disarm_requested-run_start[0], 4),
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
                             'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
-                            'motor_mode': motor_mode,
+                            'motor_mode': motor_mode, 'scenario': scenario,
+                            'gust': ({**gust, 'applied_duration_s': applied} if schedule is not None else None),
+                            'gust_window_s': ([round(command_start, 4), round(command_start+schedule.duration_s, 4)]
+                                              if schedule is not None else None),
                             'verified_pid_denom': _pid_process_denom,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
                                      + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'

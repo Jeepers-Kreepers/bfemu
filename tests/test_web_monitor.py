@@ -517,3 +517,27 @@ def test_pid_lockstep_pair_uses_snapshot_and_rejects_stale(fc, monitor, monkeypa
     assert 'Технические сведения' in json.loads(response)['technical_html']
     assert seen[0][:3] == ('pitch', before, payload['after'])
     assert seen[0][3]['values']['mass_g'] == '931'
+
+
+def test_pid_sitl_gust_validation_and_forwarding(fc, monitor, monkeypatch):
+    from bfemu import aircraft_sitl, pid_trainer
+    seen = []
+    def fake(aircraft, **options):
+        seen.append(options)
+        return {'verified_pid': {'axis': options['axis'], 'values': options['pid']}}
+    monkeypatch.setattr(aircraft_sitl, 'experiment', fake)
+    snapshot = pid_trainer.profile_state(fc, 'pitch')
+    base = {'axis': 'pitch', 'profile': snapshot['profile'], 'expected': snapshot['values'], 'aircraft': None,
+            'scenario': 'disturbance', 'gust': {'moment_nm': -.08, 'duration_ms': 120}, 'motor_mode': 'event'}
+    url = monitor + '/api/pid-trainer/sitl'
+    assert post(url, base, {'Origin': 'http://evil.example'})[0] == 403
+    assert post(url, {**base, 'profile': snapshot['profile']+1})[0] == 409
+    for gust in (None, {}, {'moment_nm': 0, 'duration_ms': 200}, {'moment_nm': .05, 'duration_ms': 21},
+                 {'moment_nm': True, 'duration_ms': 200}, {'moment_nm': .05, 'duration_ms': 200, 'extra': 1}):
+        assert post(url, {**base, 'gust': gust})[0] == 400
+    assert post(url, {**base, 'scenario': 'step'})[0] == 400
+    assert post(url, {**base, 'scenario': 'throttle'})[0] == 400
+    assert not seen
+    assert post(url, base)[0] == 200
+    assert seen[-1]['gust'] == base['gust'] and seen[-1]['scenario'] == 'disturbance'
+    assert seen[-1]['motor_mode'] == 'event' and seen[-1]['axis'] == 'pitch'

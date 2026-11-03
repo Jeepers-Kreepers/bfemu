@@ -864,6 +864,7 @@ class HttpMonitor:
                 import json as _json
                 from .aircraft_sitl import experiment
                 from .flight_physics import PhysicsError
+                from .sitl_gust import GustSchedule
                 try:
                     length = int(self.headers.get("Content-Length") or 0)
                     if length <= 0 or length > 131072:
@@ -871,7 +872,7 @@ class HttpMonitor:
                         raise ValueError("Недопустимый размер запроса")
                     data = _json.loads(self.rfile.read(length))
                     required = {"axis", "profile", "expected", "aircraft"}
-                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms", "motor_mode"}:
+                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms", "motor_mode", "scenario", "gust"}:
                         raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
                     period = data.get("sensor_period_ms", 4)
                     if type(period) is not int or period not in (2, 4, 8):
@@ -895,7 +896,18 @@ class HttpMonitor:
                         aircraft = _json.loads((Path(__file__).parent / "data" / "aircraft_build03.json").read_text(encoding="utf-8"))
                     elif not isinstance(aircraft, dict):
                         raise ValueError("Некорректный профиль аппарата")
-                    result = experiment(aircraft, pid=expected, axis=axis, sensor_period_ms=period, motor_mode=motor_mode)
+                    scenario = data.get("scenario", "step")
+                    if scenario not in ("step", "disturbance"):
+                        raise ValueError("Сценарий SITL должен быть ступенью или порывом")
+                    if scenario == "step" and "gust" in data:
+                        raise ValueError("Параметры порыва не используются при ступени")
+                    if scenario == "disturbance":
+                        gust = data.get("gust")
+                        if not isinstance(gust, dict) or set(gust) != {"moment_nm", "duration_ms"}:
+                            raise ValueError("Укажите момент и длительность порыва")
+                        GustSchedule(axis, gust["moment_nm"], gust["duration_ms"])
+                    options = {"scenario": scenario, "gust": data.get("gust")} if scenario == "disturbance" else {}
+                    result = experiment(aircraft, pid=expected, axis=axis, sensor_period_ms=period, motor_mode=motor_mode, **options)
                     result["pid_profile"] = profile
                 except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:
                     self._send(self._json_bytes({"error": str(exc)}), "application/json; charset=utf-8", 400)
