@@ -872,7 +872,7 @@ class HttpMonitor:
                         raise ValueError("Недопустимый размер запроса")
                     data = _json.loads(self.rfile.read(length))
                     required = {"axis", "profile", "expected", "aircraft"}
-                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms", "motor_mode", "scenario", "gust"}:
+                    if not isinstance(data, dict) or not required <= set(data) or set(data) - required - {"sensor_period_ms", "motor_mode", "scenario", "gust", "expected_tpa"}:
                         raise ValueError("Нужны ось, профиль PID, снимок P/I/D Max и профиль аппарата")
                     period = data.get("sensor_period_ms", 4)
                     if type(period) is not int or period not in (2, 4, 8):
@@ -897,16 +897,33 @@ class HttpMonitor:
                     elif not isinstance(aircraft, dict):
                         raise ValueError("Некорректный профиль аппарата")
                     scenario = data.get("scenario", "step")
-                    if scenario not in ("step", "disturbance"):
-                        raise ValueError("Сценарий SITL должен быть ступенью или порывом")
-                    if scenario == "step" and "gust" in data:
-                        raise ValueError("Параметры порыва не используются при ступени")
+                    if scenario not in ("step", "disturbance", "reverse", "throttle"):
+                        raise ValueError("Неизвестный сценарий SITL")
+                    if scenario != "disturbance" and "gust" in data:
+                        raise ValueError("Параметры порыва используются только при порыве")
                     if scenario == "disturbance":
                         gust = data.get("gust")
                         if not isinstance(gust, dict) or set(gust) != {"moment_nm", "duration_ms"}:
                             raise ValueError("Укажите момент и длительность порыва")
                         GustSchedule(axis, gust["moment_nm"], gust["duration_ms"])
-                    options = {"scenario": scenario, "gust": data.get("gust")} if scenario == "disturbance" else {}
+                    if "expected_tpa" in data and scenario != "throttle":
+                        raise ValueError("TPA передаётся только для сценария высокого газа")
+                    tpa = data.get("expected_tpa")
+                    if scenario == "throttle":
+                        if (not isinstance(tpa, dict) or set(tpa) != {"mode", "rate", "breakpoint"} or
+                                type(tpa["mode"]) is not int or tpa["mode"] not in (0, 1) or
+                                type(tpa["rate"]) is not int or not 0 <= tpa["rate"] <= 100 or
+                                type(tpa["breakpoint"]) is not int or not 1000 <= tpa["breakpoint"] <= 2000):
+                            raise ValueError("Укажите корректный снимок режима, коэффициента и порога TPA")
+                        current_tpa = {key: int(fc.settings["tpa_"+key]) for key in ("mode", "rate", "breakpoint")}
+                        if current_tpa != tpa:
+                            self._send(self._json_bytes({"error": "Настройки TPA изменились. Обновите значения и повторите запуск."}),
+                                       "application/json; charset=utf-8", 409)
+                            return
+                    options = ({"scenario": scenario, "gust": data.get("gust")} if scenario == "disturbance"
+                               else ({"scenario": scenario} if scenario != "step" else {}))
+                    if scenario == "throttle":
+                        options["tpa"] = tpa
                     result = experiment(aircraft, pid=expected, axis=axis, sensor_period_ms=period, motor_mode=motor_mode, **options)
                     result["pid_profile"] = profile
                 except (ValueError, TypeError, OSError, _json.JSONDecodeError, PhysicsError) as exc:

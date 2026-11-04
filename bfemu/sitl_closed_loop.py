@@ -132,7 +132,8 @@ def run_loop(profile, model, motor_socket, state_socket, stream, *, duration, pe
 
 
 def run_event_loop(profile, model, motor_socket, state_socket, stream, *, duration, period, max_gap, pressure_pa,
-                   clock=time.monotonic, wait=select.select, environment='free', gust_schedule=None):
+                   clock=time.monotonic, wait=select.select, environment='free', gust_schedule=None,
+                   track_ground_intervals=False):
     """Интегрировать модель при чтении команд и отправлять датчики по собственному таймеру.
 
     Время чтения сокета — не метка формирования команды FC. Пакеты UDP не имеют
@@ -206,7 +207,7 @@ def run_event_loop(profile, model, motor_socket, state_socket, stream, *, durati
                                      'applied_commands': commands, 'next_commands': latest,
                                      'motor_full_output_since_sensor': full_output,
                                      'thrust_n': actuators.thrust_n, 'reaction_nm': actuators.reaction_nm,
-                                     'state': asdict(state), 'ground_contact': contact_since_sensor if gust_schedule else contact,
+                                     'state': asdict(state), 'ground_contact': contact_since_sensor if gust_schedule or track_ground_intervals else contact,
                                      'gust_active_s': gust_active_since_sensor}, ensure_ascii=False, allow_nan=False)+'\n')
             last_sensor = now
             last_sensor_state = state

@@ -536,8 +536,37 @@ def test_pid_sitl_gust_validation_and_forwarding(fc, monitor, monkeypatch):
                  {'moment_nm': True, 'duration_ms': 200}, {'moment_nm': .05, 'duration_ms': 200, 'extra': 1}):
         assert post(url, {**base, 'gust': gust})[0] == 400
     assert post(url, {**base, 'scenario': 'step'})[0] == 400
+    assert post(url, {**base, 'scenario': 'unknown'})[0] == 400
     assert post(url, {**base, 'scenario': 'throttle'})[0] == 400
     assert not seen
     assert post(url, base)[0] == 200
     assert seen[-1]['gust'] == base['gust'] and seen[-1]['scenario'] == 'disturbance'
     assert seen[-1]['motor_mode'] == 'event' and seen[-1]['axis'] == 'pitch'
+
+
+@pytest.mark.parametrize('scenario', ['reverse', 'throttle'])
+def test_pid_sitl_forwards_rc_scenarios(fc, monitor, monkeypatch, scenario):
+    from bfemu import aircraft_sitl, pid_trainer
+    seen = []
+    def fake(aircraft, **kwargs):
+        seen.append(kwargs)
+        return {'scenario': kwargs['scenario']}
+    monkeypatch.setattr(aircraft_sitl, 'experiment', fake)
+    state = pid_trainer.profile_state(fc, 'yaw')
+    payload = {'axis': 'yaw', 'profile': state['profile'], 'expected': state['values'],
+               'aircraft': None, 'scenario': scenario, 'motor_mode': 'event'}
+    if scenario == 'throttle':
+        payload['expected_tpa'] = {k: int(fc.settings['tpa_'+k]) for k in ('mode', 'rate', 'breakpoint')}
+    url = monitor+'/api/pid-trainer/sitl'
+    assert post(url, payload, {'Origin': 'http://evil.example'})[0] == 403
+    assert post(url, {**payload, 'profile': state['profile']+1})[0] == 409
+    assert not seen
+    assert post(url, payload)[0] == 200
+    assert seen[-1]['scenario'] == scenario and seen[-1]['axis'] == 'yaw'
+    assert seen[-1]['motor_mode'] == 'event' and seen[-1]['pid'] == state['values']
+    if scenario == 'throttle':
+        assert seen[-1]['tpa'] == payload['expected_tpa']
+        stale = {**payload['expected_tpa'], 'rate': (payload['expected_tpa']['rate']+1) % 101}
+        assert post(url, {**payload, 'expected_tpa': stale})[0] == 409
+        assert post(url, {**payload, 'expected_tpa': {'mode': True, 'rate': 40, 'breakpoint': 1500}})[0] == 400
+        assert len(seen) == 1

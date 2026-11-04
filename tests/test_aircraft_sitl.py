@@ -405,3 +405,90 @@ def test_live_status_does_not_hide_msp_error_or_worker_failure_after_reply():
             return b'status'
     with pytest.raises(PhysicsError, match='отказ расчёта'):
         _live_status(OtherClient(), errors)
+
+
+@pytest.mark.parametrize('scenario', ['reverse', 'throttle'])
+def test_rc_scenarios_deliver_explicit_commands_and_timestamp_transitions(scenario):
+    from bfemu.aircraft_sitl import _execute_rc_scenario
+    class Clock:
+        now = 10.
+        def read(self):
+            return self.now
+        def sleep(self, seconds):
+            assert seconds > 0
+            self.now += seconds
+    clock = Clock()
+    class Channels(list):
+        writes = []
+        def __setitem__(self, index, value):
+            self.writes.append((index, value))
+            super().__setitem__(index, value)
+    channels = Channels([1500, 1500, 1400, 1500, 1900] + [1000]*11)
+    start, end, events = _execute_rc_scenario(channels, 'pitch', scenario, clock=clock.read, sleep=clock.sleep)
+    assert start == 10 and end == pytest.approx(11.2)
+    assert channels[:5] == [1500, 1500, 1400, 1500, 1900]
+    if scenario == 'reverse':
+        expected = [('stick_start', 0, 1650), ('stick_reverse', .6, 1350), ('stick_center', 1.2, 1500)]
+    else:
+        expected = [('stick_start', 0, 1650), ('throttle_high', .3, 1800),
+                    ('stick_increase', .5, 1700), ('stick_decrease', 1.1, 1650),
+                    ('stick_center', 1.2, 1500), ('throttle_normal', 1.2, 1400)]
+    assert [event['kind'] for event in events] == [entry[0] for entry in expected]
+    assert [event['time']-start for event in events] == pytest.approx([entry[1] for entry in expected])
+    assert [event['value_us'] for event in events] == [entry[2] for entry in expected]
+    assert channels.writes == [(2 if kind.startswith('throttle_') else 1, value)
+                               for kind, _, value in expected]
+
+
+def test_rc_scenarios_reject_excessive_lateness():
+    from bfemu.aircraft_sitl import _execute_rc_scenario
+    now = [0.]
+    def sleep(seconds):
+        now[0] += seconds+.1
+    with pytest.raises(PhysicsError, match='Задержка'):
+        _execute_rc_scenario([1500]*16, 'roll', 'reverse', clock=lambda: now[0], sleep=sleep)
+
+
+def test_tpa_snapshot_is_written_and_verified_without_touching_other_fields(monkeypatch):
+    from bfemu import aircraft_sitl as sitl
+    class Client:
+        def __init__(self):
+            self.payload = bytes(range(61))
+        def request(self, code):
+            assert code == 94
+            return self.payload
+    def write(client, code, payload):
+        assert code == 95
+        client.payload = payload
+    client = Client()
+    monkeypatch.setattr(sitl, '_write', write)
+    values = {'mode': 0, 'rate': 40, 'breakpoint': 1600}
+    assert sitl.set_tpa_snapshot(client, values) == values
+    assert client.payload[:57] == bytes(range(57))
+    assert client.payload[57:] == bytes([0, 40, 64, 6])
+    for bad in ({'mode': True, 'rate': 40, 'breakpoint': 1600},
+                {'mode': 2, 'rate': 40, 'breakpoint': 1600},
+                {'mode': 1, 'rate': 101, 'breakpoint': 1600},
+                {'mode': 1, 'rate': 40, 'breakpoint': 999}):
+        with pytest.raises(PhysicsError, match='TPA'):
+            sitl.set_tpa_snapshot(Client(), bad)
+    monkeypatch.setattr(sitl, '_write', lambda *args: None)
+    with pytest.raises(PhysicsError, match='не подтвердил'):
+        sitl.set_tpa_snapshot(Client(), values)
+    client = Client()
+    client.payload = b'\0'*60
+    with pytest.raises(PhysicsError, match='формат'):
+        sitl.set_tpa_snapshot(client, values)
+
+
+@pytest.mark.skipif(not os.getenv('BFEMU_TEST_REAL_SITL'), reason='Нужен Betaflight SITL и свободные порты')
+@pytest.mark.parametrize('scenario,mode', [('reverse', 'poll'), ('throttle', 'event')])
+def test_real_rc_scenarios_confirm_pid_and_tpa(scenario, mode):
+    tpa = {'mode': 0, 'rate': 40, 'breakpoint': 1600} if scenario == 'throttle' else None
+    pid = {'p': 47, 'i': 84, 'd': 46}
+    result = experiment(build03(), axis='pitch', pid=pid, motor_mode=mode, scenario=scenario, tpa=tpa)
+    assert result['verified_pid']['values'] == pid
+    assert result['verified_tpa'] == tpa
+    assert result['rc_events'][0]['kind'] == 'stick_start'
+    assert any(e['kind'] == ('stick_reverse' if scenario == 'reverse' else 'throttle_high')
+               for e in result['rc_events'])

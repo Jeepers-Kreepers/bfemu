@@ -263,6 +263,25 @@ def set_pid_snapshot(client, axis, pid):
     return {'axis': axis, 'values': dict(pid)}
 
 
+def set_tpa_snapshot(client, tpa):
+    """Передать только режим, коэффициент и порог TPA через MSP 4.5.4."""
+    if (not isinstance(tpa, dict) or set(tpa) != {'mode', 'rate', 'breakpoint'} or
+            type(tpa['mode']) is not int or tpa['mode'] not in (0, 1) or
+            type(tpa['rate']) is not int or not 0 <= tpa['rate'] <= 100 or
+            type(tpa['breakpoint']) is not int or not 1000 <= tpa['breakpoint'] <= 2000):
+        raise PhysicsError('Некорректные значения режима, коэффициента или порога TPA.')
+    original = client.request(94)  # MSP_PID_ADVANCED
+    if len(original) != 61:
+        raise PhysicsError('Неожиданный формат MSP_PID_ADVANCED; настройки TPA не отправлены.')
+    payload = bytearray(original)
+    payload[57:61] = bytes((tpa['mode'], tpa['rate'])) + struct.pack('<H', tpa['breakpoint'])
+    _write(client, 95, bytes(payload))  # MSP_SET_PID_ADVANCED
+    actual = client.request(94)
+    if actual != bytes(payload):
+        raise PhysicsError('SITL не подтвердил настройки TPA через MSP_PID_ADVANCED.')
+    return dict(tpa)
+
+
 def _arming_disable_flags(status):
     """MSP_STATUS 4.5.4: флаги могут следовать за дополнительными байтами режимов."""
     if len(status) < 16:
@@ -354,13 +373,42 @@ def _live_status(client, errors):
     return status
 
 
+def _execute_rc_scenario(channels, axis, scenario, *, clock=time.monotonic, sleep=time.sleep):
+    """Команды отправителя; события не подтверждают приём отдельного RC-кадра FC."""
+    channel = AXES[axis][1]
+    phases = {
+        'reverse': [(0., 'stick_start', channel, 1650), (.6, 'stick_reverse', channel, 1350),
+                    (1.2, 'stick_center', channel, 1500)],
+        'throttle': [(0., 'stick_start', channel, 1650), (.3, 'throttle_high', 2, 1800),
+                     (.5, 'stick_increase', channel, 1700), (1.1, 'stick_decrease', channel, 1650),
+                     (1.2, 'stick_center', channel, 1500)],
+    }
+    start = clock()
+    events = []
+    for offset, kind, index, value in phases[scenario]:
+        remaining = start+offset-clock()
+        if remaining > 0:
+            sleep(remaining)
+        now = clock()
+        if now-(start+offset) > .08:
+            raise PhysicsError('Задержка переключения RC превысила 80 мс; эксперимент остановлен.')
+        channels[index] = value
+        events.append({'kind': kind, 'time': now, 'value_us': value})
+    if scenario == 'throttle':
+        channels[2] = 1400
+        events.append({'kind': 'throttle_normal', 'time': clock(), 'value_us': 1400})
+    return start, events[-1]['time'], events
+
+
 def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode='poll', timing_probe=None,
-               scenario='step', gust=None, _event_loop=None, _pid_process_denom=None):
-    """Изолированный SITL: ступень или внешний момент при центрированных стиках."""
+               scenario='step', gust=None, tpa=None, _event_loop=None, _pid_process_denom=None):
+    """Изолированный SITL: ступень, порыв, смена направления или высокий газ."""
     if axis not in AXES:
         raise PhysicsError('Неизвестная ось эксперимента SITL.')
-    if scenario not in ('step', 'disturbance'):
+    if scenario not in ('step', 'disturbance', 'reverse', 'throttle'):
         raise PhysicsError('Неизвестный сценарий SITL.')
+    if tpa is not None and scenario != 'throttle':
+        raise PhysicsError('Настройки TPA допустимы только для сценария высокого газа.')
     schedule = None
     if scenario == 'disturbance':
         if not isinstance(gust, dict) or set(gust) != {'moment_nm', 'duration_ms'}:
@@ -370,7 +418,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
         except (ValueError, TypeError) as exc:
             raise PhysicsError(str(exc)) from exc
     elif gust is not None:
-        raise PhysicsError('Параметры порыва недопустимы для ступени.')
+        raise PhysicsError('Параметры порыва недопустимы для этого сценария.')
     if schedule is not None and _event_loop is not None:
         raise PhysicsError('Порыв не поддерживается исследовательским событийным адаптером.')
     if type(sensor_period_ms) is not int or sensor_period_ms not in (2, 4, 8):
@@ -416,6 +464,7 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                 if _pid_process_denom is not None:
                     verify_pid_denom(client, _pid_process_denom)
                 verified_pid = set_pid_snapshot(client, axis, pid) if pid is not None else None
+                verified_tpa = set_tpa_snapshot(client, tpa) if tpa is not None else None
                 _write(client, 35, bytes([0, 0, 0, 32, 48]))  # ARM на AUX1 1700–2100
                 deadline = time.monotonic()+8
                 while True:
@@ -446,6 +495,8 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                         extra = {'environment': 'ground-air-v1'} if _event_loop is None else {}
                         if schedule is not None:
                             extra['gust_schedule'] = schedule
+                        if scenario in ('reverse', 'throttle') and motor_mode == 'event' and _event_loop is None:
+                            extra['track_ground_intervals'] = True
                         loop(profile, curves, motor_input, fdm, output, duration=12, period=sensor_period_ms/1000,
                              max_gap=.5, pressure_pa=101325, clock=clock, **extra)
                     except Exception as exc:
@@ -480,7 +531,10 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     time.sleep(.6)
                     if not worker.is_alive():
                         raise PhysicsError('Расчёт завершился до команды стика.')
-                    if schedule is None:
+                    rc_events = []
+                    if scenario in ('reverse', 'throttle'):
+                        event_start, event_end, rc_events = _execute_rc_scenario(channels, axis, scenario)
+                    elif schedule is None:
                         event_start = time.monotonic()
                         channels[AXES[axis][1]] = 1650
                         time.sleep(1.2)
@@ -515,8 +569,11 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                     command_start, command_end = event_start-run_start[0], event_end-run_start[0]
                     if schedule is not None:
                         applied = _gust_delivery(rows, command_start, command_end, schedule.duration_s)
-                    elif _event_loop is None and any(row.get('ground_contact') for row in rows
-                                                     if command_start <= row['elapsed_s'] <= command_end):
+                    elif _event_loop is None and any(
+                            row.get('ground_contact') for row in rows
+                            if ((row['elapsed_s'] > command_start and row['elapsed_s']-row['dt_s'] < command_end)
+                                if scenario in ('reverse', 'throttle')
+                                else command_start <= row['elapsed_s'] <= command_end)):
                         raise PhysicsError('Во время команды аппарат касается земли; измените профиль аппарата.')
                     diagnostics = _diagnostics(rows, command_start, command_end, axis)
                     if schedule is not None:
@@ -527,14 +584,19 @@ def experiment(profile, *, pid=None, axis='roll', sensor_period_ms=4, motor_mode
                             'command_window_s': [round(event_start-run_start[0], 4), round(event_end-run_start[0], 4)],
                             'disarm_requested_s': round(disarm_requested-run_start[0], 4),
                             'source': SOURCE, 'firmware': 'Betaflight 4.5.4 SITL', 'axis': axis,
-                            'verified_pid': verified_pid, 'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
+                            'verified_pid': verified_pid, 'verified_tpa': verified_tpa,
+                            'diagnostics': diagnostics, 'sensor_period_ms': sensor_period_ms,
                             'motor_mode': motor_mode, 'scenario': scenario,
+                            'rc_events': [{'kind': event['kind'], 'time_s': round(event['time']-run_start[0], 4),
+                                           'value_us': event['value_us']} for event in rc_events],
                             'gust': ({**gust, 'applied_duration_s': applied} if schedule is not None else None),
                             'gust_window_s': ([round(command_start, 4), round(command_start+schedule.duration_s, 4)]
                                               if schedule is not None else None),
                             'verified_pid_denom': _pid_process_denom,
                             'note': ('Скорости физической модели, не MSP-гироскоп. '
-                                     + ('P/I/D Max выбранной оси подтверждены MSP; остальные PID-настройки и фильтры SITL заводские.'
+                                     + ('P/I/D Max выбранной оси подтверждены MSP; '+
+                                          ('TPA подтверждён MSP; прочие PID-настройки и фильтры SITL заводские.'
+                                           if verified_tpa else 'остальные PID-настройки и фильтры SITL заводские.')
                                         if verified_pid else 'PID заводской отдельного SITL.'))}
                 finally:
                     channels[2], channels[4] = 1000, 1000
